@@ -138,49 +138,94 @@ def _run_bridge(proj: str, bars: int = 0, seed: int = 0) -> dict[str, Any]:
     return bridge.strudel_to_score_ir(proj, run_eval=True, bars=bars, seed=seed)
 
 
+ROLE_PLUGIN = {
+    "kick": "gl.kick", "snare": "gl.snare", "hihat": "gl.hat", "clap": "gl.clap", "perc": "gl.hat",
+    "bass": "gl.fingerbass", "chords": "gl.keys", "lead": "gl.warmsynth", "counter": "gl.pluck",
+    "vocals": "gl.sampler", "fx": "gl.wavetable", "drums": "gl.kick", "remix_stem": "gl.sampler",
+}
+
+
 def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
+    """v4.1 — blueprint minimal VALIDE contre schemas/song_blueprint.schema.json, déduit du Strudel :
+    tracks = pistes `$` (rôle via classify_role, plugin gl.*), chord_progression = grille grid(),
+    motif_cell.apex_midi selon valence, structure = sections du @meta."""
     bp_path = os.path.join(proj, "song_blueprint.json")
     if os.path.isfile(bp_path):
         with open(bp_path, encoding="utf-8") as fh:
             return json.load(fh)
     haps_path = os.path.join(proj, "composition.strudel.haps.json")
-    meta = {}
+    haps = {}
     if os.path.isfile(haps_path):
         with open(haps_path, encoding="utf-8") as fh:
-            meta = (json.load(fh).get("meta") or {})
-    sections = meta.get("sections") or [{"name": "song", "bars": report.get("sections") and report["sections"][0]["bars"] or 16}]
+            haps = json.load(fh)
+    meta = haps.get("meta") or {}
+    from score_ir import classify_role
+    tracks = []
+    mixer_track = 1
+    for name in (haps.get("tracks") or {}):
+        role = classify_role(name)
+        plugin = None
+        for kw, plug in ROLE_PLUGIN.items():
+            if kw in str(name).lower():
+                plugin = plug
+                break
+        plugin = plugin or ROLE_PLUGIN.get(role, "gl.warmsynth")
+        tracks.append({"name": str(name), "role": role,
+                       "source_type": "vocaloid" if role == "vocals" else "gridline_native",
+                       "plugin": plugin, "mixer_track": mixer_track})
+        mixer_track = mixer_track + 1 if mixer_track < 16 else 1
+    if not tracks:
+        tracks = [{"name": "lead", "role": "lead", "source_type": "gridline_native", "plugin": "gl.warmsynth", "mixer_track": 1}]
+    progression = [c for c in (meta.get("progression") or []) if c]
+    chords = list(dict.fromkeys(progression))[:8] or ["Cm7"]
+    NOTE_PC = {"c": 0, "c#": 1, "db": 1, "d": 2, "d#": 3, "eb": 3, "e": 4, "f": 5, "f#": 6, "gb": 6, "g": 7, "g#": 8, "ab": 8, "a": 9, "a#": 10, "bb": 10, "b": 11}
+
+    def _root_pc(sym: str) -> int:
+        m = __import__("re").match(r"^([A-Ga-g])([#b]?)", str(sym))
+        return NOTE_PC.get((m.group(1) + m.group(2)).lower(), 0) if m else 0
+
+    chord_progression = [
+        {"bar": i + 1, "symbol": str(c), "bass_midi": 36 + _root_pc(c),
+         "voicing_midi": [60 + _root_pc(c), 63 + _root_pc(c), 67 + _root_pc(c)]}
+        for i, c in enumerate(chords)
+    ]
+    valence = float(meta.get("valence") or 0.0)
+    sections = meta.get("sections") or [{"name": "song", "bars": 16}]
     bp = {
         "title": os.path.basename(proj),
         "genre": str(meta.get("mix_profile") or "trap_rap"),
         "mix_profile": str(meta.get("mix_profile") or "trap_rap"),
-        "has_drums": True,
+        "has_drums": any(classify_role(n) == "drums" for n in (haps.get("tracks") or {})),
         "seed": int(meta.get("seed") or 42),
-        "emotion_vector": {"valence": float(meta.get("valence") or 0.0), "tension": 0.5, "energy": 0.7, "depth": 0.5},
+        "emotion_vector": {"valence": valence, "tension": 0.5, "energy": 0.7, "depth": 0.5},
         "bpm": float(meta.get("bpm") or 120.0),
         "time_signature": {"numerator": int((meta.get("time_signature") or {}).get("numerator") or 4),
                            "denominator": int((meta.get("time_signature") or {}).get("denominator") or 4)},
         "key": str(meta.get("key") or "C"),
         "harmonic_core": {"key": str(meta.get("key") or "C"), "mode": str(meta.get("mode") or "minor"),
-                          "progression_bars": 1, "chord_progression": [], "motif_cell": {}, "phrase_plan": "A-A'-A''-B"},
+                          "progression_bars": 1, "chord_progression": chord_progression,
+                          "motif_cell": {"intervals_from_tonic": [0, 3, 7], "rhythm_beats": [0, 2],
+                                         "apex_midi": 67 if valence < -0.2 else 72},
+                          "phrase_plan": "A-A'-A''-B"},
         "structure": [{"section": str(s.get("name") or "song"), "start_bar": i + 1, "bars": int(s.get("bars") or 4), "energy": 0.7}
                       for i, s in enumerate(sections)],
-        "tracks": [],
+        "tracks": tracks,
     }
-    try:
-        import jsonschema
-        with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
-            jsonschema.validate(bp, json.load(fh))
-    except Exception:
-        pass
+    import jsonschema
+    with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
+        jsonschema.validate(bp, json.load(fh))  # échec = bug : le blueprint auto doit être valide
     with open(bp_path, "w", encoding="utf-8") as fh:
         json.dump(bp, fh, ensure_ascii=False, indent=2)
     return bp
 
 
 def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto",
-                    auto_master: bool = True) -> dict[str, Any]:
+                    auto_master: bool = True, auto_prepare: bool = False,
+                    remix_source_path: str | None = None, lyrics_spec: dict | None = None) -> dict[str, Any]:
     """Tour 2 atomique : écrit composition.strudel, évalue (Node headless), compile le pont
-    (ScoreIR + garde-fous 0 token), puis enchaîne compile_song + master si auto_master."""
+    (ScoreIR + garde-fous 0 token), puis enchaîne compile_song + master si auto_master.
+    v4.1 : `auto_prepare=True` (Scénario A sans Samples/) résout localement (0 token) un blueprint
+    valide ; `remix_source_path` (Scénario C) / `lyrics_spec` (Scénario D) sont consignés dans le blueprint."""
     proj = os.path.abspath(os.path.expanduser(project_dir))
     os.makedirs(proj, exist_ok=True)
     strudel_path = os.path.join(proj, "composition.strudel")
@@ -202,7 +247,19 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
             return {"ok": False, "stage": "lint", "error": tail}
         return {"ok": False, "stage": "bridge", "error": msg[-300:]}
     report["palette_id"] = palette_id
-    _ensure_blueprint(proj, report)
+    bp = _ensure_blueprint(proj, report)
+    if auto_prepare:
+        bp["auto_prepared"] = True
+        report["auto_prepare"] = True
+    if remix_source_path:
+        bp["scenario"] = "C"
+        bp["remix_source_path"] = remix_source_path
+    if lyrics_spec:
+        bp["scenario"] = "D"
+        bp["lyrics_spec"] = lyrics_spec
+    if bp.get("scenario") or bp.get("auto_prepared"):
+        with open(os.path.join(proj, "song_blueprint.json"), "w", encoding="utf-8") as fh:
+            json.dump(bp, fh, ensure_ascii=False, indent=2)
 
     master = None
     if auto_master and report.get("ok"):
@@ -226,9 +283,10 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
 
 
 def refine_project(project_dir: str, delta_json: dict | None = None, strudel_patch: dict | None = None,
-                   export_mp3: bool = True) -> dict[str, Any]:
-    """Tour 3b quasi gratuit : voie rapide delta_json (mix/énergie, 0 réécriture musicale)
-    ou voie chirurgicale strudel_patch (2-4 lignes modifiées), puis handoff.txt."""
+                   semantic_patch: dict | None = None, export_mp3: bool = True) -> dict[str, Any]:
+    """Tour 3b quasi gratuit : delta_json (mix), strudel_patch (2-4 lignes Strudel),
+    ou v4.1 semantic_patch micro-tokens sur le ScoreIR ({"lead": {"oct": -1, "rests": "+15%"}},
+    {"section": "chorus", "ops": {"energy": "+2dB"}}), puis handoff.txt."""
     proj = os.path.abspath(os.path.expanduser(project_dir))
     report: dict[str, Any] = {"ok": True, "project_dir": proj}
     strudel_path = os.path.join(proj, "composition.strudel")
@@ -242,6 +300,12 @@ def refine_project(project_dir: str, delta_json: dict | None = None, strudel_pat
             report.update({k: rep.get(k) for k in ("ok", "n_tracks", "n_notes", "guards", "evaluate", "compile", "full_coverage", "sections", "seed")})
         except RuntimeError as exc:
             return {"ok": False, "stage": "lint", "error": str(exc)[-240:]}
+    if semantic_patch:
+        import strudel_to_score_ir as bridge
+        patch_result = bridge.apply_score_ir_patch(proj, semantic_patch)
+        report["semantic_patch"] = patch_result
+        if not patch_result.get("ok"):
+            return report
     if delta_json:
         with open(os.path.join(proj, "refine_delta.json"), "w", encoding="utf-8") as fh:
             json.dump(delta_json, fh, ensure_ascii=False, indent=2)
@@ -273,6 +337,8 @@ def _summarize(report: dict[str, Any], limit: int = 400) -> str:
         parts.append(f"patched=${report['patched']}")
     if report.get("delta_json"):
         parts.append("delta=refine_delta.json")
+    if report.get("semantic_patch"):
+        parts.append("semantic=" + ",".join(report["semantic_patch"].get("applied", []))[:80])
     parts.append("handoff=handoff.txt")
     return " | ".join(parts)[:limit]
 
@@ -293,19 +359,24 @@ def studio_prepare(project_dir: str, intent: str = "", refs: list[str] | None = 
 
 @_tool()
 def studio_compose(project_dir: str, strudel_code: str, palette_id: str = "auto",
-                   auto_master: bool = True) -> str:
-    """Tour 2 atomique : écrit composition.strudel, évalue (Node headless), compile ScoreIR +
-    garde-fous 0 token, chaine master si auto_master. Retour compact <=400 cars."""
-    report = compose_project(project_dir, strudel_code, palette_id=palette_id, auto_master=auto_master)
+                   auto_master: bool = True, auto_prepare: bool = False,
+                   remix_source_path: str | None = None, lyrics_spec: dict | None = None) -> str:
+    """Tour 2 atomique : strudel -> ScoreIR + garde-fous 0 token -> blueprint valide (auto_prepare,
+    0 token, Scénario A) -> master. Scénarios C/D : remix_source_path / lyrics_spec consignés dans
+    le blueprint. Retour compact <=400 cars."""
+    report = compose_project(project_dir, strudel_code, palette_id=palette_id, auto_master=auto_master,
+                             auto_prepare=auto_prepare, remix_source_path=remix_source_path, lyrics_spec=lyrics_spec)
     return _summarize(report)
 
 
 @_tool()
 def studio_refine(project_dir: str, delta_json: dict | None = None, strudel_patch: dict | None = None,
-                  export_mp3: bool = True) -> str:
-    """Tour 3b : delta_json (mix, ~40 tokens) ou strudel_patch {replace_track, code} (diff minimal).
+                  semantic_patch: dict | None = None, export_mp3: bool = True) -> str:
+    """Tour 3b : delta_json (mix), strudel_patch {replace_track, code}, ou semantic_patch
+    {"lead": {"oct": -1, "rests": "+15%"}} / {"section": "chorus", "ops": {"energy": "+2dB"}} (20-40 tokens).
     Retour compact <=400 cars + handoff.txt."""
-    report = refine_project(project_dir, delta_json=delta_json, strudel_patch=strudel_patch, export_mp3=export_mp3)
+    report = refine_project(project_dir, delta_json=delta_json, strudel_patch=strudel_patch,
+                            semantic_patch=semantic_patch, export_mp3=export_mp3)
     return _summarize(report)
 
 

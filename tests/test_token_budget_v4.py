@@ -168,5 +168,48 @@ class TestStrudelPreludeAndLint(unittest.TestCase):
             self.assertLessEqual(_tokens(text), 350.0)
 
 
+@unittest.skipUnless(HAVE_STRUDEL, "node + @strudel requis")
+class TestV41AutoPrepareAndSemanticPatch(unittest.TestCase):
+    """v4.1 P5 — studio_compose(auto_prepare=True) produit seul un blueprint VALIDE contre le schéma,
+    et studio_refine(semantic_patch=...) applique des opérateurs micro-tokens sur le ScoreIR."""
+
+    def test_auto_blueprint_valid_against_schema(self):
+        import jsonschema
+        import prod_server
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(ROOT, "assets", "composition_trap_example.strudel"), encoding="utf-8") as fh:
+                src = fh.read()
+            rep = prod_server.compose_project(td, src, palette_id="auto", auto_master=False, auto_prepare=True)
+            self.assertTrue(rep.get("ok"), json.dumps(rep, default=str)[:300])
+            self.assertTrue(rep.get("auto_prepare"))
+            bp_path = os.path.join(td, "song_blueprint.json")
+            self.assertTrue(os.path.isfile(bp_path))
+            with open(bp_path, encoding="utf-8") as fh:
+                bp = json.load(fh)
+            with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
+                schema = json.load(fh)
+            jsonschema.validate(bp, schema)  # lève si invalide
+            self.assertGreaterEqual(len(bp["tracks"]), 1)
+            self.assertGreaterEqual(len(bp["harmonic_core"]["chord_progression"]), 1)
+            self.assertIn("apex_midi", bp["harmonic_core"]["motif_cell"])
+
+    def test_semantic_patch_via_refine(self):
+        import prod_server
+        from score_ir import ScoreIR
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(ROOT, "assets", "composition_trap_example.strudel"), encoding="utf-8") as fh:
+                src = fh.read()
+            rep = prod_server.compose_project(td, src, auto_master=False)
+            self.assertTrue(rep.get("ok"))
+            before = ScoreIR.load(os.path.join(td, "score_ir.json"))
+            lead_before = sorted({int(n.pitch) for n in before.tracks["lead"].notes})
+            out = prod_server.refine_project(td, semantic_patch={"lead": {"oct": -1}}, export_mp3=False)
+            self.assertTrue(out.get("ok"), json.dumps(out, default=str)[:300])
+            self.assertTrue(out.get("semantic_patch", {}).get("applied"))
+            after = ScoreIR.load(os.path.join(td, "score_ir.json"))
+            lead_after = sorted({int(n.pitch) for n in after.tracks["lead"].notes})
+            self.assertEqual(lead_after, sorted({p - 12 for p in lead_before}), "oct:-1 doit baisser d'une octave")
+
+
 if __name__ == "__main__":
     unittest.main()

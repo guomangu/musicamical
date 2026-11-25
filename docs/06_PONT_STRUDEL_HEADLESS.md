@@ -142,3 +142,13 @@ width, sends FX, sidechain et limiteur master** optimaux :
 - Sortie = dict §6.1 du spec + `saturated_tracks_for_swap` → escalade `AUTO_SWAP_SAMPLE` (0 token).
 - Tests bloquants : `tests/test_math_mix_solver.py` (6 tests : contrat §6.1, conflit spectral sévère, perte
   L/R + mono, parsimonie ±0,3 dB, source défectueuse, CPU < 1,0 s sur 8 stems stéréo x 12 mesures).
+
+## 10. Scénarios C (Remix) et D (Chant) dans la façade v4.1
+
+- `studio_prepare(project_dir, intent, remix="<chemin>", lyrics={...})` : comme en v3.3, `remix`
+  renvoie BPM/clé/grille du morceau source (Scénario C) et `lyrics` les syllabes/pauses (Scénario D).
+- `studio_compose(..., remix_source_path="...", lyrics_spec={...})` : consigne `scenario: "C"|"D"` +
+  la source/les paroles dans `song_blueprint.json` (généré automatiquement, valide schéma).
+- Piste vocale dans `composition.strudel` : déclarez simplement `$vocals: ...` (1 piste = 1 rôle) ;
+  le pont classe le rôle `vocals` et `song_builder` applique `vocal_arrangement_sync.py` (P6) dès
+  que `.ustx`/`vocals.wav` est présent. Stems découpés d'un remix : pistes `$stem_<nom>` (rôle `remix_stem`).
