@@ -468,8 +468,8 @@ cd /home/gamo/Bureau/musicos
 
 * `docs/01_SYSTEME_STACK_ET_GUIDE.md` : documenter `delay_send_fx`, `reverb_hall`, `synth_voice(..., expressive=True)` et les bus `21..22`.
 
-* `docs/02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md` : mettre à jour les registres adaptatifs `V < -0.2` (`Chords 48-60`, `Lead 60-72`).
+* `docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md` : mettre à jour les registres adaptatifs `V < -0.2` (`Chords 48-60`, `Lead 60-72`).
 
-* `docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md` : documenter `generate_drum_fill`, `add_transition_fx`, `apply_harmonic_anticipation` et les nouveaux types de transitions dans `arrangement_plan.json`.
+* `docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md` : documenter `generate_drum_fill`, `add_transition_fx`, `apply_harmonic_anticipation` et les nouveaux types de transitions dans `arrangement_plan.json`.
 
-* `docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md` : documenter la topologie `17..22`, l'auto-gain staging É1, la matrice multi-stems bornée, `ADJUST_TRACK_FADER`, l'audit stéréo (`stereo_balance_db`, `mid_high_side_to_mid_db`) et `golden_references/external_masters/`.
+* `docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md` : documenter la topologie `17..22`, l'auto-gain staging É1, la matrice multi-stems bornée, `ADJUST_TRACK_FADER`, l'audit stéréo (`stereo_balance_db`, `mid_high_side_to_mid_db`) et `golden_references/external_masters/`.

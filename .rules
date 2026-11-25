@@ -20,17 +20,16 @@ Tu es le **compositeur, arrangeur et ingénieur du son autonome** du studio `$AI
 
 ## 2. Routage Documentaire Just-In-Time (Économie de Tokens)
 
-**Pour PRODUIRE un morceau, lis d'abord [`DOCUMENTATION_IA/`](DOCUMENTATION_IA/README.md) (3 documents compacts à la racine : workflow, contrat Strudel v4.1, façade 3 outils) ; les facettes `docs/` servent au développement.**
-**Ne lis JAMAIS les 5 facettes `docs/` en entier par défaut.** Consulte **`docs/00_SOMMAIRE.md`** (Tour 0) pour localiser immédiatement n'importe quel fichier, fonction Python ou outil MCP dans l'ordre du workflow, puis ouvre uniquement la facette nécessaire au tour courant :
+**Pour PRODUIRE un morceau, lis d'abord [`DOCUMENTATION_IA/`](DOCUMENTATION_IA/README.md) (2 documents compacts à la racine : README + guide de production qualité) ; les 5 docs numérotées `docs/00`–`04` servent au développement.**
+**Ne lis JAMAIS les 5 documents `docs/` (00–04) en entier par défaut.** Consulte **`docs/00_SOMMAIRE.md`** (Tour 0) pour localiser immédiatement n'importe quel fichier, fonction Python ou outil MCP dans l'ordre du workflow, puis ouvre uniquement la facette nécessaire au tour courant :
 
 | Étape du Workflow | Facette à consulter | Contenu clé |
 | :--- | :--- | :--- |
-| **0. Sommaire & Carte du Framework** | [docs/00_SOMMAIRE.md](docs/00_SOMMAIRE.md) | Index complet des dossiers, scripts, MCP, tests et ordre d'utilité `0 → 7` |
+| **0. Sommaire & Carte du Framework** | [docs/00_SOMMAIRE.md](docs/00_SOMMAIRE.md) | Index complet des dossiers, scripts, MCP, tests et ordre d'utilité `0 → 4` |
 | **1. Outils, plugins `gl.*`, DSL, unités, Vocaloid** | [docs/01_SYSTEME_STACK_ET_GUIDE.md](docs/01_SYSTEME_STACK_ET_GUIDE.md) | Stack Linux/PipeWire, catalogue `gl.*`, DSL `gl_dsl.py`, conversion unités, budget CPU |
-| **2. Émotion `(V,T,E,D)`, gamme, accords, groove** | [docs/02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md](docs/02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md) | Table MIDI (`Lead <= 74`), 14 progressions, mélodie duale, `groove_lib.py`, 11 matrices rythmiques, palettes |
-| **3. Blueprint, structure, MIDI Gate / Autofix, build** | [docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md](docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md) | Schéma JSON (`has_drums`), arrangement & `transitions_lib.py`, plafond 5–8 pistes, `audit_midi_harmony` + `midi_autofix.py`, `song_builder.py` |
-| **4. Sélection/prépa samples, APIs, Remix, Chant** | [docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md](docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md) | Base unifiée `samples.db` (`sample_dsp_metrics`), `mono_oneshot`, `sample_prep_lib.py`, Reverse-Engineering, Vocaloid |
-| **5. Mixage multi-genres, Stems, Auto-Fix & Gate** | [docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md](docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md) | 7 profils `--profile`, `analyze_stem_hierarchy`, `spectral_match_score`, `render_and_audit.py --auto-fix`, playbook & références |
+| **2. Composition (émotion, gammes, accords, groove) & architecture (blueprint, MIDI Gate, build)** | [docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md](docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md) | Table MIDI (`Lead <= 74`), 14 progressions, `groove_lib.py`, 11 matrices rythmiques, palettes ; schéma JSON (`has_drums`), arrangement & `transitions_lib.py`, `audit_midi_harmony` + `midi_autofix.py`, `song_builder.py` |
+| **3. Production : samples, APIs, Remix/Chant, pont Strudel headless, Audio Intelligence v2** | [docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md](docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md) | Base unifiée `samples.db` (`sample_dsp_metrics`), `mono_oneshot`, `sample_prep_lib.py`, Reverse-Engineering, Vocaloid, pont Strudel 0 token, guide conception agents, MIR v2 |
+| **4. Mixage multi-genres, Stems, Auto-Fix & Gate** | [docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md](docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md) | 7 profils `--profile`, `analyze_stem_hierarchy`, `spectral_match_score`, `render_and_audit.py --auto-fix`, playbook & références |
 
 ---
 
@@ -54,7 +53,7 @@ Tu es le **compositeur, arrangeur et ingénieur du son autonome** du studio `$AI
    - Auditer les fenêtres de couture de `4` mesures (`±2` mes. autour des transitions majeures + `Outro`) via **`audio-analyzer:audit_horizontal_seam`** (`scripts/horizontal_tester.py`) : contraste `ΔLUFS`, événement de transition, `0` glitch `±150 ms` et extinction Outro `< -45 dBFS`.
 5. **Étage 4 — Rendu Final & Quality Gate (`render_and_audit.py`)** :
    - Lancer **1 unique rendu complet** via `.venv/bin/python scripts/render_and_audit.py <projet.gridline> -o renders/master.wav --profile <mix_profile> --blueprint song_blueprint.json --mp3 --sections "..." --auto-fix --max-passes 2` et vérifier **`quality_gate.passed == true`**.
-   - Capitaliser toute nouvelle découverte technique ou métrique finale dans [docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md](docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md).
+   - Capitaliser toute nouvelle découverte technique ou métrique finale dans [docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md](docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md).
 
 ---
 
@@ -99,7 +98,7 @@ Tu es le **compositeur, arrangeur et ingénieur du son autonome** du studio `$AI
 
 ## 4ter. Addendum v4.0 — Frontend Strudel headless (pont `composition.strudel` → `ScoreIR`)
 
-- **Nouveau frontend de composition économe en tokens** (voir [docs/06_PONT_STRUDEL_HEADLESS.md](docs/06_PONT_STRUDEL_HEADLESS.md)) : au Tour 2, le LLM peut écrire **1 seul `<projet>/composition.strudel`** (~300–600 tokens) au lieu de `arrangement_plan.json`. Le pont s'exécute en local à **0 token LLM** :
+- **Nouveau frontend de composition économe en tokens** (voir [docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md](docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md)) : au Tour 2, le LLM peut écrire **1 seul `<projet>/composition.strudel`** (~300–600 tokens) au lieu de `arrangement_plan.json`. Le pont s'exécute en local à **0 token LLM** :
   1. `node scripts/strudel_eval.mjs <projet>/composition.strudel --bars N --seed S` — évaluation **Node.js headless pure** (`@strudel/core` + `queryArc`, PRNG déterministe via `seed`) → Haps JSON (`schemas/strudel_haps.schema.json`). **Jamais** de Chromium/`snd-virmidi`/temps réel dans le pipeline IA (jam humain optionnel hors boucle).
   2. `python3 scripts/strudel_to_score_ir.py <projet> --eval` — Haps → `score_ir.json` + `arrangement_plan.json`, avec les **mêmes garde-fous 0 token** que la v3.x : registre 808 plié dans `[31, 48]`, apex Lead `<= 74`, voice leading + LIL sur les accords (`[48, 72]`), correction des frottements `b2` Lead/accord + snap gamme (`autofix_score_ir`), dédup onsets mono + `enforce_frequency_inertia`, clamp frontière 20 ms + `sanitize_note_overlaps`, `FullCoverageCoreValidator`.
   3. Ensuite **pipeline inchangé** : `compile_song.py <projet>` compile l'`arrangement_plan.json` généré (mêmes canaux/bus `17..22`, `gl_dsl`, mix, quality gate). Les deux frontends (`arrangement_plan.json` v3.x et `composition.strudel` v4.0) convergent vers le **même `ScoreIR`**.

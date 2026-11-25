@@ -1,6 +1,6 @@
 # AGENT RUNBOOK V4.1 — 2 tours (1 si auto_prepare), préfixe 100 % statique (prompt caching)
 
-v4.1 · [archive](REFERENCE_ARCHIVE.md) · [pont](06_PONT_STRUDEL_HEADLESS.md) · [RETEX](RETEX_SESSION_RAP_FR_2026-11-25.md) · [guide conception](07_GUIDE_CONCEPTION_STRUDEL.md).
+v4.1 · [archive](REFERENCE_ARCHIVE.md) · [pont](03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md) · [RETEX](REFERENCE_ARCHIVE.md) · [guide conception](03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md).
 
 ## Flux
 1. `studio_prepare(project_dir, intent)` — **Scénarios B/C/D seuls** (`remix`, `lyrics`). Sans `Samples/` : étape 2 directe, `auto_prepare=true` (palette `auto` = synthés `gl.*`, 0 token). Le `CTX` du retour est une **valeur par défaut à surcharger** dans `@meta`.

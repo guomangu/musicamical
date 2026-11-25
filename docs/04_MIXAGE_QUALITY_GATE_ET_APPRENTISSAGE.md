@@ -1,3 +1,9 @@
+# 04 — Mixage multi-genres, quality gate & apprentissage
+
+> Ancienne facette 05 (contenu intégral conservé ci-dessous).
+
+---
+
 # Facette 5 — Mixage Multi-Genres, Stems, Auto-Fix, Quality Gate & Références
 
 > **Cheatsheet IA (L'essentiel v2.1 — Loop-First É1 → É4)**
@@ -224,4 +230,4 @@ headless (`scripts/strudel_eval.mjs`) puis compilé par `scripts/strudel_to_scor
 `arrangement_plan.json` **avec les mêmes garde-fous 0 token** (registre 808 `[31,48]`, apex Lead `<= 74`,
 voice leading + LIL, b2, clamp frontière 20 ms, `FullCoverageCoreValidator`). Le rendu final passe ensuite
 par **ce même quality gate** (`render_and_audit.py --auto-fix`, matrice stems, corridors spectraux) : aucune
-règle de mix n'est affaiblie par le pont Strudel. Doc : [06_PONT_STRUDEL_HEADLESS.md](06_PONT_STRUDEL_HEADLESS.md).
+règle de mix n'est affaiblie par le pont Strudel. Doc : [03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md](03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md).

@@ -3,16 +3,16 @@
 Studio complet de production musicale assistée par IA sur **Fedora / Ultramarine 44 (PipeWire + Wayland)** dans `$AI_STUDIO_DIR` (accessible aussi via `~/Music/AI-Studio`).
 
 ## Documentation pour l'IA de production (lire CECI en priorité pour générer un morceau)
-- [**DOCUMENTATION_IA/**](DOCUMENTATION_IA/README.md) — 3 documents compacts et complets (workflow 2 tours, contrat Strudel v4.1 + exemple canonique testé, pre-flight du gate, façade 3 outils `ai-studio-prod`, qualité mix & samples v2). Ne lis PAS les facettes `docs/` en entier pour produire un morceau.
+- [**DOCUMENTATION_IA/**](DOCUMENTATION_IA/README.md) — **2 documents** compacts et complets (README + guide de production qualité : workflow 2 tours, contrat Strudel v4.1 + exemple canonique testé, pre-flight du gate, façade 3 outils `ai-studio-prod`, qualité sons/mix/samples, bonnes pratiques). Ne lis PAS les 5 documents `docs/` (00–04) en entier pour produire un morceau.
 
 ## Documentation (5 Facettes Universelles & Optimisées pour Agents IA)
 - **Règles normatives agents IA (Routeur + Machine à états 5 tours)** : [`.rules`](.rules) (liées par `GEMINI.md` et `AGENTS.md`)
 - **Facette 1 — Système, Stack, Gridline `0.7.7`, Unités & Guide Utilisateur** : [`docs/01_SYSTEME_STACK_ET_GUIDE.md`](docs/01_SYSTEME_STACK_ET_GUIDE.md)
-- **Facette 2 — Composition Universelle, Émotion `(V, T, E, D)`, Harmonie, Mélodie & Rythmes Multi-Genres** : [`docs/02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md`](docs/02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md)
-- **Facette 3 — Blueprint, Arrangement, Top-Down, MIDI Gate & Patron `compile_song.py` (`build_song.py` LEGACY v2.1)** : [`docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md`](docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md)
-- **Facette 4 — DSP Déterministe, Samples, APIs Audio, Remix & Chant (Vocaloid)** : [`docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md`](docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md)
-- **Facette 5 — Mixage Multi-Genres, Buses/FX, Quality Gate, Symptôme→Fix & Playbook** : [`docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md`](docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md)
-- **Facette 6 — v4.0 Pont Strudel headless (frontend de composition ultra-compact, économe en tokens)** : [`docs/06_PONT_STRUDEL_HEADLESS.md`](docs/06_PONT_STRUDEL_HEADLESS.md)
+- **Facette 2 — Composition Universelle, Émotion `(V, T, E, D)`, Harmonie, Mélodie & Rythmes Multi-Genres** : [`docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md`](docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md)
+- **Facette 3 — Blueprint, Arrangement, Top-Down, MIDI Gate & Patron `compile_song.py` (`build_song.py` LEGACY v2.1)** : [`docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md`](docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md)
+- **Facette 4 — DSP Déterministe, Samples, APIs Audio, Remix & Chant (Vocaloid)** : [`docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md`](docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md)
+- **Facette 5 — Mixage Multi-Genres, Buses/FX, Quality Gate, Symptôme→Fix & Playbook** : [`docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md`](docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md)
+- **Facette 6 — v4.0 Pont Strudel headless (frontend de composition ultra-compact, économe en tokens)** : [`docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md`](docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md)
 
 ## Briques installées et actives
 1. **Gridline `0.7.7`** : MCP natif activé (`mcp.enabled: true`, `mcp.allowEdits: true`, port `47390`), modèles de séparation de stems téléchargés (`htdemucs` et `htdemucs_6s`).
@@ -33,7 +33,7 @@ Le LLM peut désormais écrire **un seul `composition.strudel` compact** (~300�
 convertit les Haps en `ScoreIR` + `arrangement_plan.json` **en appliquant les mêmes garde-fous 0 token**
 (registre 808 `[31,48]`, apex Lead, voice leading + LIL, b2, clamp 20 ms, `FullCoverageCoreValidator`) ;
 le pipeline v3.x (`compile_song.py` → Gridline → quality gate) reste inchangé. Voir
-[`docs/06_PONT_STRUDEL_HEADLESS.md`](docs/06_PONT_STRUDEL_HEADLESS.md) et l'exemple
+[`docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md`](docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md) et l'exemple
 [`assets/composition_trap_example.strudel`](assets/composition_trap_example.strudel).
 Dépendances Node : `cd scripts && npm install` (fait automatiquement par `install.sh` si `node` est présent).
 

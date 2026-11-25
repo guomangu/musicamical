@@ -19,7 +19,7 @@ Usage :
   .venv/bin/python scripts/preflight_strudel_gate.py --safe-degrees "Cm7 Abmaj7 Ebmaj7 Bb7" --mode minor
 
 Seuils (MusicalityThresholds) : stepwise >= 0.65, gap_fill >= 0.60, rest in [0.20, 0.50],
-contrary_or_oblique >= 0.55 (si basse présente). Voir docs/07_GUIDE_CONCEPTION_STRUDEL.md.
+contrary_or_oblique >= 0.55 (si basse présente). Voir docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md.
 """
 from __future__ import annotations
 

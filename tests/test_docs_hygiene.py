@@ -102,11 +102,10 @@ class TestDocsCoherenceCI(unittest.TestCase):
 
         normative_files = [
             os.path.join(ROOT, "docs", "AGENT_RUNBOOK.md"),
-            os.path.join(ROOT, "docs", "05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md"),
+            os.path.join(ROOT, "docs", "04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md"),
             os.path.join(ROOT, "docs", "01_SYSTEME_STACK_ET_GUIDE.md"),
-            os.path.join(ROOT, "docs", "02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md"),
-            os.path.join(ROOT, "docs", "04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md"),
-            os.path.join(ROOT, "docs", "AUDIT_CARENCES_ET_SOLUTIONS_V3_2.md"),
+            os.path.join(ROOT, "docs", "02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md"),
+            os.path.join(ROOT, "docs", "03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md"),
         ]
         # valeurs périmées interdites dans les docs normatives (anciennes contradictions)
         forbidden = [
@@ -136,14 +135,14 @@ class TestDocsCoherenceCI(unittest.TestCase):
 
 class TestDocsCoherenceCIv33(unittest.TestCase):
     """v3.3 J0 — CI documentaire renforcée (doc audit v3.3 §0) :
-    0 divergence numérique dans TOUS les tableaux de docs/05_*, runbook aligné v3.3,
+    0 divergence numérique dans TOUS les tableaux de docs/04_*, runbook aligné v3.3,
     0 numérotation dupliquée / non croissante, 0 tableau à colonnes décalées."""
 
     def _docs_files(self):
         base = os.path.join(ROOT, "docs")
         return [os.path.join(base, fn) for fn in sorted(os.listdir(base)) if fn.endswith(".md")]
 
-    def test_no_numeric_divergence_in_all_05_tables(self):
+    def test_no_numeric_divergence_in_all_04_tables(self):
         forbidden = [
             "soft `8 %`", "saturation douce `10 %`",
             ">= +2 db", "[+2.5,+9.5]", "[+2.5, +9.5]",
@@ -151,7 +150,7 @@ class TestDocsCoherenceCIv33(unittest.TestCase):
         ]
         bad = []
         for p in self._docs_files():
-            if not os.path.basename(p).startswith("05_"):
+            if not os.path.basename(p).startswith("04_"):
                 continue
             with open(p, encoding="utf-8") as fh:
                 for i, ln in enumerate(fh, 1):
@@ -161,7 +160,7 @@ class TestDocsCoherenceCIv33(unittest.TestCase):
                     for f in forbidden:
                         if f.replace(",", ".").lower() in low:
                             bad.append(f"{os.path.basename(p)}:{i}: {f}")
-        self.assertEqual(bad, [], f"valeurs divergentes dans les tableaux docs/05_* : {bad}")
+        self.assertEqual(bad, [], f"valeurs divergentes dans les tableaux docs/04_* : {bad}")
 
     def test_runbook_synced_with_v33(self):
         p = os.path.join(ROOT, "docs", "AGENT_RUNBOOK.md")

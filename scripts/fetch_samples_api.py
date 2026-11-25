@@ -4,7 +4,7 @@ Online Sample Fetcher (Freesound API v2 & Lots of Sounds API) with Automatic
 24-bit WAV Normalization and Psychoacoustic Quality Gate.
 
 Documentation:
-  docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md
+  docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md
 """
 
 from __future__ import annotations

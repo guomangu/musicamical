@@ -20,7 +20,7 @@ Seul ce fichier est lu en production. Archive : [REFERENCE_ARCHIVE.md](REFERENCE
   `1 piste $ = 1 rôle atomique` + `// @strudel-meta`), puis `node scripts/strudel_eval.mjs <proj>/composition.strudel --bars N --seed S`
   (headless pur) et `python3 scripts/strudel_to_score_ir.py <proj> --eval` → Haps → `ScoreIR` + `arrangement_plan.json`
   avec garde-fous 0 token (registre 808 `[31,48]`, apex Lead `<= 74`, LIL, b2, clamp 20 ms) → même compilation ensuite.
-  Détails : [06_PONT_STRUDEL_HEADLESS.md](06_PONT_STRUDEL_HEADLESS.md).
+  Détails : [03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md](03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md).
 - **Profil v4.0 `ai-studio-prod`** (façade 3 outils, 2 tours, runbook dédié ≤ 750 tokens) : voir [AGENT_RUNBOOK_V4.md](AGENT_RUNBOOK_V4.md).
 - `blueprint_enricher.py` complète proprement tout champ créatif omis sans écraser les choix explicites.
 - `blueprint_safety` bloque : root_note faux, S_max > 5/7 st, boucle hors gamme/tempo, cloche hors {1,5,8}.
