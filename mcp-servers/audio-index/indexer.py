@@ -631,12 +631,26 @@ def populate_dsp_metrics(
     if force:
         sql = "SELECT id, path, peak_db FROM samples WHERE ext != '.mid' AND ext != '.midi'"
     else:
-        sql = (
-            "SELECT s.id, s.path, s.peak_db FROM samples s "
-            "LEFT JOIN sample_dsp_metrics d ON d.sample_id = s.id "
-            "WHERE s.ext != '.mid' AND s.ext != '.midi' "
-            "AND (d.sample_id IS NULL OR d.updated_at < s.file_mtime)"
-        )
+        has_q2 = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sample_quality_v2'"
+        ).fetchone() is not None
+        if has_q2:
+            # v4.1 backfill : rows déjà analysées en DSP mais sans profil qualité v2
+            # (sinon q2_pass reste à 0 en incrémental et l'exclusion REJECTED ne s'applique jamais)
+            sql = (
+                "SELECT s.id, s.path, s.peak_db FROM samples s "
+                "LEFT JOIN sample_dsp_metrics d ON d.sample_id = s.id "
+                "LEFT JOIN sample_quality_v2 q2 ON q2.sample_id = s.id "
+                "WHERE s.ext != '.mid' AND s.ext != '.midi' "
+                "AND (d.sample_id IS NULL OR d.updated_at < s.file_mtime OR q2.sample_id IS NULL)"
+            )
+        else:
+            sql = (
+                "SELECT s.id, s.path, s.peak_db FROM samples s "
+                "LEFT JOIN sample_dsp_metrics d ON d.sample_id = s.id "
+                "WHERE s.ext != '.mid' AND s.ext != '.midi' "
+                "AND (d.sample_id IS NULL OR d.updated_at < s.file_mtime)"
+            )
     if limit > 0:
         sql += f" LIMIT {int(limit)}"
     tasks = [(int(r["id"]), r["path"], r["peak_db"]) for r in conn.execute(sql).fetchall() if os.path.isfile(r["path"])]
