@@ -27,7 +27,7 @@ for _d in (SCRIPTS, os.path.join(ROOT, "mcp-servers", "audio-analyzer")):
         sys.path.insert(0, _d)
 
 import strudel_to_score_ir as bridge  # noqa: E402
-from score_ir import ScoreIR, LOW_INTERVAL_LIMIT  # noqa: E402
+from score_ir import ScoreIR  # noqa: E402
 
 NODE = shutil.which("node")
 STRUDEL_DEPS = os.path.isdir(os.path.join(SCRIPTS, "node_modules", "@strudel", "core"))

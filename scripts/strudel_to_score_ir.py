@@ -46,7 +46,6 @@ from score_ir import (  # noqa: E402
     classify_role,
     compile_score_ir_to_notes,
     evaluate_score_ir,
-    harmonic_grid_from_core,
     parse_key_tonic_pc,
     resolve_mode,
     segment_index_for_beat,
@@ -164,7 +163,6 @@ def haps_to_tracks(haps: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]
         progression.append(progression[-1] if progression else None)
     progression = progression[:bars]
     for name, tr in (haps.get("tracks") or {}).items():
-        role = classify_role(name)
         notes: list[dict[str, Any]] = []
         for ev in tr.get("events") or []:
             start_beats = float(ev.get("start", 0.0)) * bpb

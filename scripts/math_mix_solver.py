@@ -29,7 +29,6 @@ import math
 import os
 import sys
 import time
-from typing import Any
 
 ROOT = os.environ.get("AI_STUDIO_DIR") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS_DIR = os.path.join(ROOT, "scripts")
@@ -307,15 +306,11 @@ def solve_mix_parameters(
     overrides = dict(user_overrides or {})
     valence = float((emotion_vector or {}).get("valence", 0.0))
     depth = float((emotion_vector or {}).get("depth", 0.5))
-    energy = float((emotion_vector or {}).get("energy", 0.7))
     profile_cfg = get_profile_config(mix_profile, valence=valence)
     target_lufs = float(profile_cfg.get("target_lufs", -11.0))
     low_end_max = float(profile_cfg.get("low_end_max_pct", 42.0)) / 100.0
     ceiling = float(get_invariant("master_limiter_ceiling_dbtp", -1.2))
     max_lim_gain = float(get_invariant("master_limiter_max_gain_db", 5.5))
-    plr_floor = float(profile_cfg.get("min_short_term_plr_db", get_invariant("min_short_term_plr_db", 7.5)))
-    mono_max = float(get_invariant("mono_folddown_loss_max_db", 2.5))
-    stereo_max = float(get_invariant("stereo_balance_max_db", 1.2))
     hier = stem_hierarchy_bounds()
     if overrides.get("bass_vs_kick_target_db") is not None and "bass_vs_kick" in hier:
         hier = dict(hier)
@@ -546,10 +541,8 @@ def solve_mix_parameters(
         return float(min(plrs)) if plrs else 99.0
 
     base_lufs = integrated_lufs(mixed)
-    peak_db = 20.0 * math.log10(max(float(np.max(np.abs(mixed))), 1e-12))
     # dichotomie exacte du gain limiteur (≤ 8 itérations)
     g_lo, g_hi = 0.0, max_lim_gain
-    best = 0.0
     for _ in range(8):
         g_mid = (g_lo + g_hi) / 2.0
         _, tp, _ = limiter_model(mixed, g_mid, ceiling)
@@ -557,7 +550,6 @@ def solve_mix_parameters(
             g_hi = g_mid
         else:
             g_lo = g_mid
-            best = g_mid
     lim_gain = min(g_lo, max_lim_gain)
     lim_gain = max(0.0, min(lim_gain, target_lufs - base_lufs, max_lim_gain))
     master_y, tp_pred, _ = limiter_model(mixed, lim_gain, ceiling)

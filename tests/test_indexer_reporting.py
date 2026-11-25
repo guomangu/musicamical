@@ -126,5 +126,71 @@ class TestVerifyInstallBlueprintGuard(unittest.TestCase):
             self.assertIn("OK", msg)
 
 
+class TestSummarizeIndexReport(unittest.TestCase):
+    """v4.0 hotfix — `scripts/summarize_index_report.py` (appelé par install.sh étape 8/8) :
+    l'ancien heredoc `python - <<PYEOF` prenait le stdin du pipe, le rapport n'arrivait jamais
+    (json.loads("") -> JSONDecodeError char 0, ast.literal_eval("") -> SyntaxError) et
+    `set -euo pipefail` avortait install.sh. Le résumé doit lire VRAIMENT stdin et ne jamais
+    planter, quelle que soit l'entrée."""
+
+    def _script(self):
+        from summarize_index_report import parse_report, summarize
+        return parse_report, summarize
+
+    def test_preset_dict_repr(self):
+        _, summarize = self._script()
+        raw = "{'total_presets': 211, 'indexed': 0, 'skipped': 211, 'errors': 0, 'clap_embedded': 0}"
+        line = summarize("presets", raw)
+        self.assertIn("211 au total", line)
+        self.assertIn("211 déjà à jour", line)
+
+    def test_samples_json_with_rejected_reasons(self):
+        _, summarize = self._script()
+        raw = json.dumps({"scanned": 6, "total": 2, "indexed": 2, "skipped": 0, "rejected": 4,
+                          "rejected_reasons": {"bad_magic_bytes": 1}, "errors": 1,
+                          "dsp_total": 2, "clap_embedded": 0, "cards_total": 2})
+        line = summarize("samples", raw)
+        self.assertIn("6 scannés", line)
+        self.assertIn("4 rejetés (bad_magic_bytes: 1)", line)
+        self.assertIn("1 erreurs", line)
+
+    def test_empty_input_never_crashes(self):
+        parse_report, summarize = self._script()
+        self.assertIsNone(parse_report(""))
+        self.assertIn("illisible", summarize("presets", ""))  # cas exact du crash install.sh
+
+    def test_multiline_with_log_prefix(self):
+        parse_report, summarize = self._script()
+        raw = "[   INFO   ] MusicExtractorSVM: no classifier models\n{'total_presets': 211, 'indexed': 3, 'skipped': 208, 'errors': 0, 'clap_embedded': 3}\n"
+        r = parse_report(raw)
+        self.assertIsNotNone(r)
+        self.assertEqual(r["indexed"], 3)
+        self.assertIn("3 nouveaux", summarize("presets", raw))
+
+    def test_garbage_never_crashes(self):
+        _, summarize = self._script()
+        self.assertIn("illisible", summarize("samples", "garbage total"))
+
+    def test_cli_pipe_exit_zero_like_install(self):
+        import subprocess
+        script = os.path.join(ROOT, "scripts", "summarize_index_report.py")
+        for payload in ("", "{'total_presets': 211, 'indexed': 0, 'skipped': 211, 'errors': 0, 'clap_embedded': 0}"):
+            proc = subprocess.run([sys.executable, script, "presets"], input=payload,
+                                  capture_output=True, text=True, timeout=30)
+            self.assertEqual(proc.returncode, 0, f"stdin={payload!r} stderr={proc.stderr}")
+            self.assertIn("[AI-Studio]", proc.stdout)
+
+    def test_install_sh_delegates_to_script_no_heredoc_stdin(self):
+        import re
+        with open(os.path.join(ROOT, "install.sh"), encoding="utf-8") as fh:
+            src = fh.read()
+        self.assertIn("scripts/summarize_index_report.py", src)
+        m = re.search(r"summarize_index_report\(\)\s*\{(.*?)\n\}", src, re.S)
+        self.assertIsNotNone(m, "fonction summarize_index_report introuvable dans install.sh")
+        body = m.group(1)
+        self.assertNotIn("<<", body)  # plus d'heredoc qui volerait le stdin du pipe
+        self.assertIn("summarize_index_report.py", body)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -701,26 +701,11 @@ PY
 # Résumé humain d'un rapport d'indexation (lit stdin : JSON ou dict Python, affiche 1 ligne).
 # v3.3 hotfix : rend explicite "nouveaux / déjà à jour / rejetés (raisons)" pour ne plus
 # laisser croire que la phase d'indexation "n'a rien fait" quand tout est déjà en base.
+# v4.0 hotfix : la logique vit dans scripts/summarize_index_report.py (lit vraiment le stdin du
+# pipe et ne plante jamais l'install sous `set -euo pipefail`) ; l'ancien heredoc
+# `python - <<PYEOF` prenait le stdin du pipe, le rapport n'arrivait jamais (crash json.loads("")).
 summarize_index_report() {
-  local kind="$1"
-  "$STUDIO_DIR/.venv/bin/python" - "$kind" << 'PYEOF'
-import ast, json, sys
-kind = sys.argv[1]
-raw = sys.stdin.read()
-try:
-    r = json.loads(raw)
-except Exception:
-    r = ast.literal_eval(raw)
-if kind == "presets":
-    keys = ("total_presets", "indexed", "skipped", "errors", "clap_embedded")
-    print("[AI-Studio] Résumé presets gl.* : {total_presets} au total, {indexed} nouveaux, {skipped} déjà à jour (incrémental), {errors} erreurs, CLAP {clap_embedded}".format(**{k: r.get(k, 0) for k in keys}))
-else:
-    rr = r.get("rejected_reasons") or {}
-    det = " (" + ", ".join(f"{k}: {v}" for k, v in sorted(rr.items())) + ")" if rr else ""
-    err = f", {r.get('errors', 0)} erreurs" if r.get("errors") else ""
-    keys = ("scanned", "total", "indexed", "skipped", "rejected", "dsp_total", "clap_embedded", "cards_total")
-    print("[AI-Studio] Résumé samples : {scanned} scannés, {total} en base, {indexed} nouveaux, {skipped} déjà à jour (incrémental), {rejected} rejetés{d}{e}, DSP {dsp_total}, CLAP {clap_embedded}, cartes {cards_total}".format(d=det, e=err, **{k: r.get(k, 0) for k in keys}))
-PYEOF
+  "$STUDIO_DIR/.venv/bin/python" "$STUDIO_DIR/scripts/summarize_index_report.py" "$@"
 }
 
 index_samples_and_verify() {
