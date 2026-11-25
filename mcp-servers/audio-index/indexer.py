@@ -1056,6 +1056,25 @@ def index_directory(
     files, rejected = _iter_media_files(samples_dir)
     if limit > 0:
         files = files[:limit]
+
+    # v4.0 hotfix : purge les lignes dont le fichier a disparu du disque (packs supprimés
+    # entre deux runs) — jamais sous --limit, la liste tronquée ne reflète pas tout le dossier.
+    pruned = 0
+    if limit == 0:
+        root_real = os.path.realpath(os.path.abspath(samples_dir))
+        current = {os.path.realpath(f) for f, _ in files}
+        stale_ids = [
+            int(r["id"])
+            for r in conn.execute("SELECT id, path FROM samples").fetchall()
+            if os.path.realpath(r["path"]).startswith(root_real + os.sep) and os.path.realpath(r["path"]) not in current
+        ]
+        if stale_ids:
+            conn.executemany("DELETE FROM sample_dsp_metrics WHERE sample_id = ?", [(i,) for i in stale_ids])
+            conn.executemany("DELETE FROM sample_semantic_cards WHERE sample_id = ?", [(i,) for i in stale_ids])
+            conn.executemany("DELETE FROM samples WHERE id = ?", [(i,) for i in stale_ids])
+            pruned = len(stale_ids)
+            conn.commit()
+
     indexed = 0
     skipped = 0
     errors = 0
@@ -1112,6 +1131,7 @@ def index_directory(
         "scanned": len(files) + len(rejected),
         "rejected": len(rejected),
         "rejected_reasons": rejected_reasons,
+        "pruned": pruned,
         "dsp_indexed": dsp_stats["dsp_indexed"],
         "dsp_errors": dsp_stats["dsp_errors"],
         "dsp_total": dsp_total,

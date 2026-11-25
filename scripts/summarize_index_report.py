@@ -59,10 +59,10 @@ def summarize(kind: str, raw: str) -> str:
     rr = r.get("rejected_reasons") or {}
     det = " (" + ", ".join(f"{k}: {v}" for k, v in sorted(rr.items())) + ")" if rr else ""
     err = f", {r.get('errors', 0)} erreurs" if r.get("errors") else ""
-    keys = ("scanned", "total", "indexed", "skipped", "rejected", "dsp_total", "clap_embedded", "cards_total")
+    keys = ("scanned", "total", "indexed", "skipped", "rejected", "pruned", "dsp_total", "clap_embedded", "cards_total")
     return ("[AI-Studio] Résumé samples : {scanned} scannés, {total} en base, {indexed} nouveaux, "
-            "{skipped} déjà à jour (incrémental), {rejected} rejetés{d}{e}, DSP {dsp_total}, "
-            "CLAP {clap_embedded}, cartes {cards_total}").format(d=det, e=err, **{k: r.get(k, 0) for k in keys})
+            "{skipped} déjà à jour (incrémental), {rejected} rejetés{d}{e}, {pruned} purgés (fichiers absents), "
+            "DSP {dsp_total}, CLAP {clap_embedded}, cartes {cards_total}").format(d=det, e=err, **{k: r.get(k, 0) for k in keys})
 
 
 def main(argv: list[str]) -> int:
