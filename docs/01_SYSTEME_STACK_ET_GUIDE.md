@@ -5,7 +5,7 @@
 > - **Moteur & DSL** : Gridline `0.7.7` (Live `--attach` port `47390` ou Headless `.gridline`). Privilégier les plugins natifs `gl.*` et **importer `scripts/gl_dsl.py`** (`eq_band`, `eq_params`, `reverb_room`, `limiter_master`, `sidechain_send`, `db_to_auto`, `synth_voice`) : zéro calcul manuel de `Band N width`, `k128`, décisecondes ou `Dry (full)`.
 > - **Mémoire sonore unifiée** : `audio-index:search_samples` et `scripts/select_sample.py` interrogent la base SQLite **`samples.db`** (`samples` + `sample_dsp_metrics`, **`< 25 ms`**, zéro CLAP synchrone ; si vecteurs CLAP absents, fallback DSP automatique + `"warning"`).
 > - **Unités** : Composer uniquement en **beats 0-indexed** dans Python (`song_builder.py` / `groove_lib.py` / `transitions_lib.py` gèrent `pretty_midi`, MCP et automations).
-> - **Économie Tokens & CPU** : 1 script `build_song.py` via `song_builder.run_song_cli` · `--range <b1>-<b2> --no-neural --auto-fix --max-passes 2` en itération · 1 rendu final `--mp3 --sections`.
+> - **Économie Tokens & CPU** : 1 script `compile_song.py` via `song_builder.run_song_cli` (`build_song.py` = **LEGACY v2.1**, archivé dans `REFERENCE_ARCHIVE.md`) · `--range <b1>-<b2> --no-neural --auto-fix --max-passes 2` en itération · 1 rendu final `--mp3 --sections`.
 
 ---
 
@@ -23,7 +23,7 @@
 Prompt Utilisateur → [0. Sommaire] docs/00_SOMMAIRE.md
    ├──▶ [1. Blueprint & Sons]  audio-index (samples.db) · reverse-engineer · vocaloid · gl_dsl
    ├──▶ [2. Partition & Gate]  master_sketch.mid + groove_lib/transitions_lib → verify_midi_gate(auto_fix=True)
-   ├──▶ [3. Build Atomique]    build_song.py (song_builder + gl_dsl) → projet.gridline
+   ├──▶ [3. Build Atomique]    compile_song.py (song_builder + gl_dsl) → projet.gridline (`build_song.py` LEGACY)
    └──▶ [4. Mix & Validation]  render_and_audit.py (--no-neural --auto-fix → rendu final --mp3) + analyze_stem_hierarchy
 ```
 

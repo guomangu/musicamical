@@ -1,7 +1,7 @@
 # Facette 3 — Blueprint, Arrangement, Transitions, Gate / Autofix MIDI & `compile_song.py` (v3.2+, remplace `build_song.py` manuel)
 
 > **Cheatsheet IA (L'essentiel v2.0)**
-> - **Source unique & Isolation (`1 sonorité = 1 piste`)** : Écrire toutes les notes en **beats 0-indexed** dans `build_song.py` (`song_builder.py` + `gl_dsl.py` + `groove_lib.py` + `transitions_lib.py`), exporter `master_sketch.mid` (`Bass`, `Chords`, `Lead`), valider via `verify_midi_gate(..., auto_fix=True)`.
+> - **Source unique & Isolation (`1 sonorité = 1 piste`)** : Écrire toutes les notes en **beats 0-indexed** dans `arrangement_plan.json` (v3.x) ou `composition.strudel` (v4.0) — `build_song.py` **LEGACY v2.1** (archive `REFERENCE_ARCHIVE.md`) — puis `compile_song.py` (`song_builder.py` + `gl_dsl.py` + `groove_lib.py` + `transitions_lib.py`) exporte `master_sketch.mid` (`Bass`, `Chords`, `Lead`), valider via `verify_midi_gate(..., auto_fix=True)`.
 > - **Gate MIDI multi-signatures & Autofix** : Supporte `4/4`, `3/4`, `6/8`, `5/4`, `phrase_plan="free_ambient"` et morceaux sans basse (`contrary_or_oblique_ratio=None`). Si échec, **`scripts/midi_autofix.py`** corrige automatiquement avant tout appel Gridline.
 > - **Flux v3.2+ (canonique)** : plus de `build_song.py` manuel — `compile_song.py <projet> [--probe]` lit `song_blueprint.json` + `arrangement_plan.json`, applique `blueprint_enricher.py` (champs créatifs omis), `NarrativeHarmony` (`section_progressions`, phrasé 8 mesures, suspensions 4→3/9→8), `OrchestrationEngine` (comping, voice-leading conscient du Lead), `ExpressionArticulations` (`glide_to_next`, vibrato retardé), `FullCoverageCoreValidator` (pré-vol 100 % + sonde `--probe`), produit le `ScoreIR` (groove en `expression`, clamp frontière 20 ms) puis `master_sketch.mid`.
 > - **Piège `_infer_roles()` (§5.2)** : Nommer `Bass`/`808`, `Chords`/`Pad` (`poly_ratio >= 0.45` toléré même `< MIDI 48`), `Lead`/`Melody`, `Counter Harmony` (jamais `"Vocal"` sur contre-chant ni `"Piano"` seul sur arpège).
@@ -112,7 +112,10 @@ Cocher quels rôles jouent dans chaque section afin de garantir un **arc dynamiq
 
 ---
 
-## Chapitre 6 — Patron Canonique `build_song.py` (`song_builder` + `gl_dsl` + `groove_lib`)
+## Chapitre 6 — LEGACY v2.1 : ancien patron `build_song.py` (historique uniquement)
+
+> **LEGACY** : remplacé depuis la v3.2 par `compile_song.py` (double entrée `arrangement_plan.json` /
+> `composition.strudel` -> `ScoreIR`). Conservé pour historique ; ne plus l'utiliser en production.
 
 ```python
 #!/usr/bin/env python3
