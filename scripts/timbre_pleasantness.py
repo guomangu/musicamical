@@ -1,0 +1,236 @@
+"""v4.1 — timbre_pleasantness.py — Pourquoi un morceau sonne « désagréable » et comment y remédier.
+
+Diagnostic (le rythme est bon, le timbre est mauvais) : jusqu'ici le « confort » d'un son n'était
+qu'un **score mou** (`compute_comfort_score`) — un sample dur/grinçant pouvait encore gagner sur le
+fit de rôle. Il manquait : (1) des **plafonds durs** par rôle sur la dureté (r_harsh, peak_harsh_db,
+roughness Plomp-Levelt, crest des sons tonaux) ; (2) une **dissonance sensorielle par paire** entre
+les timbres choisis dans une même palette (deux sons proches en fréquence critique = rugueux) ;
+(3) pour le scénario A (synthés `gl.*`), une carte de plugins **statique** ignorant le profil et la
+valence (archetypes `config/timbre_archetypes.json` non appliqués à la façade).
+
+Ce module fournit :
+  - `plomp_levelt_roughness(freqs, mags)`   : rugosité sensorielle d'un spectre (paires de partiels
+    dans une bande critique, courbe de dissonance Zwicker) ;
+  - `interval_consonance(f1, f2)`           : consonance d'intervalle (octave > quinte > ... > triton) ;
+  - `pleasantness_gate(metrics, role)`      : verdict dur PASS / FIX / SWAP + score + raisons
+    (plafonds durs PLEASANTNESS_CAPS par rôle + plancher de confort) ;
+  - `palette_timbre_coherence(items)`       : cohérence d'une palette (collision Bark24 pondérée graves
+    via sample_quality_v2 + pénalité de rugosité par paire lead/chords/bass) ;
+  - `pick_gl_plugin(role, mix_profile, valence)` : plugin `gl.*` agréable pour (rôle, profil,
+    valence) depuis les archetypes calibrés (remplace la carte statique de la façade).
+
+Câblage : `palette_builder.propose_palettes` (filtre les candidats SWAP + confort réel des synthés),
+`select_sample` (exclusion SWAP), `prod_server._ensure_blueprint` (plugin par archetype).
+"""
+from __future__ import annotations
+
+import json
+import math
+import os
+import sys
+
+ROOT = os.environ.get("AI_STUDIO_DIR") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCRIPTS_DIR = os.path.join(ROOT, "scripts")
+if SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, SCRIPTS_DIR)
+
+import numpy as np
+
+# Plafonds durs d'agréabilité par rôle (au-delà -> SWAP). r_harsh/roughness en [0,1]-ish (métriques DSP du projet).
+PLEASANTNESS_CAPS: dict[str, dict[str, float]] = {
+    "kick":         {"r_harsh": 0.45, "roughness": 0.30, "peak_harsh_db": 14.0, "comfort_min": 0.45},
+    "bass_sub":     {"r_harsh": 0.40, "roughness": 0.28, "peak_harsh_db": 13.0, "comfort_min": 0.50},
+    "snare_clap":   {"r_harsh": 0.55, "roughness": 0.38, "peak_harsh_db": 16.0, "comfort_min": 0.40},
+    "hihat_perc":   {"r_harsh": 0.60, "roughness": 0.45, "peak_harsh_db": 18.0, "comfort_min": 0.35},  # cymbales métalliques tolérées
+    "chord_keys":   {"r_harsh": 0.35, "roughness": 0.22, "peak_harsh_db": 11.0, "comfort_min": 0.60},
+    "pad_atmosphere": {"r_harsh": 0.30, "roughness": 0.20, "peak_harsh_db": 10.0, "comfort_min": 0.65},
+    "lead_melody":  {"r_harsh": 0.35, "roughness": 0.22, "peak_harsh_db": 11.0, "comfort_min": 0.60},
+}
+DEFAULT_CAPS = {"r_harsh": 0.45, "roughness": 0.30, "peak_harsh_db": 14.0, "comfort_min": 0.45}
+# Centroid max pour les rôles tonaux (au-delà = trop sifflant/aigre)
+CENTROID_MAX_HZ = {"lead_melody": 6500.0, "chord_keys": 5500.0, "pad_atmosphere": 4500.0, "bass_sub": 900.0}
+# Crest max pour les rôles tonaux (au-delà = trop percussif/claquant pour un son soutenu)
+CREST_MAX_DB_TONAL = {"lead_melody": 14.0, "chord_keys": 13.0, "pad_atmosphere": 12.0, "bass_sub": 15.0}
+
+TONAL_ROLES = ("lead_melody", "chord_keys", "pad_atmosphere", "bass_sub")
+
+
+def _critical_bandwidth_hz(f_hz: float) -> float:
+    """Bande critique Zwicker (ERB approché) : b = 25 + 75*(1 + 1.4*(f/1000)^2)^0.69."""
+    return 25.0 + 75.0 * (1.0 + 1.4 * (f_hz / 1000.0) ** 2) ** 0.69
+
+
+def plomp_levelt_roughness(freqs, mags) -> float:
+    """Rugosité sensorielle d'un spectre (somme des dissonances de paires de partiels proches).
+    Courbe de dissonance : pic à ~0.24*bande critique, nul au-delà d'une bande critique."""
+    f = np.asarray(freqs, dtype=np.float64)
+    m = np.asarray(mags, dtype=np.float64)
+    if len(f) < 2 or float(np.sum(m)) <= 0:
+        return 0.0
+    order = np.argsort(f)
+    f = f[order]
+    m = m[order]
+    tot = float(np.sum(m * m)) + 1e-18
+    rough = 0.0
+    n = len(f)
+    for i in range(n):
+        cbw = _critical_bandwidth_hz(float(f[i]))
+        for j in range(i + 1, n):
+            df = float(f[j] - f[i])
+            if df >= cbw:
+                break
+            d = math.exp(-3.5 * (df / (0.24 * cbw)) ** 2) - math.exp(-5.5 * (df / (0.24 * cbw)) ** 2)
+            d = max(0.0, d)
+            rough += float(min(m[i], m[j]) ** 2) * d
+    return round(float(min(1.0, rough / tot * 4.0)), 4)
+
+
+_SIMPLE_RATIOS = ((1, 1, 1.0), (2, 1, 0.95), (3, 2, 0.85), (4, 3, 0.75), (5, 3, 0.65), (5, 4, 0.6),
+                  (6, 5, 0.4), (8, 5, 0.3), (7, 4, 0.2), (7, 5, 0.12), (10, 7, 0.1), (7, 6, 0.15),
+                  (2, 7, 0.08), (1, 7, 0.05), (0, 0, 0.05))  # (0,0) = triton sqrt(2)
+_TRITONE = 2.0 ** 0.5
+
+
+def interval_consonance(f1: float, f2: float) -> float:
+    """Consonance sensorielle d'un intervalle : score du ratio simple le PLUS PROCHE
+    (1.0 = unisson/octave, ~0.05 = triton)."""
+    if f1 <= 0 or f2 <= 0:
+        return 0.0
+    r = max(f1, f2) / min(f1, f2)
+    while r > 2.0:
+        r /= 2.0
+    best_dist = None
+    best_score = 0.0
+    for num, den, score in _SIMPLE_RATIOS:
+        ratio = _TRITONE if (num == 0 and den == 0) else num / den
+        d = abs(r - ratio)
+        if best_dist is None or d < best_dist:
+            best_dist = d
+            best_score = score
+    return round(best_score * max(0.0, 1.0 - (best_dist or 0.0) / 0.25), 3)
+
+
+def pleasantness_gate(metrics: dict, role: str = "lead_melody") -> dict:
+    """Verdict dur d'agréabilité d'un son pour un rôle.
+    SWAP si un plafond dur est dépassé ; FIX si on s'en approche (> 80 %) ; PASS sinon.
+    `metrics` : champs DSP usuels (r_harsh, roughness, peak_harsh_db, comfort_score, centroid_hz,
+    crest_factor_db) — manquants = 0 (neutre)."""
+    caps = dict(DEFAULT_CAPS)
+    caps.update(PLEASANTNESS_CAPS.get(role, {}))
+    reasons: list[str] = []
+    worst = 0.0
+    for key in ("r_harsh", "roughness", "peak_harsh_db"):
+        v = float(metrics.get(key) or 0.0)
+        cap = caps[key]
+        worst = max(worst, v / max(cap, 1e-9))  # ratio même sous le plafond (zone FIX > 0.8)
+        if v > cap:
+            reasons.append(f"{key}={v:.2f} > plafond {cap:.2f}")
+    cent = float(metrics.get("centroid_hz") or 0.0)
+    cmax = CENTROID_MAX_HZ.get(role)
+    if cmax and cent > cmax:
+        reasons.append(f"centroid={cent:.0f}Hz > {cmax:.0f}Hz (trop sifflant)")
+        worst = max(worst, cent / cmax)
+    if role in TONAL_ROLES:
+        cf = float(metrics.get("crest_factor_db") or 0.0)
+        cfmax = CREST_MAX_DB_TONAL.get(role, 15.0)
+        worst = max(worst, cf / cfmax)
+        if cf > cfmax:
+            reasons.append(f"crest={cf:.1f}dB > {cfmax:.1f}dB (trop claquant pour un rôle tonal)")
+    conf = float(metrics.get("comfort_score", 1.0))
+    worst = max(worst, caps["comfort_min"] / max(conf, 1e-9))
+    if conf < caps["comfort_min"]:
+        reasons.append(f"comfort={conf:.2f} < plancher {caps['comfort_min']:.2f}")
+    if worst > 1.0:
+        verdict = "SWAP"
+    elif worst > 0.8:
+        verdict = "FIX"
+    else:
+        verdict = "PASS"
+    score = round(float(max(0.0, min(1.0, 1.0 - max(0.0, worst - 0.8) * 5.0))), 3)
+    return {"verdict": verdict, "score": score, "reasons": reasons, "role": role}
+
+
+def palette_timbre_coherence(items: list[dict]) -> dict:
+    """Cohérence timbrale d'une palette : collision Bark24 pondérée graves (sample_quality_v2)
+    entre les rôles tenus + rugosité par paire (centroids proches dans les médiums = dissonance).
+    items : dicts avec 'role' et 'bark_24'/'centroid_hz' optionnels."""
+    from sample_quality_v2 import spectral_collision
+    barks = [it.get("bark_24") for it in items if isinstance(it.get("bark_24"), list) and len(it.get("bark_24")) == 24]
+    collision = None
+    if len(barks) >= 2:
+        cmax = 0.0
+        for i in range(len(barks)):
+            for j in range(i + 1, len(barks)):
+                c = spectral_collision(barks[i], barks[j])
+                if c.get("collision") is not None:
+                    cmax = max(cmax, float(c["collision"]))
+        collision = round(cmax, 6)
+    # rugosité par paire via centroids (médiums proches = dissonance perçue)
+    cents = [(str(it.get("role", "")), float(it.get("centroid_hz") or 0.0)) for it in items if it.get("centroid_hz")]
+    pair_rough = 0.0
+    notes = []
+    for i in range(len(cents)):
+        for j in range(i + 1, len(cents)):
+            r1, c1 = cents[i]
+            r2, c2 = cents[j]
+            if c1 <= 0 or c2 <= 0:
+                continue
+            df = abs(c1 - c2)
+            cbw = _critical_bandwidth_hz((c1 + c2) / 2.0)
+            if df < cbw and 300.0 < (c1 + c2) / 2.0 < 6000.0:
+                pair_rough = max(pair_rough, float(math.exp(-3.5 * (df / (0.24 * cbw)) ** 2)))
+                notes.append(f"{r1}~{r2} centroids {c1:.0f}/{c2:.0f} Hz (bande critique {cbw:.0f} Hz)")
+    score = 1.0
+    if collision is not None:
+        score -= min(0.5, collision * 3.0)
+    score -= min(0.4, pair_rough * 0.8)
+    return {"score": round(float(max(0.0, min(1.0, score))), 3),
+            "max_bark_collision": collision, "pair_roughness": round(pair_rough, 3), "notes": notes}
+
+
+def pick_gl_plugin(role: str, mix_profile: str = "trap_rap", valence: float = 0.0) -> dict:
+    """Plugin `gl.*` agréable pour (rôle, profil, valence) : archetype calibré
+    (`gl_dsl.resolve_archetype`, dark_overrides si valence < -0.2), avec préférence au confort :
+    attaque douce, cutoff raisonnable. Repli : carte statique ROLE_PLUGIN de la façade."""
+    from gl_dsl import SYNTH_REGISTRY, resolve_archetype
+    role_map = {"bass_sub": "bass", "bass": "bass", "chord_keys": "chords", "chords": "chords",
+                "pad_atmosphere": "chords", "lead_melody": "lead", "lead": "lead",
+                "snare_clap": "chords", "hihat_perc": "lead", "kick": "bass",
+                "vocals": "lead", "counter": "lead", "fx": "chords", "perc": "lead"}
+    arch = resolve_archetype(mix_profile, role_map.get(role, role), valence=valence)
+    fallback = {
+        "kick": "gl.kick", "snare": "gl.snare", "clap": "gl.clap", "hihat": "gl.hat", "perc": "gl.hat",
+        "bass": "gl.fingerbass", "808": "gl.fingerbass", "sub": "gl.fingerbass",
+        "chords": "gl.keys", "pad": "gl.keys", "lead": "gl.warmsynth", "counter": "gl.pluck",
+        "vocals": "gl.sampler", "fx": "gl.wavetable",
+    }
+    plugin = (arch or {}).get("plugin") or fallback.get(role_map.get(role, role), "gl.warmsynth")
+    if plugin not in SYNTH_REGISTRY:
+        plugin = fallback.get(role, "gl.warmsynth")
+    params = dict((arch or {}).get("params") or {})
+    # garde-fou de confort : attaque >= 2 ms, release >= 60 ms, cutoff <= 9 kHz sur les rôles tonaux
+    if role_map.get(role) in ("lead", "chords", "bass"):
+        params.setdefault("attack_ms", max(2.0, float(params.get("attack_ms", 2.0))))
+        params.setdefault("release_ms", max(60.0, float(params.get("release_ms", 60.0))))
+        if "cutoff_hz" in params:
+            params["cutoff_hz"] = min(float(params["cutoff_hz"]), 9000.0)
+    return {"plugin": plugin, "params": params, "archetype": bool(arch)}
+
+
+def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description="Gate d'agréabilité des timbres (PASS/FIX/SWAP) + cohérence de palette")
+    ap.add_argument("--role", default="lead_melody")
+    ap.add_argument("--metrics", default="{}", help='JSON ex. {"r_harsh":0.6,"roughness":0.3}')
+    ap.add_argument("--plugin", nargs=3, metavar=("ROLE", "PROFILE", "VALENCE"), default=None)
+    args = ap.parse_args()
+    if args.plugin:
+        role, prof, val = args.plugin[0], args.plugin[1], float(args.plugin[2])
+        print(json.dumps(pick_gl_plugin(role, prof, val), ensure_ascii=False, indent=2))
+        return 0
+    print(json.dumps(pleasantness_gate(json.loads(args.metrics), args.role), ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -32,7 +32,7 @@ for _d in (SCRIPTS_DIR, INDEX_DIR):
     if _d not in sys.path:
         sys.path.insert(0, _d)
 
-from audio_metrics import VALID_ROLES, compute_masking_penalty, key_fit_penalty, key_scale_pcs, parse_key_tonic_pc
+from audio_metrics import VALID_ROLES, key_fit_penalty, key_scale_pcs, parse_key_tonic_pc
 from blueprint_safety import (  # v3.0 loop guards
     LOOP_KEY_MAX_OUT_OF_SCALE,
     LOOP_REPITCH_MIN_OUT_OF_SCALE,
@@ -665,6 +665,10 @@ def _load_sqlite_candidates(
                 "recommended_fine_tune_ct": int(ft_ct or 0),
                 "playable_chromatically": bool(play_int),
                 "bark_24": bark_24,
+                "r_harsh": round(rh_f, 4),
+                "roughness": round(rg_f, 4),
+                "peak_harsh_db": round(pk_f, 2),
+                "crest_factor_db": round(cf_f, 2),
                 "bpm": float(bpm_f) if bpm_f is not None else None,
                 "is_loop": bool(loop_int),
                 "timbre_card": t_card,
@@ -709,7 +713,9 @@ def _build_gl_synth_pool(roles: list[str], valence: float, mix_profile: str = "t
                 "recommended_fine_tune_ct": 0,
                 "theme": "synthetic",
                 "role_score": 0.9,
-                "comfort_score": 0.9,
+                "comfort_score": (0.9 if float(ap.get("attack_ms", 3.0)) >= 2.0
+                                  and float(ap.get("release_ms", 120.0)) >= 60.0
+                                  and float(ap.get("cutoff_hz", 6500.0)) <= 9000.0 else 0.6),
                 "attack_ms": ap.get("attack_ms", 3.0),
                 "centroid_hz": ap.get("cutoff_hz", 6500.0),
                 "timbre_card": f"archetype {mix_profile}/{role}",
@@ -936,6 +942,19 @@ def propose_palettes(
             if not cands:
                 missing_roles.append(role)
                 continue
+            # v4.1 gate d'agréabilité : un son hors plafonds durs (SWAP) n'est jamais choisi,
+            # sauf si le pool entier est SWAP (repli au lieu de rôle manquant)
+            try:
+                from timbre_pleasantness import pleasantness_gate
+                gated = [c for c in cands if pleasantness_gate({
+                    "r_harsh": c.get("r_harsh"), "roughness": c.get("roughness"),
+                    "peak_harsh_db": c.get("peak_harsh_db"), "comfort_score": c.get("comfort_score"),
+                    "centroid_hz": c.get("centroid_hz"), "crest_factor_db": c.get("crest_factor_db"),
+                }, role)["verdict"] != "SWAP"]
+                if gated:
+                    cands = gated
+            except Exception:
+                pass
 
             target_bpm = float(bpm) if bpm else None
             best_cand = None
@@ -964,6 +983,13 @@ def propose_palettes(
                 used_ids_per_role[role].add(best_cand["id"])
 
         pal_score, breakdown = _score_palette(chosen, ev, mood_vec)
+        timbre_coh = {"score": 1.0, "max_bark_collision": None, "pair_roughness": 0.0, "notes": []}
+        try:
+            from timbre_pleasantness import palette_timbre_coherence
+            timbre_coh = palette_timbre_coherence(chosen)
+            pal_score = pal_score - (1.0 - timbre_coh["score"]) * 0.2
+        except Exception:
+            pass
         reason_parts = [
             f"Chevauchement Bark24 faible ({breakdown['overlap_mean']:.2f})"
             if breakdown["overlap_mean"] < 0.45
@@ -1000,6 +1026,7 @@ def propose_palettes(
             "score": pal_score,
             "score_breakdown": breakdown,
             "complementarity_reason": " ; ".join(reason_parts),
+            "timbre_coherence": timbre_coh,
             "missing_roles": missing_roles,
             "slots": slots,
             "blueprint_tracks": palette_slots_to_blueprint_tracks(chosen),

@@ -1,5 +1,5 @@
 """Garde-fous du dossier racine `DOCUMENTATION_IA/` (doc de production pour l'agent IA :
-3 documents compacts, liens valides, exemple canonique + pre-flight présents, aucun chemin /home)."""
+4 documents compacts, liens valides, exemple canonique + pre-flight + agréabilité, aucun /home)."""
 from __future__ import annotations
 
 import os
@@ -11,10 +11,11 @@ IA_DIR = os.path.join(ROOT, "DOCUMENTATION_IA")
 
 
 class TestDocumentationIA(unittest.TestCase):
-    def test_folder_and_three_docs_exist(self):
+    def test_folder_and_four_docs_exist(self):
         self.assertTrue(os.path.isdir(IA_DIR))
         names = sorted(f for f in os.listdir(IA_DIR) if f.endswith(".md"))
-        self.assertEqual(names, ["01_COMPOSER_AVEC_STRUDEL.md", "02_PRODUIRE_LE_MORCEAU.md", "README.md"])
+        self.assertEqual(names, ["01_COMPOSER_AVEC_STRUDEL.md", "02_PRODUIRE_LE_MORCEAU.md",
+                                 "03_SONS_AGRÉABLES.md", "README.md"])
 
     def test_docs_are_compact(self):
         for f in os.listdir(IA_DIR):
@@ -51,6 +52,11 @@ class TestDocumentationIA(unittest.TestCase):
         self.assertIn("auto_prepare", prod)
         self.assertIn("semantic_patch", prod)
         self.assertIn("1 800 tokens", prod)
+        with open(os.path.join(IA_DIR, "03_SONS_AGRÉABLES.md"), encoding="utf-8") as fh:
+            sons = fh.read()
+        for token in ("pleasantness_gate", "SWAP", "palette_timbre_coherence", "pick_gl_plugin",
+                      "organize_samples.py", "palette_id=\"auto\"", "triton"):
+            self.assertIn(token, sons)
 
     def test_no_hardcoded_home_paths(self):
         for f in os.listdir(IA_DIR):
