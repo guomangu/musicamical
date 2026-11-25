@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-import hashlib
 import json
 import os
 import re
@@ -352,7 +351,7 @@ def analyze_sample(path: str, rel_path: str) -> dict[str, Any]:
             "tags": f"midi {cat} {pack_name} {filename}".lower(),
         }
 
-    mono, sr, channels, duration_sec = _load_mono_audio(path)
+    mono, sr, channels, duration_sec = _load_mono_audio(path, max_seconds=8.0)
     if len(mono) < 64:
         raise ValueError("Audio trop court")
 
@@ -401,8 +400,12 @@ def analyze_sample(path: str, rel_path: str) -> dict[str, Any]:
     bpm = bpm_tag
     if bpm is None and (is_loop or duration_sec >= 2.0) and len(mono) >= sr * 1.5:
         try:
-            tempo, _ = librosa.beat.beat_track(y=mono, sr=sr)
-            t_val = float(np.atleast_1d(tempo)[0])
+            if _HAS_ESSENTIA:
+                res = es.RhythmExtractor2013(method="multifeature")(mono)
+                t_val = float(np.atleast_1d(res[0])[0])
+            else:
+                tempo, _ = librosa.beat.beat_track(y=mono, sr=sr)
+                t_val = float(np.atleast_1d(tempo)[0])
             if 55.0 <= t_val <= 210.0:
                 bpm = round(t_val, 1)
         except Exception:
@@ -448,6 +451,15 @@ def analyze_sample(path: str, rel_path: str) -> dict[str, Any]:
         "decay_profile": decay_profile,
         "tags": tags,
     }
+
+
+def _analyze_worker(task: tuple[str, str]) -> tuple[str, str, dict[str, Any] | None]:
+    """Worker ProcessPool : analyse un fichier sans toucher à la DB (l'upsert reste côté parent)."""
+    full, rel = task
+    try:
+        return full, rel, analyze_sample(full, rel)
+    except Exception:
+        return full, rel, None
 
 
 def _iter_media_files(samples_dir: str) -> tuple[list[tuple[str, str]], list[dict[str, str]]]:
@@ -645,7 +657,7 @@ def _compute_clap_embeddings(conn: sqlite3.Connection, batch_limit: int = 0, bat
         audios: list[np.ndarray] = []
         for row in chunk:
             try:
-                y, _, _, _ = _load_mono_audio(row["path"], target_sr=48000, max_seconds=10.0)
+                y, _, _, _ = _load_mono_audio(row["path"], target_sr=48000, max_seconds=6.0)
                 if len(y) > 32:
                     audios.append(y)
                     valid_ids.append(row["id"])
@@ -1044,6 +1056,25 @@ def index_directory(
     files, rejected = _iter_media_files(samples_dir)
     if limit > 0:
         files = files[:limit]
+
+    # v4.0 hotfix : purge les lignes dont le fichier a disparu du disque (packs supprimés
+    # entre deux runs) — jamais sous --limit, la liste tronquée ne reflète pas tout le dossier.
+    pruned = 0
+    if limit == 0:
+        root_real = os.path.realpath(os.path.abspath(samples_dir))
+        current = {os.path.realpath(f) for f, _ in files}
+        stale_ids = [
+            int(r["id"])
+            for r in conn.execute("SELECT id, path FROM samples").fetchall()
+            if os.path.realpath(r["path"]).startswith(root_real + os.sep) and os.path.realpath(r["path"]) not in current
+        ]
+        if stale_ids:
+            conn.executemany("DELETE FROM sample_dsp_metrics WHERE sample_id = ?", [(i,) for i in stale_ids])
+            conn.executemany("DELETE FROM sample_semantic_cards WHERE sample_id = ?", [(i,) for i in stale_ids])
+            conn.executemany("DELETE FROM samples WHERE id = ?", [(i,) for i in stale_ids])
+            pruned = len(stale_ids)
+            conn.commit()
+
     indexed = 0
     skipped = 0
     errors = 0
@@ -1051,27 +1082,38 @@ def index_directory(
     for _r in rejected:
         rejected_reasons[_r.get("reason", "unknown")] = rejected_reasons.get(_r.get("reason", "unknown"), 0) + 1
 
+    tasks: list[tuple[str, str]] = []
     for full, rel in files:
         try:
             st = os.stat(full)
-            prev = existing.get(full)
-            if not force and prev and abs(prev[0] - st.st_mtime) < 1e-3 and prev[1] == st.st_size:
-                skipped += 1
-                continue
-            meta = analyze_sample(full, rel)
-            cols = ", ".join(meta.keys())
-            placeholders = ", ".join(f":{k}" for k in meta.keys())
-            updates = ", ".join(f"{k}=excluded.{k}" for k in meta.keys() if k != "path")
-            conn.execute(
-                f"INSERT INTO samples ({cols}) VALUES ({placeholders}) "
-                f"ON CONFLICT(path) DO UPDATE SET {updates}",
-                meta,
-            )
-            indexed += 1
-            if indexed % 100 == 0:
-                conn.commit()
         except Exception:
             errors += 1
+            continue
+        prev = existing.get(full)
+        if not force and prev and abs(prev[0] - st.st_mtime) < 1e-3 and prev[1] == st.st_size:
+            skipped += 1
+            continue
+        tasks.append((full, rel))
+    if workers > 1 and len(tasks) > 4:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(_analyze_worker, tasks, chunksize=8))
+    else:
+        results = [_analyze_worker(t) for t in tasks]
+    for _full, _rel, meta in results:
+        if meta is None:
+            errors += 1
+            continue
+        cols = ", ".join(meta.keys())
+        placeholders = ", ".join(f":{k}" for k in meta.keys())
+        updates = ", ".join(f"{k}=excluded.{k}" for k in meta.keys() if k != "path")
+        conn.execute(
+            f"INSERT INTO samples ({cols}) VALUES ({placeholders}) "
+            f"ON CONFLICT(path) DO UPDATE SET {updates}",
+            meta,
+        )
+        indexed += 1
+        if indexed % 100 == 0:
+            conn.commit()
     conn.commit()
 
     dsp_stats = populate_dsp_metrics(conn, force=force, limit=limit, workers=workers) if with_dsp else {"dsp_indexed": 0, "dsp_errors": 0}
@@ -1089,6 +1131,7 @@ def index_directory(
         "scanned": len(files) + len(rejected),
         "rejected": len(rejected),
         "rejected_reasons": rejected_reasons,
+        "pruned": pruned,
         "dsp_indexed": dsp_stats["dsp_indexed"],
         "dsp_errors": dsp_stats["dsp_errors"],
         "dsp_total": dsp_total,

@@ -15,6 +15,7 @@ import os
 import sys
 import tempfile
 import unittest
+import warnings
 
 ROOT = os.environ.get("AI_STUDIO_DIR") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 for _d in (os.path.join(ROOT, "scripts"), os.path.join(ROOT, "mcp-servers", "audio-analyzer"), os.path.join(ROOT, "mcp-servers", "audio-index")):
@@ -147,12 +148,13 @@ class TestSummarizeIndexReport(unittest.TestCase):
     def test_samples_json_with_rejected_reasons(self):
         _, summarize = self._script()
         raw = json.dumps({"scanned": 6, "total": 2, "indexed": 2, "skipped": 0, "rejected": 4,
-                          "rejected_reasons": {"bad_magic_bytes": 1}, "errors": 1,
+                          "rejected_reasons": {"bad_magic_bytes": 1}, "errors": 1, "pruned": 3,
                           "dsp_total": 2, "clap_embedded": 0, "cards_total": 2})
         line = summarize("samples", raw)
         self.assertIn("6 scannés", line)
         self.assertIn("4 rejetés (bad_magic_bytes: 1)", line)
         self.assertIn("1 erreurs", line)
+        self.assertIn("3 purgés (fichiers absents)", line)
 
     def test_empty_input_never_crashes(self):
         parse_report, summarize = self._script()
@@ -190,6 +192,152 @@ class TestSummarizeIndexReport(unittest.TestCase):
         body = m.group(1)
         self.assertNotIn("<<", body)  # plus d'heredoc qui volerait le stdin du pipe
         self.assertIn("summarize_index_report.py", body)
+
+
+FAKE_MCP_SERVER = """import json, sys
+while True:
+    line = sys.stdin.readline()
+    if not line:
+        break
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        msg = json.loads(line)
+    except Exception:
+        continue
+    if msg.get("method") == "initialize":
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": msg.get("id"), "result": {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "fake", "version": "0.0.1"}}}) + "\\n")
+        sys.stdout.flush()
+    elif msg.get("method") == "tools/list":
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": msg.get("id"), "result": {"tools": [{"name": "t1"}]}}) + "\\n")
+        sys.stdout.flush()
+"""
+
+
+class TestAudioMetricsWarningGuards(unittest.TestCase):
+    """v4.0 hotfix — plus de UserWarning librosa à l'indexation : `n_fft=8192 trop grand
+    pour un signal court` (chroma_stft) et `empty frequency set` (pitch_tuning via chroma_cqt
+    sur une composante harmonique silencieuse)."""
+
+    def test_mean_chroma_cqt_silent_component_no_warning(self):
+        import audio_metrics
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            out = audio_metrics.mean_chroma_cqt(np.zeros(8192, dtype=np.float32), 22050)
+        self.assertEqual(out, [0.0] * 12)
+        self.assertFalse(any("empty frequency set" in str(x.message) for x in w))
+
+    def test_short_noisy_sample_no_user_warning(self):
+        import audio_metrics
+        import soundfile as sf
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "short.wav")
+            rng = np.random.default_rng(3)
+            t = np.arange(int(0.12 * 44100)) / 44100  # ~5292 samples, dans [4096, 8192)
+            y = (0.4 * np.sin(2 * np.pi * 440.0 * t) + 0.05 * rng.standard_normal(len(t))).astype(np.float32)
+            sf.write(path, y, 44100)
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                entry, _vec = audio_metrics.analyze_single_file(path, with_clap=False, max_seconds=8.0)
+            self.assertIn("dsp", entry)
+            user_warnings = [str(x.message) for x in w if issubclass(x.category, UserWarning)]
+            self.assertEqual(user_warnings, [], user_warnings)
+
+
+class TestIndexDirectoryParallelAnalyze(unittest.TestCase):
+    def test_parallel_analyze_matches_counts(self):
+        from indexer import index_directory
+        with tempfile.TemporaryDirectory() as tmp:
+            samples = os.path.join(tmp, "samples")
+            os.makedirs(samples)
+            for i in range(8):
+                _write_wav(os.path.join(samples, f"s{i}.wav"), freq=220.0 + 10 * i, sr=22050, dur=0.15)
+            db = os.path.join(tmp, "samples.db")
+            r = index_directory(samples, db, force=False, with_clap=False, with_dsp=False, workers=2)
+            self.assertEqual(r["indexed"], 8)
+            self.assertEqual(r["errors"], 0)
+            self.assertEqual(r["total"], 8)
+            r2 = index_directory(samples, db, force=False, with_clap=False, with_dsp=False, workers=2)
+            self.assertEqual(r2["indexed"], 0)
+            self.assertEqual(r2["skipped"], 8)
+
+
+class TestIndexDirectoryPrune(unittest.TestCase):
+    """v4.0 hotfix — l'indexeur incrémental purgait JAMAIS les lignes dont le fichier a
+    disparu (packs supprimés) : la DB gardait des milliers de lignes fantômes (`total`
+    gonflé). Le prune ne s'exécute que hors `--limit`."""
+
+    def test_deleted_files_are_pruned_with_cascade(self):
+        import sqlite3
+        from indexer import index_directory
+        with tempfile.TemporaryDirectory() as tmp:
+            samples = os.path.join(tmp, "samples")
+            os.makedirs(samples)
+            _build_samples_tree(samples)
+            db = os.path.join(tmp, "samples.db")
+            r1 = index_directory(samples, db, force=False, with_clap=False, with_dsp=True, workers=1)
+            self.assertEqual(r1["total"], 2)
+            self.assertEqual(r1.get("pruned", 0), 0)
+            os.remove(os.path.join(samples, "kick.wav"))  # le pack est supprimé du disque
+            r2 = index_directory(samples, db, force=False, with_clap=False, with_dsp=True, workers=1)
+            self.assertEqual(r2["pruned"], 1)
+            self.assertEqual(r2["total"], 1)
+            self.assertEqual(r2["indexed"], 0)
+            self.assertEqual(r2["skipped"], 1)  # loop.mid toujours là
+            conn = sqlite3.connect(db)
+            n_samples = conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
+            orphans_dsp = conn.execute(
+                "SELECT COUNT(*) FROM sample_dsp_metrics d LEFT JOIN samples s ON d.sample_id = s.id WHERE s.id IS NULL"
+            ).fetchone()[0]
+            orphans_cards = conn.execute(
+                "SELECT COUNT(*) FROM sample_semantic_cards c LEFT JOIN samples s ON c.sample_id = s.id WHERE s.id IS NULL"
+            ).fetchone()[0]
+            conn.close()
+            self.assertEqual(n_samples, 1)      # loop.mid reste en base
+            self.assertEqual(orphans_dsp, 0)    # cascade OK : aucune ligne DSP orpheline
+            self.assertEqual(orphans_cards, 0)
+
+    def test_prune_skipped_under_limit(self):
+        from indexer import index_directory
+        with tempfile.TemporaryDirectory() as tmp:
+            samples = os.path.join(tmp, "samples")
+            os.makedirs(samples)
+            _build_samples_tree(samples)
+            db = os.path.join(tmp, "samples.db")
+            index_directory(samples, db, force=False, with_clap=False, with_dsp=False, workers=1)
+            r = index_directory(samples, db, force=False, with_clap=False, with_dsp=False, workers=1, limit=1)
+            self.assertEqual(r["total"], 2)          # rien purgé sous --limit
+            self.assertEqual(r.get("pruned", 0), 0)
+
+
+class TestVerifyInstallHandshake(unittest.TestCase):
+    """v4.0 — validation post-install : 6 serveurs MCP (façade `ai-studio-prod` incluse) et
+    handshake parallèle borné (plus de lecture bloquante ni de pipe stderr plein)."""
+
+    def test_six_servers_incl_ai_studio_prod(self):
+        import verify_install
+        self.assertEqual(len(verify_install.MCP_SERVERS), 6)
+        rels = [rel[0] for _n, rel in verify_install.MCP_SERVERS]
+        self.assertTrue(any("ai-studio-prod" in r for r in rels))
+
+    def test_handshake_parallel_ok_and_failure(self):
+        import verify_install
+        with tempfile.TemporaryDirectory() as tmp:
+            good = os.path.join(tmp, "fake_ok.py")
+            bad = os.path.join(tmp, "fake_bad.py")
+            with open(good, "w", encoding="utf-8") as fh:
+                fh.write(FAKE_MCP_SERVER)
+            with open(bad, "w", encoding="utf-8") as fh:
+                fh.write("import sys\nprint('boom', file=sys.stderr)\nsys.exit(1)\n")
+            old = verify_install.MCP_SERVERS
+            try:
+                verify_install.MCP_SERVERS = (("fake-ok", ("fake_ok.py",)), ("fake-bad", ("fake_bad.py",)))
+                failures = verify_install.handshake_servers(tmp, venv_py=sys.executable, timeout_s=20.0)
+            finally:
+                verify_install.MCP_SERVERS = old
+            self.assertEqual(len(failures), 1)
+            self.assertIn("fake_bad.py", failures[0])
 
 
 if __name__ == "__main__":
