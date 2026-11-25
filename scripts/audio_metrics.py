@@ -16,6 +16,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import warnings
 from typing import Any
 
 import librosa
@@ -595,7 +596,10 @@ def analyze_pitch_and_purity(
     # even when chord tones accidentally look harmonic to the detected f0 (e.g. keys_chords).
     try:
         if len(sig) >= 4096:
-            chroma = librosa.feature.chroma_stft(y=sig.astype(np.float32), sr=sr, n_fft=8192, hop_length=1024)
+            sig_c = sig if len(sig) >= 8192 else np.pad(sig, (0, 8192 - len(sig)))
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)  # estimate_tuning interne sur spectre quasi vide
+                chroma = librosa.feature.chroma_stft(y=sig_c.astype(np.float32), sr=sr, n_fft=8192, hop_length=1024)
             cmean = np.asarray(chroma.mean(axis=1), dtype=np.float64)
             if cmean.max() > 1e-6:
                 strong_pcs = int(np.sum(cmean > 0.18 * cmean.max()))
@@ -1437,8 +1441,12 @@ def mean_chroma_cqt(y_harm: np.ndarray, sr: int) -> list[float]:
     y = np.asarray(y_harm, dtype=np.float32)
     if len(y) < 2048 or sr <= 0:
         return [0.0] * 12
+    if len(y) and float(np.max(np.abs(y))) < 1e-6:
+        return [0.0] * 12
     try:
-        c = librosa.feature.chroma_cqt(y=y, sr=sr)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # pitch_tuning sur composante harmonique vide
+            c = librosa.feature.chroma_cqt(y=y, sr=sr)
         v = np.mean(c, axis=1)
         tot = float(np.sum(v))
         if tot <= 1e-9:
