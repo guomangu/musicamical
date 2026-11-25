@@ -2,14 +2,15 @@
 
 Ce dossier est **la seule lecture nécessaire pour générer un morceau** avec ce framework.
 Il remplace la lecture des 8 facettes `docs/` (réservées au développement du projet).
-Budget total : ~3 documents compacts, code-first.
+Budget total : ~4 documents compacts, code-first.
 
-## Les 3 documents
+## Les 4 documents
 
 | Document | Quand le lire | Contenu |
 |---|---|---|
 | [01_COMPOSER_AVEC_STRUDEL.md](01_COMPOSER_AVEC_STRUDEL.md) | Avant d'écrire `composition.strudel` | Contrat Strudel v4.1 (`@meta`, prélude), exemple canonique testé, pre-flight du gate, tables degrés/b2-safe/apex/`slow(N)`, recettes anti-échec |
 | [02_PRODUIRE_LE_MORCEAU.md](02_PRODUIRE_LE_MORCEAU.md) | Pour appeler les outils MCP | Façade `ai-studio-prod` (exactement 3 outils), workflow 2 tours, scénarios A/B/C/D, retours (`handoff.txt`), qualité du mix (solveur, calibration, corridors, PQ) et des samples (gate v2) |
+| [03_SONS_AGRÉABLES.md](03_SONS_AGRÉABLES.md) | Si le rendu sonne désagréable | Diagnostic « sons mal choisis, rythme bon » + gate d'agréabilité (PASS/FIX/SWAP), cohérence de palette, recherche de samples par défaut, consignes |
 | `README.md` (ce fichier) | Toujours en premier | Workflow global + 5 règles absolues |
 
 ## Workflow global (Scénario A, création originale — le plus courant)
