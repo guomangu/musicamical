@@ -6,7 +6,7 @@ Studio complet de production musicale assistée par IA sur **Fedora / Ultramarin
 - **Règles normatives agents IA (Routeur + Machine à états 5 tours)** : [`.rules`](.rules) (liées par `GEMINI.md` et `AGENTS.md`)
 - **Facette 1 — Système, Stack, Gridline `0.7.7`, Unités & Guide Utilisateur** : [`docs/01_SYSTEME_STACK_ET_GUIDE.md`](docs/01_SYSTEME_STACK_ET_GUIDE.md)
 - **Facette 2 — Composition Universelle, Émotion `(V, T, E, D)`, Harmonie, Mélodie & Rythmes Multi-Genres** : [`docs/02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md`](docs/02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md)
-- **Facette 3 — Blueprint, Arrangement, Top-Down, MIDI Gate & Patron `build_song.py`** : [`docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md`](docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md)
+- **Facette 3 — Blueprint, Arrangement, Top-Down, MIDI Gate & Patron `compile_song.py` (`build_song.py` LEGACY v2.1)** : [`docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md`](docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md)
 - **Facette 4 — DSP Déterministe, Samples, APIs Audio, Remix & Chant (Vocaloid)** : [`docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md`](docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md)
 - **Facette 5 — Mixage Multi-Genres, Buses/FX, Quality Gate, Symptôme→Fix & Playbook** : [`docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md`](docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md)
 - **Facette 6 — v4.0 Pont Strudel headless (frontend de composition ultra-compact, économe en tokens)** : [`docs/06_PONT_STRUDEL_HEADLESS.md`](docs/06_PONT_STRUDEL_HEADLESS.md)

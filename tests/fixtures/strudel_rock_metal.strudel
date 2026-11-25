@@ -1,0 +1,5 @@
+// @meta 132 A:aeolian rock_metal V=-0.4 form=I4-V8-C8-B4-O4 seed=404 ts=4/4
+kit("trap_full", {var: 3, hats: "rolls"})
+$chords: grid("Am7 Fmaj7 C G").slow(2).gain(0.75).muteIn("intro,outro")
+$bass: bassline("<1 ~ 1 ~ 6 ~>", {mode: "root", glide: 20}).slow(4).in("verse,chorus,bridge,outro")
+$lead: deg("0 ~ 2 ~ 4 ~ 5 ~ 7 ~ 5 ~ 4 ~", 4).slow(2).gain(0.7).sometimesBy(0.25, x => x.degradeBy(0.5)).in("verse,chorus")

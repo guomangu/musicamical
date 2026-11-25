@@ -808,6 +808,8 @@ def _apply_autofix_mutations(
     mcp = GridlineMCP(abs_proj, os.path.dirname(abs_proj))
     mutations: list[dict[str, Any]] = []
     param_changes: list[tuple[str, Any]] = []
+    # v4.1 hotfix : _tp_limit etait defini dans render_and_evaluate (portee locale) -> NameError ici
+    _tp_limit = limiter_invariants()["ceiling_dbtp"] + float(get_invariant("true_peak_margin_db", 0.2))
 
     try:
         mx = mcp.call("get_mixer", {})

@@ -1,0 +1,4 @@
+// @meta 72 A:aeolian classical_ambient V=-0.6 form=I4-V8-C8-O4 seed=707 ts=3/4
+$chords: grid("Am7 Dm7 Em7 Fmaj7").slow(2).gain(0.6).in("verse,chorus")
+$bass: bassline("<1 ~ ~>", {mode: "root", glide: 80}).slow(3)
+$lead: deg("<0 2 4> ~ 5 ~ 4 ~ 3 ~", 3).slow(2).gain(0.55).sometimesBy(0.2, x => x.degradeBy(0.3)).in("verse,chorus,outro")

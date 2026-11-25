@@ -1,20 +1,7 @@
-// @strudel-meta {"bpm": 140, "key": "C", "mode": "minor", "time_signature": [4, 4], "seed": 42,
-//   "mix_profile": "trap_rap", "valence": -0.6,
-//   "sections": [{"name": "intro", "bars": 4}, {"name": "verse", "bars": 8},
-//                {"name": "chorus", "bars": 8}, {"name": "bridge", "bars": 4}, {"name": "outro", "bars": 4}]}
-//
-// Exemple Trap sombre (C minor) — contrat v4.0 : 1 piste $ = 1 role atomique.
-// Accords symboliques (piste maitresse d'harmonie), melodie en degres via .scale(),
-// macro-structure implicite via @strudel-meta sections (ou arrange() dans une piste).
-
-$chords: chord("<Cm7 Abmaj7 Fm7 G7>").slow(2).gain(0.7)
-
-$bass: note("<c2 c2 [ab1 g1] f1>").lpf(280).gain(0.95)
-
-$kick: s("bd ~ ~ ~").gain(0.95)
-
-$snare: s("~ ~ cp ~").gain(0.8)
-
-$hihat: s("hh*8").gain(0.45).every(4, x => x.degradeBy(0.3))
-
-$lead: note("<c5 eb5 f5 [g5 ~] [ab5 g5] f5 eb5>").scale("C:minor").rarely(x => x.add(12)).gain(0.6).lpf(sine.range(1200, 4200).slow(8))
+// Exemple canonique v4.1 (Trap, C minor, 140 BPM, 24 mesures) — testé en CI à 0 correction de garde-fou.
+// En-tête 1 ligne : bpm key:mode mix_profile V=valence form=I4-V8-C8-O4 (I=intro V=verse C=chorus O=outro)
+// @meta 140 C:minor trap_rap V=-0.6 form=I4-V8-C8-O4
+kit("trap_half", {var: 2, hats: "rolls"})
+$chords: grid("Cm7 Abmaj7 Fm7 G7").slow(2).gain(0.7).muteIn("intro,outro")
+$bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 40}).slow(4).in("verse,chorus,outro")
+$lead: deg("0 ~ 2 ~ 4 ~ 3 ~ 5 ~ 4 ~ 2 ~", 4).slow(2).gain(0.6).sometimesBy(0.25, x => x.degradeBy(0.5)).in("verse,chorus")

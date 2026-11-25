@@ -1,6 +1,8 @@
-// v4.0 strudel_prelude.mjs — helpers anti-erreur injectés dans le scope d'évaluation headless
-// (strudel_eval.mjs) : grid(), track(), deg(), glide(). Rend les fautes musicales usuelles
-// syntaxiquement impossibles ou auto-corrigées avant le pont Python (0 token LLM).
+// v4.1 strudel_prelude.mjs — helpers anti-erreur injectés dans le scope d'évaluation headless
+// (strudel_eval.mjs) : grid(), track(), deg(), glide() (v4.0) + bassline(), kit(),
+// .in()/.only()/.muteIn() (v4.1). Rend les fautes usuelles syntaxiquement impossibles ou
+// auto-corrigées AVANT le pont Python (0 token LLM) : registre basse [31,48] garanti à la
+// source, 1 piste = 1 rôle atomique, présence par section déclarative.
 const NOTE_NAMES = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'];
 const SCALES = {
   major: [0, 2, 4, 5, 7, 9, 11], ionian: [0, 2, 4, 5, 7, 9, 11],
@@ -11,6 +13,29 @@ const SCALES = {
   pentatonic_minor: [0, 3, 5, 7, 10], pentatonic_major: [0, 2, 4, 7, 9], blues: [0, 3, 5, 6, 7, 10],
 };
 const TONIC_PC = { c: 0, 'c#': 1, db: 1, d: 2, 'd#': 3, eb: 3, e: 4, f: 5, 'f#': 6, gb: 6, g: 7, 'g#': 8, ab: 8, a: 9, 'a#': 10, bb: 10, b: 11 };
+
+// Registre basse canonique du pont (miroir de BASS_REGISTER du pont Python)
+const BASS_LO = 31, BASS_HI = 48;
+
+// Kits rythmiques embarqués (miroir local de midi_groove_bank) : 1 entrée = 1 rôle atomique.
+const KITS = {
+  trap_half: { kick: 'bd ~ ~ ~', snare: '~ ~ cp ~', hihat: 'hh*8', perc: '~ ~ ~ ~' },
+  trap_full: { kick: 'bd ~ bd ~', snare: '~ ~ cp ~', hihat: 'hh*8', perc: '~ ~ sh ~' },
+  boom_bap: { kick: 'bd ~ ~ bd', snare: '~ ~ ~ cp', hihat: 'hh*4 oh', perc: '~ rim ~ ~' },
+  house: { kick: 'bd*4', snare: '~ ~ cp ~', hihat: '~ oh ~ oh', perc: '~ ~ ~ ~' },
+  drill: { kick: 'bd ~ bd bd', snare: '~ ~ cp cp', hihat: 'hh*16', perc: '~ ~ ~ sh' },
+  ambient: { kick: 'bd ~ ~ ~', snare: '~ ~ ~ ~', hihat: 'hh*4', perc: '~ ~ ~ ~' },
+};
+
+// Qualités d'accords -> intervalles depuis la fondamentale (pour snaper la basse sur la grille)
+const CHORD_QUALITIES = {
+  '': [0, 4, 7], maj: [0, 4, 7], maj7: [0, 4, 7, 11], 'maj7': [0, 4, 7, 11], M7: [0, 4, 7, 11],
+  m: [0, 3, 7], min: [0, 3, 7], m7: [0, 3, 7, 10], min7: [0, 3, 7, 10], '-7': [0, 3, 7, 10],
+  7: [0, 4, 7, 10], dom7: [0, 4, 7, 10], '7': [0, 4, 7, 10],
+  dim: [0, 3, 6], '°': [0, 3, 6], aug: [0, 4, 8], '+': [0, 4, 8],
+  sus4: [0, 5, 7], sus2: [0, 2, 7], 6: [0, 4, 7, 9], m6: [0, 3, 7, 9],
+  'm(maj7)': [0, 3, 7, 11], mM7: [0, 3, 7, 11], 9: [0, 4, 7, 10, 2], m9: [0, 3, 7, 10, 2],
+};
 
 export function midiToName(m) {
   const mm = Math.round(m);
@@ -29,11 +54,74 @@ export function degToMidi(degToken, tonicMidi, scale) {
   return tonicMidi + 12 * oct + scale[((d % scale.length) + scale.length) % scale.length];
 }
 
+export function foldBass(midi) {
+  let p = Math.round(midi);
+  while (p < BASS_LO) p += 12;
+  while (p > BASS_HI) p -= 12;
+  return p;
+}
+
+export function parseChordPcs(sym) {
+  const m = /^([A-Ga-g])([#b]?)(.*)$/.exec(String(sym).trim());
+  if (!m) return null;
+  const root = TONIC_PC[(m[1] + (m[2] || '')).toLowerCase()];
+  if (root === undefined) return null;
+  const q = CHORD_QUALITIES[m[3]] || CHORD_QUALITIES[''] || [0, 4, 7];
+  return q.map((i) => (root + i) % 12);
+}
+
+// Parse une séquence de degrés ("1 ~ [3 5] <7 1>") -> liste de tokens midi|null (rest)
+function parseDegSeq(src, tonic, scale) {
+  const out = [];
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (ch === '~') { out.push(null); i++; continue; }
+    if (ch === '<') {
+      let j = src.indexOf('>', i);
+      const inner = src.slice(i + 1, j < 0 ? src.length : j);
+      for (const t of inner.split(/\s+/).filter(Boolean)) out.push(t === '~' ? null : degToMidi(t, tonic, scale));
+      i = (j < 0 ? src.length : j + 1);
+      continue;
+    }
+    if (ch === '[') {
+      let j = src.indexOf(']', i);
+      const inner = src.slice(i + 1, j < 0 ? src.length : j);
+      const ms = inner.split(/\s+/).filter(Boolean).map((t) => degToMidi(t, tonic, scale));
+      out.push(ms); // accord (liste)
+      i = (j < 0 ? src.length : j + 1);
+      continue;
+    }
+    let j = i;
+    while (j < src.length && !/[\s~\[\]<]/.test(src[j])) j++;
+    out.push(degToMidi(src.slice(i, j), tonic, scale));
+    i = j;
+  }
+  return out;
+}
+
+function seqToNoteString(tokens) {
+  // tokens: (number|null|number[]) par pas ; rend une mini-notation note("...")
+  const parts = [];
+  for (const tk of tokens) {
+    if (tk === null) parts.push('~');
+    else if (Array.isArray(tk)) parts.push('[' + tk.map(midiToName).join(',') + ']');
+    else parts.push(midiToName(tk));
+  }
+  return parts.join(' ');
+}
+
 export function installPrelude(core, meta) {
   const g = globalThis;
   g.__strudel_meta = meta || {};
   g.__strudel_grid = null;
   g.__strudel_track_roles = {};
+  g.__strudel_kit = {};
+  const kitMarker = new WeakSet();
+  g.__kitMarker = kitMarker;
+  const sectionMap = new WeakMap();
+  g.__sectionMap = sectionMap;
 
   g.grid = (symbols) => {
     const arr = String(symbols).trim().split(/\s+/).filter(Boolean);
@@ -50,38 +138,81 @@ export function installPrelude(core, meta) {
     const m = g.__strudel_meta || {};
     const tonic = keyToTonicMidi(m.key || 'C', octave !== undefined ? octave : 4);
     const scale = SCALES[String(m.mode || 'minor').toLowerCase()] || SCALES.minor;
-    const src = String(seq).trim();
-    const out = [];
-    let i = 0;
-    while (i < src.length) {
-      const ch = src[i];
-      if (/\s/.test(ch)) { i++; continue; }
-      if (ch === '~') { out.push('~'); i++; continue; }
-      if (ch === '<') { let j = src.indexOf('>', i); const inner = src.slice(i + 1, j < 0 ? src.length : j); out.push('<' + inner.split(/\s+/).filter(Boolean).map((t) => t === '~' ? '~' : midiToName(degToMidi(t, tonic, scale))).join(' ') + '>'); i = (j < 0 ? src.length : j + 1); continue; }
-      if (ch === '[') {
-        let j = src.indexOf(']', i);
-        const inner = src.slice(i + 1, j < 0 ? src.length : j);
-        const names = inner.split(/\s+/).filter(Boolean).map((t) => midiToName(degToMidi(t, tonic, scale)));
-        out.push('[' + names.join(',') + ']');
-        i = (j < 0 ? src.length : j + 1);
-        continue;
-      }
-      let j = i;
-      while (j < src.length && !/[\s~\[\]<]/.test(src[j])) j++;
-      out.push(midiToName(degToMidi(src.slice(i, j), tonic, scale)));
-      i = j;
+    return core.note(seqToNoteString(parseDegSeq(String(seq).trim(), tonic, scale)));
+  };
+
+  // v4.1 — basse en degrés, snappée sur la grille __strudel_grid, pliée dans [31,48] à la source
+  g.bassline = (seq, opts = {}) => {
+    const m = g.__strudel_meta || {};
+    const tonic = keyToTonicMidi(m.key || 'C', 2); // octave 2 -> fondamentale dans [36,47]
+    const scale = SCALES[String(m.mode || 'minor').toLowerCase()] || SCALES.minor;
+    const mode = String(opts.mode || 'stepwise');
+    const gridSyms = Array.isArray(g.__strudel_grid) ? g.__strudel_grid : null;
+    let tokens = parseDegSeq(String(seq).trim(), tonic, scale);
+    if (mode === 'root' && gridSyms && gridSyms.length) {
+      // chaque pas non-repos = fondamentale de l'accord de la mesure courante, pliée [31,48]
+      const nSteps = tokens.length || 1;
+      tokens = tokens.map((tk, idx) => {
+        if (tk === null) return null;
+        const barIdx = Math.floor((idx / Math.max(1, nSteps)) * gridSyms.length) % gridSyms.length;
+        const pcs = parseChordPcs(gridSyms[barIdx]);
+        const rootPc = pcs ? pcs[0] : tonic % 12;
+        let p = rootPc + 12 * 3; // octave 3 -> 36..47
+        return foldBass(p);
+      });
+    } else {
+      tokens = tokens.map((tk) => (tk === null ? null : Array.isArray(tk) ? tk.map(foldBass) : foldBass(tk)));
     }
-    return core.note(out.join(' '));
+    let pat = core.note(seqToNoteString(tokens));
+    const glideMs = Number(opts.glide || 0);
+    if (glideMs > 0 && typeof pat.legato === 'function') pat = pat.legato(Math.min(2.0, Math.max(0.5, glideMs / 300.0)));
+    return pat;
+  };
+
+  // v4.1 — kit atomique : enregistre $kick/$snare/$hihat/$perc séparés (1 piste = 1 rôle)
+  g.kit = (name, opts = {}) => {
+    const spec = KITS[String(name)] || KITS.trap_half;
+    for (const [role, patStr] of Object.entries(spec)) {
+      let p = core.s(patStr);
+      if (opts.hats === 'rolls' && role === 'hihat') p = core.s('hh*16').sometimesBy(0.3, (x) => x.degradeBy(0.4));
+      if (opts.var) p = p.sometimesBy(Math.min(0.5, Number(opts.var) / 10), (x) => x.degradeBy(0.5));
+      g.__strudel_kit[role] = p;
+    }
+    const dummy = core.s('~ ~ ~ ~');
+    try { kitMarker.add(dummy); } catch { /* WeakSet ok */ }
+    return dummy; // si kit() est appelé dans une pile $, celle-ci est ignorée (marqueur)
   };
 
   g.glide = (ms) => (p) => (typeof p.legato === 'function' ? p.legato(Math.min(2.0, Math.max(0.5, ms / 300.0))) : p);
 
   try {
     const proto = Object.getPrototypeOf(core.note('c4'));
-    if (proto && !proto.glide) {
-      proto.glide = function (ms) {
-        return typeof this.legato === 'function' ? this.legato(Math.min(2.0, Math.max(0.5, (ms || 60) / 300.0))) : this;
+    if (proto) {
+      if (!proto.glide) {
+        proto.glide = function (ms) {
+          return typeof this.legato === 'function' ? this.legato(Math.min(2.0, Math.max(0.5, (ms || 60) / 300.0))) : this;
+        };
+      }
+      // v4.1 — présence par section (macro-forme déclarative), lue par strudel_eval.mjs.
+      // NB : strudel a DEJA une méthode .in (setter de contrôle) -> on la surcharge en détectant
+      // une liste de noms de sections ; sinon on retombe sur l'originale.
+      const SECTION_NAMES = new Set(['intro', 'verse', 'pre_chorus', 'prechorus', 'pre-refrain', 'chorus', 'refrain', 'drop', 'hook', 'climax', 'bridge', 'pont', 'outro', 'break', 'breakdown', 'couplet', 'song']);
+      const isSectionList = (list) => {
+        const names = String(list).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+        return names.length > 0 && names.every((n) => SECTION_NAMES.has(n));
       };
+      const defineSec = (key, mode, original) => {
+        proto[key] = function (list) {
+          if (isSectionList(list)) {
+            sectionMap.set(this, { mode, names: String(list).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean) });
+            return this;
+          }
+          return original ? original.call(this, list) : this;
+        };
+      };
+      defineSec('in', 'in', proto.in);
+      defineSec('only', 'only', proto.only);
+      defineSec('muteIn', 'mute', proto.muteIn);
     }
   } catch { /* glide() curried reste disponible */ }
 

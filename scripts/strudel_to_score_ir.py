@@ -54,6 +54,7 @@ from full_coverage_validator import validate_full_score_ir  # noqa: E402
 
 BASS_REGISTER = (31, 48)
 LEAD_APEX_MAX = 74
+MUTATION_RATIO_MAX = 0.25  # v4.1 : au-delà, la piste est « rabotée » -> ERR_OVER_REPAIRED
 CHORDS_REGISTER = (48, 72)
 
 DRUM_PITCH_BY_NAME = (
@@ -409,8 +410,21 @@ def build_score_ir_from_strudel(
     tracks, cutoffs, progression = haps_to_tracks(haps)
     grid = build_grid(progression, key, mode, bpb, bars)
     n_chord_notes = expand_chord_symbols(tracks, grid)
+    # v4.1 : la mutation se mesure APRES expansion des accords (by design), AVANT les garde-fous
+    pre_pitches = {k: sorted(int(n["pitch"]) for n in v) for k, v in tracks.items()}
     guard_report = apply_register_guards(tracks, grid, bpb)
     guard_report["chord_symbols_expanded"] = n_chord_notes
+    post_pitches = {k: sorted(int(n["pitch"]) for n in v) for k, v in tracks.items()}
+    mutation = {}
+    for k in tracks:
+        pre, post = pre_pitches.get(k, []), post_pitches.get(k, [])
+        if not pre:
+            continue
+        # v4.1 : seules les mutations d'octave (>= 12 st, ex. octave-folds) et les suppressions
+        # comptent comme « rabotage » ; le revoicing LIL intra-registre est by design.
+        shifted = sum(1 for a, b in zip(pre, post) if abs(a - b) >= 12)
+        removed = abs(len(pre) - len(post))
+        mutation[k] = round((shifted + removed) / len(pre), 4)
 
     score = ScoreIR(
         bpm=bpm,
@@ -444,6 +458,7 @@ def build_score_ir_from_strudel(
         "seed": seed, "valence": valence, "guards": guard_report,
         "cutoffs": {k: v for k, v in cutoffs.items()},
         "n_tracks": len(tracks),
+        "mutation": mutation,
     }
     return score, info
 
@@ -491,6 +506,20 @@ def build_arrangement_plan(haps: dict[str, Any], score: ScoreIR, info: dict[str,
     has_drums = any(classify_role(n) == "drums" for n in score.tracks)
 
     sections = normalize_sections(haps)
+    haps_tracks = haps.get("tracks") or {}
+    presence = {tn: (haps_tracks.get(tn) or {}).get("sections") for tn in score.tracks}
+    any_directive = any(p for p in presence.values())
+    all_sec_names = [n for n, _sb, _nb, _k in sections]
+
+    def allowed_sections(tname: str) -> set[str] | None:
+        p = presence.get(tname)
+        if not p:
+            return None  # pas de directive -> toutes les sections (repli Matrice d'Arrangement)
+        names = {str(x).lower() for x in (p.get("names") or [])}
+        if p.get("mode") == "mute":
+            return {n.lower() for n in all_sec_names} - names
+        return names  # 'in' / 'only'
+
     motifs: dict[str, dict[str, Any]] = {}
     plan_sections: list[dict[str, Any]] = []
     for name, sb, nb, kind in sections:
@@ -498,6 +527,9 @@ def build_arrangement_plan(haps: dict[str, Any], score: ScoreIR, info: dict[str,
         sec_end = (sb + nb) * bpb
         sec: dict[str, Any] = {"name": name, "kind": kind, "start_bar": sb, "bars": nb, "active_roles": [], "role_modifiers": {}}
         for tname, tir in score.tracks.items():
+            allowed = allowed_sections(tname)
+            if allowed is not None and name.lower() not in allowed:
+                continue  # v4.1 : présence déclarative .in()/.only()/.muteIn()
             local = []
             for n in tir.notes:
                 if sec_start - 1e-6 <= float(n.grid_beat) < sec_end - 1e-6:
@@ -532,6 +564,7 @@ def build_arrangement_plan(haps: dict[str, Any], score: ScoreIR, info: dict[str,
             "has_drums": has_drums,
             "valence": info["valence"],
             "seed": info["seed"],
+            "arrangement_fallback": not any_directive,
         },
         "harmonic_core": {
             "key": key,
@@ -550,7 +583,10 @@ def run_strudel_eval(strudel_path: str, bars: int, seed: int, out_path: str) -> 
     if not node:
         raise RuntimeError("node introuvable : installe Node.js puis `npm install` dans scripts/ (pont Strudel headless)")
     script = os.path.join(SCRIPTS_DIR, "strudel_eval.mjs")
-    cmd = [node, script, strudel_path, "--bars", str(bars), "--seed", str(seed), "--out", out_path, "--compact"]
+    cmd = [node, script, strudel_path, "--bars", str(bars)]
+    if seed:
+        cmd += ["--seed", str(seed)]
+    cmd += ["--out", out_path, "--compact"]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if proc.returncode != 0:
         raise RuntimeError(f"strudel_eval.mjs a echoue (rc={proc.returncode}): {(proc.stderr or proc.stdout)[-400:]}")
@@ -588,7 +624,7 @@ def strudel_to_score_ir(
             bars = sum(int(s["bars"]) for s in blueprint["structure"])
         if not seed and blueprint:
             seed = int(blueprint.get("seed") or 0)
-        seed = seed or 42
+        # v4.1 hotfix : seed=0 -> on ne passe PAS --seed, l'eval derive meta.seed (ou SHA-256 du source)
         bars = bars or 16
         haps = run_strudel_eval(strudel, bars, seed, haps_file)
     else:
@@ -661,14 +697,110 @@ def strudel_to_score_ir(
         "full_coverage": {"passed": fc.get("passed"), "n_issues": fc.get("n_issues"), "issues": fc.get("issues", [])[:20]},
         "n_tracks": info["n_tracks"],
         "n_notes": n_notes,
+        "mutation": info.get("mutation", {}),
+        "diagnostics": [
+            f"ERR_OVER_REPAIRED {classify_role(tn)}: {round(r * 100)}% notes shifted"
+            for tn, r in (info.get("mutation") or {}).items() if r > MUTATION_RATIO_MAX
+        ],
         "sections": [{"name": n, "start_bar": sb, "bars": nb, "kind": k} for n, sb, nb, k in sections],
         "seed": gseed,
     }
     return report
 
 
+def apply_score_ir_patch(project_dir: str, patch: dict[str, Any]) -> dict[str, Any]:
+    """v4.1 — patch sémantique micro-tokens sur le ScoreIR (0 réécriture Strudel, 0 LLM).
+
+    Formats acceptés :
+      {"section": "chorus", "ops": {"energy": "+2dB"}}
+      {"lead": {"oct": -1, "rests": "+15%", "cutoff": 3200}}   ou   {"track": "lead", "ops": {...}}
+    """
+    proj = os.path.abspath(os.path.expanduser(project_dir))
+    ir_path = os.path.join(proj, "score_ir.json")
+    plan_path = os.path.join(proj, "arrangement_plan.json")
+    if not os.path.isfile(ir_path):
+        return {"ok": False, "error": f"score_ir.json absent : {ir_path} (composer d'abord)"}
+    score = ScoreIR.load(ir_path)
+    applied: list[str] = []
+
+    if patch.get("section"):
+        sec_name = str(patch["section"]).lower()
+        ops = patch.get("ops") or {}
+        sec_range = None
+        if os.path.isfile(plan_path):
+            with open(plan_path, encoding="utf-8") as fh:
+                plan = json.load(fh)
+            bpb = int(plan.get("meta", {}).get("time_signature", {}).get("numerator") or 4)
+            for s in plan.get("sections") or []:
+                if str(s.get("name", "")).lower() == sec_name:
+                    sec_range = (int(s["start_bar"]) * bpb, (int(s["start_bar"]) + int(s["bars"])) * bpb)
+        energy = ops.get("energy")
+        if energy and sec_range:
+            txt = str(energy).replace("dB", "").strip()
+            db = abs(float(txt.replace("+", "")))
+            sign = 1 if str(energy).strip().startswith("+") else -1
+            dv = int(round(db * 6))
+            for tir in score.tracks.values():
+                for n in tir.notes:
+                    if sec_range[0] - 1e-6 <= float(n.grid_beat) < sec_range[1] - 1e-6:
+                        n.velocity = max(1, min(127, int(n.velocity) + sign * dv))
+            applied.append(f"section:{sec_name} energy={energy}")
+
+    track_ops = None
+    if patch.get("track"):
+        track_ops = (str(patch["track"]), patch.get("ops") or {})
+    else:
+        for k, v in patch.items():
+            if isinstance(v, dict) and k != "section":
+                track_ops = (str(k), v)
+                break
+    if track_ops:
+        tname, ops = track_ops
+        target = None
+        for name in score.tracks:
+            if name == tname or classify_role(name) == classify_role(tname):
+                target = name
+                break
+        if target is None:
+            return {"ok": False, "error": f"piste introuvable dans le ScoreIR : {tname}"}
+        tir = score.tracks[target]
+        role = classify_role(target)
+        if "oct" in ops:
+            shift = 12 * int(ops["oct"])
+            for n in tir.notes:
+                p = int(n.pitch) + shift
+                if role == "bass":
+                    p = fold_into_register(p, *BASS_REGISTER)
+                elif role in ("lead", "counter"):
+                    while p > LEAD_APEX_MAX:
+                        p -= 12
+                n.pitch = p
+            applied.append(f"{target}: oct={ops['oct']}")
+        if "rests" in ops:
+            pct = abs(float(str(ops["rests"]).replace("+", "").replace("%", ""))) / 100.0
+            notes = sorted(tir.notes, key=lambda n: (float(n.grid_beat), int(n.pitch)))
+            k = int(round(len(notes) * pct))
+            if k > 0 and len(notes) > k:
+                idxs = sorted({min(len(notes) - 1, max(1, round(i * len(notes) / k))) for i in range(k)})
+                tir.notes = [n for i, n in enumerate(notes) if i not in idxs]
+            applied.append(f"{target}: rests={ops['rests']}")
+        if "cutoff" in ops and os.path.isfile(plan_path):
+            with open(plan_path, encoding="utf-8") as fh:
+                plan = json.load(fh)
+            for s in plan.get("sections") or []:
+                rm = (s.get("role_modifiers") or {}).get(target)
+                if rm is not None:
+                    rm["cutoff_hz"] = float(ops["cutoff"])
+            with open(plan_path, "w", encoding="utf-8") as fh:
+                json.dump(plan, fh, ensure_ascii=False, indent=2)
+            applied.append(f"{target}: cutoff={ops['cutoff']}")
+
+    score.save(ir_path)
+    return {"ok": True, "project_dir": proj, "applied": applied}
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser(description="v4.0 pont Strudel headless -> ScoreIR (+ arrangement_plan.json)")
+    ap = argparse.ArgumentParser(description="v4.1 pont Strudel headless -> ScoreIR (+ arrangement_plan.json, --patch sémantique)")
     ap.add_argument("project_dir")
     ap.add_argument("--strudel", default="", help="chemin composition.strudel (defaut: <projet>/composition.strudel)")
     ap.add_argument("--haps", default="", help="haps JSON deja produit (defaut: <projet>/composition.strudel.haps.json)")
@@ -678,7 +810,13 @@ def main() -> None:
     ap.add_argument("--no-eval", action="store_true", help="ne jamais appeler node (lire le haps JSON existant)")
     ap.add_argument("--no-plan", action="store_true", help="ne pas emettre arrangement_plan.json")
     ap.add_argument("--out", default="", help="chemin score_ir.json de sortie")
+    ap.add_argument("--patch", default="", help="JSON de patch sémantique (ex. {\"lead\": {\"oct\": -1}}) appliqué sur score_ir.json sans ré-éval")
     args = ap.parse_args()
+    if args.patch:
+        with open(args.patch, encoding="utf-8") as fh:
+            patch = json.load(fh)
+        print(json.dumps(apply_score_ir_patch(args.project_dir, patch), ensure_ascii=False, indent=2, default=str))
+        return
     report = strudel_to_score_ir(
         args.project_dir, strudel_path=args.strudel, haps_path=args.haps,
         bars=args.bars, seed=args.seed, run_eval=args.eval and not args.no_eval,

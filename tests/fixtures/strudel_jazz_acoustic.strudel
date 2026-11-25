@@ -1,0 +1,5 @@
+// @meta 96 D:dorian jazz_acoustic V=0.1 form=I4-V8-C8-O4 seed=606 ts=3/4
+kit("boom_bap", {var: 1, hats: "rolls"})
+$chords: grid("Dm9 G7 Cmaj7 Fmaj7").slow(2).gain(0.7).muteIn("intro,outro")
+$bass: bassline("<1 ~ 5>", {mode: "root", glide: 50}).slow(3).in("verse,chorus,outro")
+$lead: deg("0 2 4 ~ 3 ~ 5 4 ~", 4).slow(2).gain(0.6).sometimesBy(0.25, x => x.degradeBy(0.4)).in("verse,chorus")

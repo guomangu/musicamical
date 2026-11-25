@@ -1,0 +1,5 @@
+// @meta 140 E:phrygian trap_rap V=-0.8 form=I4-V8-C8-O4 seed=101 ts=4/4
+kit("trap_half", {var: 2, hats: "rolls"})
+$chords: grid("Em7 Fmaj7 Cmaj7 G7").slow(2).gain(0.7).muteIn("intro,outro")
+$bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 40}).slow(4).in("verse,chorus,outro")
+$lead: deg("0 ~ 2 ~ 4 ~ 3 ~ 5 ~ 4 ~ 2 ~", 4).slow(2).gain(0.6).sometimesBy(0.25, x => x.degradeBy(0.5)).in("verse,chorus")

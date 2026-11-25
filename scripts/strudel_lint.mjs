@@ -12,7 +12,7 @@ export function lintSource(src) {
   let sawMeta = false;
   for (let li = 0; li < lines.length && errors.length < 2; li++) {
     const ln = lines[li];
-    if (/^\s*\/\/\s*@strudel-meta/.test(ln)) { sawMeta = true; continue; }
+    if (/^\s*\/\/\s*@(strudel-meta|meta)\b/.test(ln)) { sawMeta = true; continue; }  // v4.1 : `// @meta ...` 1 ligne accepté
     if (/^\s*\/\//.test(ln) || !ln.trim()) continue;
     let col = 0;
     for (let i = 0; i < ln.length; i++) {
@@ -46,7 +46,7 @@ export function lintSource(src) {
   if (errors.length < 2 && !sawMeta) {
     const first = lines.find((l) => l.trim() && !l.trim().startsWith('//'));
     if (first && !/^\$[A-Za-z0-9_]*\s*:/.test(first.trim())) {
-      errors.push(`ERR L1:1 Missing '// @strudel-meta {...}' header. Fix: start with a meta comment (bpm/key/mode/seed/sections).`);
+      errors.push(`ERR L1:1 Missing meta header. Fix: start with '// @meta 140 C:minor trap_rap form=I4-V8-C8-O4' (1 ligne) ou '// @strudel-meta {json}'.`);
     }
   }
   return errors.slice(0, 2);
