@@ -4,6 +4,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Pont Strudel headless v4.0 (dépendances npm, jamais versionnées ; package-lock.json commité pour la reproductibilité)
+node_modules/
+
 # Banques de samples locales & index SQLite/NPZ générés
 pack/
 samples
