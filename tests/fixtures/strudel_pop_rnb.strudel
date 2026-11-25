@@ -1,0 +1,5 @@
+// @meta 116 C:major pop_rnb V=0.7 form=I4-V8-C8-O4 seed=202 ts=4/4
+kit("boom_bap", {var: 1, hats: "rolls"})
+$chords: grid("Cmaj7 Am7 Fmaj7 G7").slow(2).gain(0.75).muteIn("intro,outro")
+$bass: bassline("<1 ~ 5 ~>", {mode: "root", glide: 30}).slow(4).in("verse,chorus,outro")
+$lead: deg("0 ~ 4 ~ 3 ~ 2 ~ 1 ~ 2 ~ 4 ~", 4).slow(2).gain(0.65).sometimesBy(0.2, x => x.degradeBy(0.4)).in("verse,chorus")

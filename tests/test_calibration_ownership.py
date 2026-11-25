@@ -103,7 +103,6 @@ class TestCalibrationLoading(unittest.TestCase):
         mms._CALIBRATION_CACHE = {"eq": {"gain_scale": {"low": 1.0, "mid": 1.0, "high": 1.0}, "q_scale": 1.0},
                                   "limiter": {"ceiling_offset_db": -0.4}}
         try:
-            rng = np.random.default_rng(5)
             sr = 22050
             dur = 4.0
             n = int(dur * sr)

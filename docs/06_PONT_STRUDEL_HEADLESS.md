@@ -91,6 +91,11 @@ python3 scripts/compile_song.py <projet> --probe    # sonde composite 12 mesures
 | `tests/test_strudel_bridge.py` | `.venv/bin/python -m unittest tests/test_strudel_bridge.py -v` | Garde-fous sur l'exemple fautif (registre, apex, b2, LIL, 1 piste = 1 rôle), plan valide schéma, déterminisme seed, eval Node reel + E2E (skip si `node`/`@strudel` absent) |
 | `tests/test_token_budget_v4.py` | `.venv/bin/python -m unittest tests/test_token_budget_v4.py -v` | Façade `ai-studio-prod` = 3 outils (AST), budget schemas+runbook+retour prepare < 1 800 tokens, runbook V4 <= 750 tokens, patch `replace_track`, `handoff.txt` <= 350 tokens, prélude/lint/compose E2E (skip si `node` absent) |
 | `tests/test_math_mix_solver.py` | `.venv/bin/python -m unittest tests/test_math_mix_solver.py -v` | Contrat §6.1, conflit spectral sévère, perte L/R+mono, parsimonie ±0,3 dB, source défectueuse -> `saturated_tracks_for_swap`, CPU < 1,0 s (8 stems stéréo x 12 mesures) |
+| `tests/test_canonical_examples.py` | `.venv/bin/python -m unittest tests/test_canonical_examples.py -v` | **P1** exemples canoniques (bloc js du runbook V4 + asset) : lint → eval → pont avec **0 correction de garde-fou** (skip si `node` absent) |
+| `tests/regression_multi_genre_strudel.py` | `.venv/bin/python -m unittest tests.regression_multi_genre_strudel.py -v` | **P6** parité CI **7/7** : fixtures `tests/fixtures/strudel_<profil>.strudel` (incl. `jazz_acoustic` 3/4 et `classical_ambient` 3/4 sans batterie) → lint → eval → pont → solveur sur stems synthétiques (0 erreur, mutation ≤ 25 %, 0 diagnostic `ERR_OVER_REPAIRED`, full_coverage OK, plan valide schéma, basse `[31,48]`, sections = `form=`, déterminisme seed) ; rendu + **PQ ≥ 7.8** seulement si binaire `gridline` présent |
+| `tests/test_calibration_ownership.py` | `.venv/bin/python -m unittest tests/test_calibration_ownership.py -v` | **P3** calibration `gl.*` + propriété mixer (`SKIPPED_SOLVER_OWNERSHIP`) + `scalar_master_fix` |
+| `tests/test_p4_corridors_pq.py` | `.venv/bin/python -m unittest tests/test_p4_corridors_pq.py -v` | **P4** corridors externes `external_pro_reference` + proxy PQ < 10 ms + `MUTATION_RATIO_MAX` |
+| `tests/test_session_bugs.py` | `.venv/bin/python -m unittest tests/test_session_bugs.py -v` | **RETEX** régression des 3 crashs de session + propagation `seed` `@meta` |
 
 ## 7. Installation des Dépendances Node
 

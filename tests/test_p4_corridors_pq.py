@@ -32,8 +32,8 @@ except ImportError:
     HAVE_AUDIO = False
 
 try:
-    import sklearn  # noqa: F401
-    HAVE_SKLEARN = True
+    import sklearn
+    HAVE_SKLEARN = bool(sklearn.__version__)
 except ImportError:
     HAVE_SKLEARN = False
 

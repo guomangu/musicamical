@@ -1,0 +1,5 @@
+// @meta 82 F:major lofi_chill V=0.4 form=I4-V8-C8-O4 seed=505 ts=4/4
+kit("ambient", {var: 2})
+$chords: grid("Fmaj7 Gm7 Am7 Dm7").slow(2).gain(0.65).muteIn("intro,outro")
+$bass: bassline("<1 ~ ~ 5>", {mode: "root", glide: 60}).slow(4).in("verse,chorus,outro")
+$lead: deg("0 ~ 2 ~ 4 ~ 3 ~ 1 ~ 2 ~ 0 ~", 4).slow(2).gain(0.5).sometimesBy(0.2, x => x.degradeBy(0.3)).in("verse,chorus")
