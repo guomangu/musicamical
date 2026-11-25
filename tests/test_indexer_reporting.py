@@ -148,12 +148,13 @@ class TestSummarizeIndexReport(unittest.TestCase):
     def test_samples_json_with_rejected_reasons(self):
         _, summarize = self._script()
         raw = json.dumps({"scanned": 6, "total": 2, "indexed": 2, "skipped": 0, "rejected": 4,
-                          "rejected_reasons": {"bad_magic_bytes": 1}, "errors": 1,
+                          "rejected_reasons": {"bad_magic_bytes": 1}, "errors": 1, "pruned": 3,
                           "dsp_total": 2, "clap_embedded": 0, "cards_total": 2})
         line = summarize("samples", raw)
         self.assertIn("6 scannés", line)
         self.assertIn("4 rejetés (bad_magic_bytes: 1)", line)
         self.assertIn("1 erreurs", line)
+        self.assertIn("3 purgés (fichiers absents)", line)
 
     def test_empty_input_never_crashes(self):
         parse_report, summarize = self._script()
@@ -260,6 +261,54 @@ class TestIndexDirectoryParallelAnalyze(unittest.TestCase):
             r2 = index_directory(samples, db, force=False, with_clap=False, with_dsp=False, workers=2)
             self.assertEqual(r2["indexed"], 0)
             self.assertEqual(r2["skipped"], 8)
+
+
+class TestIndexDirectoryPrune(unittest.TestCase):
+    """v4.0 hotfix — l'indexeur incrémental purgait JAMAIS les lignes dont le fichier a
+    disparu (packs supprimés) : la DB gardait des milliers de lignes fantômes (`total`
+    gonflé). Le prune ne s'exécute que hors `--limit`."""
+
+    def test_deleted_files_are_pruned_with_cascade(self):
+        import sqlite3
+        from indexer import index_directory
+        with tempfile.TemporaryDirectory() as tmp:
+            samples = os.path.join(tmp, "samples")
+            os.makedirs(samples)
+            _build_samples_tree(samples)
+            db = os.path.join(tmp, "samples.db")
+            r1 = index_directory(samples, db, force=False, with_clap=False, with_dsp=True, workers=1)
+            self.assertEqual(r1["total"], 2)
+            self.assertEqual(r1.get("pruned", 0), 0)
+            os.remove(os.path.join(samples, "kick.wav"))  # le pack est supprimé du disque
+            r2 = index_directory(samples, db, force=False, with_clap=False, with_dsp=True, workers=1)
+            self.assertEqual(r2["pruned"], 1)
+            self.assertEqual(r2["total"], 1)
+            self.assertEqual(r2["indexed"], 0)
+            self.assertEqual(r2["skipped"], 1)  # loop.mid toujours là
+            conn = sqlite3.connect(db)
+            n_samples = conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
+            orphans_dsp = conn.execute(
+                "SELECT COUNT(*) FROM sample_dsp_metrics d LEFT JOIN samples s ON d.sample_id = s.id WHERE s.id IS NULL"
+            ).fetchone()[0]
+            orphans_cards = conn.execute(
+                "SELECT COUNT(*) FROM sample_semantic_cards c LEFT JOIN samples s ON c.sample_id = s.id WHERE s.id IS NULL"
+            ).fetchone()[0]
+            conn.close()
+            self.assertEqual(n_samples, 1)      # loop.mid reste en base
+            self.assertEqual(orphans_dsp, 0)    # cascade OK : aucune ligne DSP orpheline
+            self.assertEqual(orphans_cards, 0)
+
+    def test_prune_skipped_under_limit(self):
+        from indexer import index_directory
+        with tempfile.TemporaryDirectory() as tmp:
+            samples = os.path.join(tmp, "samples")
+            os.makedirs(samples)
+            _build_samples_tree(samples)
+            db = os.path.join(tmp, "samples.db")
+            index_directory(samples, db, force=False, with_clap=False, with_dsp=False, workers=1)
+            r = index_directory(samples, db, force=False, with_clap=False, with_dsp=False, workers=1, limit=1)
+            self.assertEqual(r["total"], 2)          # rien purgé sous --limit
+            self.assertEqual(r.get("pruned", 0), 0)
 
 
 class TestVerifyInstallHandshake(unittest.TestCase):
