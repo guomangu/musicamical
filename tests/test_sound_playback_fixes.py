@@ -201,6 +201,78 @@ class TestGainStagingNominalAbsolute(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(td, "renders", "gain_staging_report.json")))
 
 
+class TestBlueprintToChannelBinding(unittest.TestCase):
+    """Le sample branché sur une piste DRUMS (rôle partagé "drums") doit atteindre le canal
+    au rendu (lookup blueprint par nom), avec root_note et plugin_params du blueprint."""
+
+    def _proj_with_bp(self, td, tracks):
+        proj = os.path.join(td, "proj")
+        os.makedirs(proj, exist_ok=True)
+        bp = {"title": "t", "genre": "trap_rap", "mix_profile": "trap_rap", "has_drums": True,
+              "seed": 1, "emotion_vector": {"valence": 0.0}, "bpm": 140.0, "key": "C",
+              "time_signature": {"numerator": 4, "denominator": 4},
+              "harmonic_core": {"key": "C", "mode": "minor", "progression_bars": 1,
+                                "chord_progression": [{"bar": 1, "symbol": "Cm", "bass_midi": 36,
+                                                       "voicing_midi": [60, 63, 67]}],
+                                "motif_cell": {"intervals_from_tonic": [0, 3, 7], "rhythm_beats": [0, 2], "apex_midi": 72},
+                                "phrase_plan": "A-A'-A''-B"},
+              "structure": [{"section": "song", "start_bar": 1, "bars": 4, "energy": 0.7}],
+              "tracks": tracks}
+        import jsonschema
+        with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
+            jsonschema.validate(bp, json.load(fh))
+        with open(os.path.join(proj, "song_blueprint.json"), "w", encoding="utf-8") as fh:
+            json.dump(bp, fh)
+        return proj
+
+    def test_drum_sample_bound_by_track_name(self):
+        import song_builder
+        with tempfile.TemporaryDirectory() as td:
+            kick_wav = os.path.join(td, "kick.wav")
+            with open(kick_wav, "w", encoding="utf-8") as fh:
+                fh.write("x")
+            tracks = [
+                {"name": "kick", "role": "drums", "source_type": "sample", "plugin": "gl.sampler",
+                 "sample_path": kick_wav, "root_note": 36, "mixer_track": 1},
+                {"name": "snare", "role": "drums", "source_type": "gridline_native", "plugin": "gl.snare",
+                 "mixer_track": 2},
+                {"name": "counter", "role": "counter", "source_type": "gridline_native", "plugin": "gl.fm",
+                 "plugin_params": {"cutoff_hz": 8000.0, "attack_ms": 3.0}, "mixer_track": 3},
+            ]
+            proj = self._proj_with_bp(td, tracks)
+            plan = {"sections": [{"active_roles": ["kick", "snare", "counter"]}], "motifs": {}}
+            chans = song_builder._default_channels_for_plan(plan, ["kick", "snare", "counter"], proj, 0.0)
+            by_key = {c.track_key: c for c in chans}
+            kick = by_key["kick"]
+            self.assertEqual(kick.plugin, "gl.sampler")          # sample du blueprint appliqué (par NOM)
+            self.assertEqual(kick.sample_file, kick_wav)
+            self.assertEqual(kick.root_note, 36)
+            snare = by_key["snare"]
+            self.assertEqual(snare.plugin, "gl.snare")            # pas écrasé par la piste kick
+            counter = by_key["counter"]
+            self.assertEqual(counter.plugin, "gl.fm")
+            self.assertEqual(counter.cutoff_hz, 8000.0)           # cutoff confort propagé
+            self.assertEqual(counter.plugin_params.get("attack_ms"), 3.0)
+
+    def test_ensure_blueprint_stores_plugin_params(self):
+        import prod_server
+        with tempfile.TemporaryDirectory() as td:
+            haps = {"meta": {"mix_profile": "trap_rap", "valence": 0.0, "bpm": 140, "key": "C",
+                             "mode": "minor", "progression": ["Cm7"],
+                             "sections": [{"name": "song", "bars": 8}]},
+                    "tracks": {"lead": {}}}
+            with open(os.path.join(td, "composition.strudel.haps.json"), "w", encoding="utf-8") as fh:
+                json.dump(haps, fh)
+            bp = prod_server._ensure_blueprint(td, {})
+            tr = bp["tracks"][0]
+            self.assertIn("plugin_params", tr)
+            self.assertIsInstance(tr["plugin_params"], dict)
+            # garde-fous de confort présents sur les rôles tonaux
+            if tr["name"] == "lead":
+                self.assertGreaterEqual(tr["plugin_params"].get("attack_ms", 2.0), 2.0)
+                self.assertLessEqual(tr["plugin_params"].get("cutoff_hz", 9000.0), 9000.0)
+
+
 class TestNfftClampNoWarning(unittest.TestCase):
     def test_short_signal_no_nfft_warning(self):
         import sample_quality_v2 as q2

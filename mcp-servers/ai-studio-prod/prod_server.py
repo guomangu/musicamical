@@ -223,12 +223,14 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
         role = classify_role(name)
         # v4.1 : archetype calibré (profil, rôle, valence) pour TOUTES les pistes, y compris percussions
         if role == "vocals":
-            plugin = "gl.sampler"
+            plug = {"plugin": "gl.sampler", "params": {}}
         else:
-            plugin = pick_gl_plugin(str(name).lower(), prof0, val0)["plugin"]
+            plug = pick_gl_plugin(str(name).lower(), prof0, val0)
+        plugin = plug["plugin"]
         tracks.append({"name": str(name), "role": role,
                        "source_type": "vocaloid" if role == "vocals" else "gridline_native",
-                       "plugin": plugin, "mixer_track": mixer_track})
+                       "plugin": plugin, "plugin_params": plug.get("params") or {},
+                       "mixer_track": mixer_track})
         mixer_track = mixer_track + 1 if mixer_track < 16 else 1
     if not tracks:
         tracks = [{"name": "lead", "role": "lead", "source_type": "gridline_native", "plugin": "gl.warmsynth", "mixer_track": 1}]
@@ -379,8 +381,11 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                     tr["fine_tune_ct"] = int(slot["recommended_fine_tune_ct"])
                 n_samples += 1
             else:
+                pg = pick_gl_plugin(key, prof, valence)
                 tr["source_type"] = "gridline_native"
-                tr["plugin"] = pick_gl_plugin(key, prof, valence)["plugin"]
+                tr["plugin"] = pg["plugin"]
+                if pg.get("params"):
+                    tr["plugin_params"] = pg["params"]  # cutoff/ADSR bornés, appliqués au rendu
         bp["palette"] = {"palette_id": chosen.get("palette_id"), "score": chosen.get("score"),
                          "theme": chosen.get("theme"), "n_samples": n_samples,
                          "timbre_coherence": chosen.get("timbre_coherence"),

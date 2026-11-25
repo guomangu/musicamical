@@ -1378,6 +1378,11 @@ def _default_channels_for_plan(
                 rk = str(tr.get("role") or tr.get("name") or "").lower()
                 if rk:
                     bp_tracks[rk] = tr
+                nk = str(tr.get("name") or "").lower()
+                if nk and nk != rk:
+                    # lookup aussi par NOM de piste : toutes les pistes drums partagent le rôle
+                    # "drums" — sinon le sample branché sur $kick/$snare n'atteint jamais le canal
+                    bp_tracks.setdefault(nk, tr)
         except Exception:
             pass
 
@@ -1417,6 +1422,12 @@ def _default_channels_for_plan(
                 spec.sample_file = str(bp_tr["sample_path"])
             elif bp_tr.get("plugin") and str(bp_tr["plugin"]).startswith("gl."):
                 spec.plugin = str(bp_tr["plugin"])
+            pp = bp_tr.get("plugin_params") or {}
+            if isinstance(pp, dict) and pp:
+                # params de confort de l'archetype (pick_gl_plugin) : cutoff/ADSR bornés anti-son-criard
+                spec.plugin_params.update(pp)
+                if pp.get("cutoff_hz") is not None:
+                    spec.cutoff_hz = min(float(spec.cutoff_hz or 16000.0), float(pp["cutoff_hz"]))
             if bp_tr.get("pan") is not None:
                 spec.pan = float(bp_tr["pan"])
             # Root note / fine tune from palette detection: a sample not at C4 must not be
