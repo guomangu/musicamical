@@ -61,6 +61,8 @@ Options utiles : `./install.sh --check-only`, `--skip-plugins`, `--skip-clap`, `
 
 Tests : `.venv/bin/python -m unittest discover -s tests -v` (les tests nécessitant le binaire `gridline` ou des données gitignorées sont automatiquement ignorés sur un clone frais).
 
+**Workflow Git — branche unique** : le dépôt n'utilise plus qu'une seule branche, `main`. Tout changement y est poussé directement (push automatique) ; il n'y a plus de branches latérales `vibe/*` ni de PR intermédiaires à merger. Côté PC local : un simple `git pull` sur `main` suffit pour tout recevoir.
+
 ## Démarrage rapide
 ```bash
 # Option A (recommandée) : ouvrir Gridline en direct puis lancer Antigravity ou Zed
