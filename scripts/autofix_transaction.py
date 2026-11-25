@@ -37,6 +37,27 @@ TIER1_KEYS = (
 TIER2_KEYS = ("lufs", "low_end_share", "low_mids_share", "air_share", "stem_hierarchy_ok", "lra_lu", "pink_slope_db_per_oct")
 TIER3_KEYS = ("stereo_width_db", "stereo_balance_db", "sharpness", "corridor_score", "dynamic_arc_db")
 
+# Matrice de propriété mixer (v4.1 P1) : quand math_mix_solver a résolu le mix
+# (pipeline_state.json: math_mix_solver_applied=true), il possède EXCLUSIVEMENT
+# faders/EQ/pan/largeur/sends FX/limiteur. L'autofix transactionnel ne garde alors
+# que les invariants durs de sécurité Palier 1 ci-dessous.
+SOLVER_SAFE_FIXES = frozenset({
+    "SWAP_SAMPLE", "INVERT_808_POLARITY", "SHIFT_BASS_MICRO_MS",
+    "TRIM_SAMPLE_START_MS", "FIX_TRACK_ROOT_NOTE",
+})
+
+
+def solver_applied(project_dir: str) -> bool:
+    """True si `math_mix_solver.py` a posé le flag de propriété mixer sur le projet."""
+    p = os.path.join(os.path.abspath(os.path.expanduser(project_dir)), "pipeline_state.json")
+    if not os.path.isfile(p):
+        return False
+    try:
+        with open(p, encoding="utf-8") as fh:
+            return bool(json.load(fh).get("math_mix_solver_applied"))
+    except Exception:
+        return False
+
 
 def _get(report: dict[str, Any], key: str) -> float | None:
     """Read a metric from a flat or nested audit report."""
@@ -213,6 +234,9 @@ def apply_with_rollback(
     hist = load_history(project_dir)
     if any(b.get("code") == code and b.get("target") == target for b in hist.get("blacklisted_actions", [])):
         return {"verdict": "SKIPPED_BLACKLISTED", "code": code, "target": target}
+    if solver_applied(project_dir) and code not in SOLVER_SAFE_FIXES:
+        return {"verdict": "SKIPPED_SOLVER_OWNERSHIP", "code": code, "target": target,
+                "reason": "math_mix_solver possède faders/EQ/pan/largeur/sends/limiteur (sécurité Palier 1 uniquement)"}
     snap = snapshot_fn() if snapshot_fn else None
     applied = apply_fn()
     report_after = eval_fn()

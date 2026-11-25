@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "measured": false,
+  "gridline_version": null,
+  "date": null,
+  "eq": {
+    "gain_scale": {
+      "low": 1.0,
+      "mid": 1.0,
+      "high": 1.0
+    },
+    "q_scale": 1.0
+  },
+  "comp": {
+    "ratio_scale": 1.0,
+    "knee_db": 0.0
+  },
+  "limiter": {
+    "ceiling_offset_db": 0.0,
+    "lookahead_ms": 5.0
+  },
+  "note": "Calibration ideale (biquads RBJ exacts). Regenerer avec scripts/calibrate_gl_plugins.py sur la machine hote (1x par version de Gridline) pour measured=true. Lu par scripts/math_mix_solver.py."
+}

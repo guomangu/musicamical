@@ -236,14 +236,17 @@ class _Surrogate:
 
     def band_energies(self, gains_db: np.ndarray, eqs: list[dict[str, float]]) -> np.ndarray:
         """E_i(b) = 10^(g/10) * B @ (|H_i|² * S_i)  → matrice (N, 24), vectorisé sur les pistes."""
+        cal = load_calibration()
+        gscale = cal["eq"].get("gain_scale") or {}
+        q_scale = float(cal["eq"].get("q_scale", 1.0))
         hpf = np.array([e["hpf"] for e in eqs])
-        g_lm = np.array([e["g_lm"] for e in eqs])
-        g_mid = np.array([e["g_mid"] for e in eqs])
+        g_lm = np.array([e["g_lm"] for e in eqs]) * float(gscale.get("low", 1.0))
+        g_mid = np.array([e["g_mid"] for e in eqs]) * float(gscale.get("mid", 1.0))
         f_mid = np.array([e["f_mid"] for e in eqs])
-        g_hs = np.array([e["g_hs"] for e in eqs])
+        g_hs = np.array([e["g_hs"] for e in eqs]) * float(gscale.get("high", 1.0))
         h = (_rbj_mag2("hpf", hpf, np.zeros(self.N), 0.7071, self.z1, self.z2, self.sr)
-             * _rbj_mag2("peak", np.full(self.N, 280.0), g_lm, 1.2, self.z1, self.z2, self.sr)
-             * _rbj_mag2("peak", f_mid, g_mid, 1.6, self.z1, self.z2, self.sr)
+             * _rbj_mag2("peak", np.full(self.N, 280.0), g_lm, 1.2 * q_scale, self.z1, self.z2, self.sr)
+             * _rbj_mag2("peak", f_mid, g_mid, 1.6 * q_scale, self.z1, self.z2, self.sr)
              * _rbj_mag2("high_shelf", np.full(self.N, 7500.0), g_hs, 0.7071, self.z1, self.z2, self.sr))
         E = np.einsum("bk,nk->nb", self.B, h * self.S) * (10.0 ** (gains_db / 10.0))[:, None]
         return E
@@ -284,6 +287,46 @@ def _masking_loss(E: np.ndarray, names: list[str], roles: dict[str, str]) -> flo
     return loss
 
 
+_CALIBRATION_PATH = os.path.join(ROOT, "config", "gl_calibration.json")
+_CALIBRATION_CACHE: dict | None = None
+
+_IDEAL_CALIBRATION: dict = {
+    "schema": 1,
+    "measured": False,
+    "eq": {"gain_scale": {"low": 1.0, "mid": 1.0, "high": 1.0}, "q_scale": 1.0},
+    "comp": {"ratio_scale": 1.0, "knee_db": 0.0},
+    "limiter": {"ceiling_offset_db": 0.0, "lookahead_ms": 5.0},
+}
+
+
+def load_calibration(path: str | None = None) -> dict:
+    """Charge `config/gl_calibration.json` (mesures réelles gl.* produites par
+    `calibrate_gl_plugins.py`, une fois par version de Gridline), mis en cache.
+    Repli sur la calibration idéale (échelles 1.0) si le fichier est absent ou invalide."""
+    global _CALIBRATION_CACHE
+    p = path or _CALIBRATION_PATH
+    if path is None and _CALIBRATION_CACHE is not None:
+        return _CALIBRATION_CACHE
+    cal = None
+    try:
+        with open(p, encoding="utf-8") as fh:
+            cal = json.load(fh)
+    except Exception:
+        cal = None
+    if not isinstance(cal, dict) or not isinstance(cal.get("eq"), dict) or not isinstance(cal.get("limiter"), dict):
+        cal = json.loads(json.dumps(_IDEAL_CALIBRATION))
+    cal.setdefault("eq", {}).setdefault("gain_scale", {"low": 1.0, "mid": 1.0, "high": 1.0})
+    cal.setdefault("limiter", {}).setdefault("ceiling_offset_db", 0.0)
+    if path is None:
+        _CALIBRATION_CACHE = cal
+    return cal
+
+
+def reset_calibration_cache() -> None:
+    global _CALIBRATION_CACHE
+    _CALIBRATION_CACHE = None
+
+
 _LEAD_BANDS_CACHE: list[int] = []
 _LOW_BANDS_CACHE: list[int] = []
 
@@ -309,7 +352,7 @@ def solve_mix_parameters(
     profile_cfg = get_profile_config(mix_profile, valence=valence)
     target_lufs = float(profile_cfg.get("target_lufs", -11.0))
     low_end_max = float(profile_cfg.get("low_end_max_pct", 42.0)) / 100.0
-    ceiling = float(get_invariant("master_limiter_ceiling_dbtp", -1.2))
+    ceiling = float(get_invariant("master_limiter_ceiling_dbtp", -1.2)) + float(load_calibration()["limiter"].get("ceiling_offset_db", 0.0))
     max_lim_gain = float(get_invariant("master_limiter_max_gain_db", 5.5))
     hier = stem_hierarchy_bounds()
     if overrides.get("bass_vs_kick_target_db") is not None and "bass_vs_kick" in hier:
@@ -665,6 +708,53 @@ def solve_mix_parameters(
     }
 
 
+def mark_solver_applied(project_dir: str, solution: dict) -> dict:
+    """Marque dans `<proj>/pipeline_state.json` que math_mix_solver possède désormais les
+    paramètres mixer (faders/EQ/pan/largeur/sends/limiteur) : `autofix_transaction.py` ne
+    peut plus agir que sur les invariants de sécurité Palier 1 (SOLVER_SAFE_FIXES)."""
+    p = os.path.join(os.path.abspath(os.path.expanduser(project_dir)), "pipeline_state.json")
+    state: dict = {}
+    if os.path.isfile(p):
+        try:
+            with open(p, encoding="utf-8") as fh:
+                state = json.load(fh)
+        except Exception:
+            state = {}
+    state["math_mix_solver_applied"] = True
+    state["math_mix_solver"] = {
+        "mix_profile": solution.get("mix_profile"),
+        "solve_time_ms": solution.get("solve_time_ms"),
+        "predicted_metrics": solution.get("predicted_metrics"),
+        "calibration_measured": bool(load_calibration().get("measured")),
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(state, fh, ensure_ascii=False, indent=2, default=str)
+    os.replace(tmp, p)
+    return state
+
+
+def scalar_master_fix(metrics: dict, mix_profile: str, config_path: str | None = None) -> dict:
+    """Micro-passe scalaire résiduelle post-rendu (0 ré-optimisation EQ, 0 token LLM) :
+    Master Gain uniquement si |LUFS - target| > 0.7 dB, Ceiling du limiteur uniquement si
+    true_peak > -1.0 dBTP. Aucun fader de piste, aucune EQ."""
+    from mix_config import get_invariant, get_profile_config
+    fixes: dict[str, float] = {}
+    lufs = metrics.get("lufs")
+    target = metrics.get("target_lufs")
+    if target is None:
+        target = get_profile_config(mix_profile, explicit_path=config_path).get("target_lufs", -11.0)
+    if isinstance(lufs, (int, float)) and isinstance(target, (int, float)) and abs(float(lufs) - float(target)) > 0.7:
+        fixes["master_gain_db"] = round(float(target) - float(lufs), 2)
+    tp = metrics.get("true_peak_dbtp")
+    ceiling = float(get_invariant("master_limiter_ceiling_dbtp", -1.2, config_path))
+    if isinstance(tp, (int, float)) and float(tp) > -1.0:
+        fixes["ceiling_dbtp"] = round(ceiling - max(0.0, float(tp) + 1.0), 3)
+    return {"applied": bool(fixes), "fixes": fixes,
+            "rule": "scalaire uniquement : |LUFS-target|>0.7 dB ou TP>-1.0 dBTP (jamais EQ/fader piste)"}
+
+
 def solve_from_stems_dir(stems_dir: str, mix_profile: str, bpm: float, valence: float = 0.0,
                          energy: float = 0.7, depth: float = 0.5, out_path: str = "",
                          user_overrides: dict | None = None) -> dict:
@@ -702,10 +792,15 @@ def main() -> None:
     ap.add_argument("--energy", type=float, default=0.7)
     ap.add_argument("--depth", type=float, default=0.5)
     ap.add_argument("--out", default="", help="JSON de sortie (défaut: <stems_dir>/math_mix_solution.json)")
+    ap.add_argument("--set-flag", action="store_true",
+                    help="marque <projet>/pipeline_state.json : propriétaire mixer = solveur (projet = parent de stems_dir)")
     args = ap.parse_args()
     out = args.out or os.path.join(args.stems_dir, "math_mix_solution.json")
     sol = solve_from_stems_dir(args.stems_dir, args.profile, args.bpm, valence=args.valence,
                                energy=args.energy, depth=args.depth, out_path=out)
+    if args.set_flag:
+        proj = os.path.dirname(os.path.abspath(args.stems_dir)) or args.stems_dir
+        mark_solver_applied(proj, sol)
     print(json.dumps(sol, ensure_ascii=False, indent=2, default=str))
     sys.exit(0 if sol.get("converged") else 2)
 
