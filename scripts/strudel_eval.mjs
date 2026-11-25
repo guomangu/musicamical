@@ -2,6 +2,7 @@
 // v4.0 — Evaluateur Strudel 100 % headless (Node.js pur, queryArc, 0 Chromium, 0 temps reel).
 // Usage : node scripts/strudel_eval.mjs <composition.strudel> [--bars N] [--seed S] [--out haps.json] [--compact]
 import { register } from 'node:module';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -34,6 +35,32 @@ if (lintErrors.length) {
   process.exit(4);
 }
 
+const FORM_SECTION = { i: 'intro', v: 'verse', p: 'pre_chorus', c: 'chorus', b: 'bridge', o: 'outro', d: 'drop' };
+function parseMetaLine(body, meta) {
+  for (const tok of body.split(/\s+/).filter(Boolean)) {
+    let m;
+    if ((m = /^(\d{2,3})$/.exec(tok))) meta.bpm = Number(m[1]);
+    else if ((m = /^([A-Ga-g][#b]?):(\w+)$/.exec(tok))) { meta.key = m[1][0].toUpperCase() + m[1].slice(1); meta.mode = m[2]; }
+    else if ((m = /^V=(-?\d+(?:\.\d+)?)$/.exec(tok))) meta.valence = Number(m[1]);
+    else if ((m = /^seed=(\d+)$/.exec(tok))) meta.seed = Number(m[1]);
+    else if ((m = /^ts=(\d+)\/(\d+)$/.exec(tok))) meta.time_signature = [Number(m[1]), Number(m[2])];
+    else if ((m = /^form=([A-Za-z]\d+(?:-[A-Za-z]\d+)*)$/.exec(tok))) {
+      const secs = [];
+      let bar = 0;
+      for (const part of m[1].split('-')) {
+        const mm = /^([A-Za-z])(\d+)$/.exec(part);
+        if (!mm) continue;
+        const name = FORM_SECTION[mm[1].toLowerCase()] || ('section' + bar);
+        const nb = Number(mm[2]);
+        secs.push({ name, bars: nb });
+        bar += nb;
+      }
+      if (secs.length) meta.sections = secs;
+    } else if (/^[a-z][a-z0-9_]*$/.test(tok) && meta.mix_profile === undefined) meta.mix_profile = tok;
+  }
+  return meta;
+}
+
 function extractMeta(source) {
   const lines = source.split('\n');
   const meta = {};
@@ -41,6 +68,10 @@ function extractMeta(source) {
   let buf = '';
   for (const ln of lines) {
     const t = ln.trim();
+    if (!collecting && t.startsWith('//') && t.includes('@meta') && !t.includes('@strudel-meta')) {
+      parseMetaLine(t.replace(/^\/\/\s*@meta/, '').trim(), meta);
+      continue;
+    }
     if (!collecting && t.startsWith('//') && t.includes('@strudel-meta')) {
       collecting = true;
       buf = t.replace(/^\/\/\s*@strudel-meta/, '').trim();
@@ -68,14 +99,11 @@ function extractMeta(source) {
 function splitStacks(source) {
   const lines = source.split('\n');
   const stacks = [];
+  const prelude = [];
   let current = null;
-  let sawMeta = false;
   for (const ln of lines) {
     const t = ln.trim();
-    if (t.startsWith('//')) {
-      if (t.includes('@strudel-meta')) sawMeta = true;
-      continue;
-    }
+    if (t.startsWith('//')) continue;
     if (!t) continue;
     const m = t.match(/^\$([A-Za-z0-9_]*)\s*:\s*(.*)$/);
     if (m) {
@@ -84,11 +112,12 @@ function splitStacks(source) {
     } else if (current) {
       current.expr += ' ' + t;
     } else {
-      current = { name: '$', expr: t };
-      stacks.push(current);
+      prelude.push(t); // statement de prélude (ex. kit("trap_half")) : effet de bord, pas une piste
     }
   }
-  return stacks.filter((s) => s.expr.trim().length > 0);
+  const clean = stacks.filter((s) => s.expr.trim().length > 0);
+  if (!clean.length && prelude.length) clean.push({ name: '$', expr: prelude.join(' ') }); // legacy : fichier sans $
+  return { prelude, stacks: clean };
 }
 
 let core;
@@ -111,7 +140,7 @@ const meta0 = extractMeta(src);
 installPrelude(core, meta0);
 
 const meta = extractMeta(src);
-const seedVal = Number(seedArg ?? meta.seed ?? 42);
+const seedVal = Number(seedArg ?? meta.seed ?? (parseInt(createHash('sha256').update(src).digest('hex').slice(0, 8), 16) % 1000003));
 const ts = Array.isArray(meta.time_signature) ? meta.time_signature : [4, 4];
 const beatsPerBar = Number(ts[0] || 4);
 let sections = Array.isArray(meta.sections) && meta.sections.length ? meta.sections : null;
@@ -154,13 +183,7 @@ function extractHap(h, trackAutos) {
   return ev;
 }
 
-async function evalStack(stack) {
-  seed(seedVal);
-  const r = await evaluate(stack.expr);
-  const pattern = r.pattern;
-  if (!pattern || typeof pattern.queryArc !== 'function') {
-    throw new Error(`piste "$${stack.name}" : l'expression ne produit pas un Pattern (got ${typeof pattern})`);
-  }
+function eventsOf(pattern) {
   seed(seedVal);
   const haps = pattern.queryArc(0, bars);
   const autos = {};
@@ -184,19 +207,56 @@ async function evalStack(stack) {
   return { events, automations };
 }
 
-const stacks = splitStacks(src);
-if (!stacks.length) {
+function isKitDummy(pattern) {
+  return Boolean(pattern && ((globalThis.__kitMarker && globalThis.__kitMarker.has(pattern)) || pattern.__aiStudioKit));
+}
+
+function sectionOf(pattern) {
+  const sm = globalThis.__sectionMap;
+  return sm && pattern ? sm.get(pattern) || null : null;
+}
+
+async function evalStack(stack) {
+  seed(seedVal);
+  const r = await evaluate(stack.expr);
+  const pattern = r.pattern;
+  if (!pattern || typeof pattern.queryArc !== 'function') {
+    throw new Error(`piste "$${stack.name}" : l'expression ne produit pas un Pattern (got ${typeof pattern})`);
+  }
+  if (isKitDummy(pattern)) return null; // pile englobante d'un kit() : pas une piste
+  const out = eventsOf(pattern);
+  const sec = sectionOf(pattern);
+  if (sec) out.sections = sec;
+  return out;
+}
+
+const { prelude, stacks } = splitStacks(src);
+if (!stacks.length && !prelude.length) {
   console.error('[strudel_eval] aucune piste `$nom: ...` trouvée dans le fichier');
   process.exit(2);
 }
 
 const tracks = {};
 const errors = [];
+for (const stmt of prelude) {
+  try { seed(seedVal); await evaluate(stmt); } catch (err) { errors.push(`prelude: ${err.message}`); }
+}
 for (const st of stacks) {
   try {
-    tracks[st.name] = await evalStack(st);
+    const out = await evalStack(st);
+    if (out) tracks[st.name] = out;
   } catch (err) {
     errors.push(`$${st.name}: ${err.message}`);
+  }
+}
+// v4.1 : pistes atomiques enregistrées par kit() (1 rôle = 1 piste, hors piles $)
+for (const [role, pat] of Object.entries(globalThis.__strudel_kit || {})) {
+  if (tracks[role]) continue;
+  try {
+    seed(seedVal);
+    tracks[role] = eventsOf(pat);
+  } catch (err) {
+    errors.push(`kit:${role}: ${err.message}`);
   }
 }
 
@@ -222,7 +282,7 @@ if (chordTrackName) {
 if (!sections) sections = [{ name: 'song', bars }];
 
 const output = {
-  schema_version: '4.0',
+  schema_version: '4.1',
   source: path.basename(file),
   meta: {
     bpm: Number(meta.bpm ?? 120),
