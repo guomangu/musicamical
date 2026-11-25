@@ -278,6 +278,9 @@ def _select_best_from_sqlite(
     has_cards_table = (
         conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sample_semantic_cards'").fetchone() is not None
     )
+    has_q2_table = (
+        conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sample_quality_v2'").fetchone() is not None
+    )
     has_any_clap = (
         conn.execute("SELECT EXISTS(SELECT 1 FROM samples WHERE clap_embedding IS NOT NULL)").fetchone()[0] == 1
     )
@@ -314,6 +317,8 @@ def _select_best_from_sqlite(
 
     clauses = ["s.ext NOT IN ('.mid', '.midi')"]
     params: list[Any] = []
+    if has_q2_table:
+        clauses.append("(q2.status IS NULL OR q2.status != 'REJECTED')")  # v2 : qualité physique (CLIPPED/UPSAMPLED_LOSSY/NOISY_FLOOR)
     if has_dsp_table:
         clauses.append("(d.hard_reject = 0 OR d.hard_reject IS NULL)")
         eff_playable = True if monophonic_only else playable_chromatically
@@ -373,6 +378,7 @@ def _select_best_from_sqlite(
                 d.band_sub, d.band_bass, d.band_lowmid, d.band_mid, d.band_harsh, d.band_air
             FROM samples s
             LEFT JOIN sample_dsp_metrics d ON d.sample_id = s.id
+            LEFT JOIN sample_quality_v2 q2 ON q2.sample_id = s.id
             WHERE {where_sql}{limit_sql}
         """
     else:

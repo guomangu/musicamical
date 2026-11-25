@@ -189,6 +189,22 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_dsp_r_harsh ON sample_dsp_metrics(r_harsh);")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_dsp_low_mid_corr ON sample_dsp_metrics(low_mid_corr);")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_dsp_hard_reject ON sample_dsp_metrics(hard_reject);")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sample_quality_v2 (
+            sample_id INTEGER PRIMARY KEY REFERENCES samples(id) ON DELETE CASCADE,
+            status TEXT NOT NULL DEFAULT 'PASS',
+            defects_json TEXT,
+            true_peak_dbtp REAL,
+            snr_db REAL,
+            morphology_json TEXT,
+            bark_24_json TEXT,
+            tags_json TEXT,
+            updated_at REAL
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_q2_status ON sample_quality_v2(status);")
     conn.commit()
     return conn
 
@@ -518,8 +534,9 @@ def _iter_media_files(samples_dir: str) -> tuple[list[tuple[str, str]], list[dic
     return results, rejected
 
 
-def _compute_dsp_worker(task: tuple[int, str, float | None]) -> tuple[int, dict[str, Any] | None]:
-    """Worker computing deterministic DSP metrics (`sample_dsp_metrics` row) without CLAP."""
+def _compute_dsp_worker(task: tuple[int, str, float | None]) -> tuple[int, dict[str, Any] | None, dict[str, Any] | None]:
+    """Worker computing deterministic DSP metrics (`sample_dsp_metrics` row) + profil qualité v2
+    (`sample_quality_v2`) sans CLAP. Décodage unique in-process (soundfile), aucun subprocess."""
     sample_id, path, peak_db = task
     try:
         from audio_metrics import analyze_single_file
@@ -527,7 +544,7 @@ def _compute_dsp_worker(task: tuple[int, str, float | None]) -> tuple[int, dict[
         entry, _ = analyze_single_file(path, with_clap=False, max_seconds=8.0)
         dsp = entry["dsp"]
         bands = dsp.get("bands") or {}
-        return sample_id, {
+        row = {
             "sample_id": sample_id,
             "sample_nature": dsp.get("sample_nature"),
             "playable_chromatically": 1 if dsp.get("playable_chromatically") else 0,
@@ -565,8 +582,32 @@ def _compute_dsp_worker(task: tuple[int, str, float | None]) -> tuple[int, dict[
             "inharmonic_warnings_json": json.dumps(dsp.get("inharmonic_warnings") or []),
             "updated_at": time.time(),
         }
+        q2_row = None
+        try:
+            import sample_quality_v2 as q2
+            prof = q2.analyze_file_v2(path, max_seconds=8.0)
+            q2_row = q2.quality_row_for_db(sample_id, prof)
+            if q2_row["status"] == "REJECTED":
+                reasons = set(json.loads(row["reject_reasons"] or "[]"))
+                reasons.update(f"v2:{d}" for d in json.loads(q2_row["defects_json"]))
+                row["reject_reasons"] = json.dumps(sorted(reasons))
+                row["hard_reject"] = 1
+        except Exception:
+            q2_row = None
+        return sample_id, row, q2_row
     except Exception:
-        return sample_id, None
+        return sample_id, None, None
+
+
+def upsert_quality_v2(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
+    cols = ", ".join(row.keys())
+    placeholders = ", ".join(f":{k}" for k in row.keys())
+    updates = ", ".join(f"{k}=excluded.{k}" for k in row.keys() if k != "sample_id")
+    conn.execute(
+        f"INSERT INTO sample_quality_v2 ({cols}) VALUES ({placeholders}) "
+        f"ON CONFLICT(sample_id) DO UPDATE SET {updates}",
+        row,
+    )
 
 
 def upsert_dsp_metrics(conn: sqlite3.Connection, row: dict[str, Any]) -> None:
@@ -604,9 +645,11 @@ def populate_dsp_metrics(
 
     dsp_ok = 0
     dsp_err = 0
+    q2_pass = 0
+    q2_rej = 0
     if workers > 1 and len(tasks) > 4:
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
-            for _, row in pool.map(_compute_dsp_worker, tasks, chunksize=8):
+            for _, row, q2_row in pool.map(_compute_dsp_worker, tasks, chunksize=8):
                 if row is not None:
                     upsert_dsp_metrics(conn, row)
                     dsp_ok += 1
@@ -614,9 +657,15 @@ def populate_dsp_metrics(
                         conn.commit()
                 else:
                     dsp_err += 1
+                if q2_row is not None:
+                    upsert_quality_v2(conn, q2_row)
+                    if q2_row["status"] == "REJECTED":
+                        q2_rej += 1
+                    else:
+                        q2_pass += 1
     else:
         for t in tasks:
-            _, row = _compute_dsp_worker(t)
+            _, row, q2_row = _compute_dsp_worker(t)
             if row is not None:
                 upsert_dsp_metrics(conn, row)
                 dsp_ok += 1
@@ -624,8 +673,14 @@ def populate_dsp_metrics(
                     conn.commit()
             else:
                 dsp_err += 1
+            if q2_row is not None:
+                upsert_quality_v2(conn, q2_row)
+                if q2_row["status"] == "REJECTED":
+                    q2_rej += 1
+                else:
+                    q2_pass += 1
     conn.commit()
-    return {"dsp_indexed": dsp_ok, "dsp_errors": dsp_err}
+    return {"dsp_indexed": dsp_ok, "dsp_errors": dsp_err, "q2_pass": q2_pass, "q2_rejected": q2_rej}
 
 
 def _compute_clap_embeddings(conn: sqlite3.Connection, batch_limit: int = 0, batch_size: int = 64) -> int:
@@ -1070,6 +1125,7 @@ def index_directory(
         ]
         if stale_ids:
             conn.executemany("DELETE FROM sample_dsp_metrics WHERE sample_id = ?", [(i,) for i in stale_ids])
+            conn.executemany("DELETE FROM sample_quality_v2 WHERE sample_id = ?", [(i,) for i in stale_ids])
             conn.executemany("DELETE FROM sample_semantic_cards WHERE sample_id = ?", [(i,) for i in stale_ids])
             conn.executemany("DELETE FROM samples WHERE id = ?", [(i,) for i in stale_ids])
             pruned = len(stale_ids)
@@ -1116,7 +1172,7 @@ def index_directory(
             conn.commit()
     conn.commit()
 
-    dsp_stats = populate_dsp_metrics(conn, force=force, limit=limit, workers=workers) if with_dsp else {"dsp_indexed": 0, "dsp_errors": 0}
+    dsp_stats = populate_dsp_metrics(conn, force=force, limit=limit, workers=workers) if with_dsp else {"dsp_indexed": 0, "dsp_errors": 0, "q2_pass": 0, "q2_rejected": 0}
     clap_count = _compute_clap_embeddings(conn) if with_clap else 0
     card_stats = populate_semantic_cards(conn, force=force, limit=limit)
     total = conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
@@ -1135,6 +1191,8 @@ def index_directory(
         "dsp_indexed": dsp_stats["dsp_indexed"],
         "dsp_errors": dsp_stats["dsp_errors"],
         "dsp_total": dsp_total,
+        "q2_pass": dsp_stats.get("q2_pass", 0),
+        "q2_rejected": dsp_stats.get("q2_rejected", 0),
         "clap_embedded": clap_count,
         "cards_updated": card_stats["cards_updated"],
         "cards_total": cards_total,
