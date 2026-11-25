@@ -59,6 +59,9 @@ class TestCanonicalExamples(unittest.TestCase):
             self.assertEqual(report.get("diagnostics"), [], f"{label}: diagnostics {report['diagnostics']}")
             self.assertTrue(report["full_coverage"]["passed"], f"{label}: full_coverage {report['full_coverage']}")
             self.assertTrue(report["plan_valid"] is True, f"{label}: plan_valid={report['plan_valid']}")
+            # 3) pre-flight du MIDI Gate (0 rendu) : l'exemple canonique doit aussi passer le gate réel
+            pf = report.get("preflight") or {}
+            self.assertTrue(pf.get("passed"), f"{label}: pre-flight FAIL {json.dumps(pf.get('checks'), default=str)} bad_leaps={pf.get('bad_leaps', [])[:3]}")
 
     def test_runbook_v4_example_block(self):
         src = extract_js_block(os.path.join(ROOT, "docs", "AGENT_RUNBOOK_V4.md"))

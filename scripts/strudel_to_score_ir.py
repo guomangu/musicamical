@@ -678,9 +678,17 @@ def strudel_to_score_ir(
         plan_valid = None
 
     n_notes = sum(len(t.notes) for t in score.tracks.values())
+    # v4.1 pre-flight du MIDI Gate (0 rendu) : métriques réelles post fix_lead_b2_clashes,
+    # topline concaténée de toutes les sections — ce que mesurera audit_midi_file sur le .mid.
+    try:
+        from preflight_strudel_gate import preflight_from_score
+        preflight_rep = preflight_from_score(score, bpm=float(info["bpm"]), tracks=flat_tracks, sections=sections)
+    except Exception as exc:  # jamais bloquant
+        preflight_rep = {"error": str(exc)[:200]}
     report = {
         "ok": bool(evaluation.get("passed")) and bool(compile_report.get("passed")) and bool(fc.get("passed")),
         "stage": "strudel_bridge",
+        "preflight": preflight_rep,
         "project_dir": proj,
         "strudel": strudel,
         "haps": haps_file,
