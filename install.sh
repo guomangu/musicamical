@@ -728,25 +728,40 @@ index_samples_and_verify() {
     return 0
   fi
 
+  local samples_dir="${AI_STUDIO_SAMPLES_DIR:-$STUDIO_DIR/samples}"
   local sample_count
   # Même périmètre que l'indexeur (AUDIO_EXTS + MIDI_EXTS, hors sfz/ __MACOSX/ répertoires cachés)
-  sample_count="$(find -L "$STUDIO_DIR/samples" -type d \( -name sfz -o -name __MACOSX -o -name '.*' \) -prune -o -type f ! -name '.*' \( -iname '*.wav' -o -iname '*.ogg' -o -iname '*.flac' -o -iname '*.mp3' -o -iname '*.aiff' -o -iname '*.aif' -o -iname '*.mid' -o -iname '*.midi' \) -print 2>/dev/null | wc -l)"
+  sample_count="$(find -L "$samples_dir" -type d \( -name sfz -o -name __MACOSX -o -name '.*' \) -prune -o -type f ! -name '.*' \( -iname '*.wav' -o -iname '*.ogg' -o -iname '*.flac' -o -iname '*.mp3' -o -iname '*.aiff' -o -iname '*.aif' -o -iname '*.mid' -o -iname '*.midi' \) -print 2>/dev/null | wc -l)"
   if [[ "$sample_count" -gt 0 ]]; then
-    log "Indexation incrémentale de $sample_count fichiers dans samples/..."
+    # Organisation physique AVANT indexation : les fichiers posés à la racine de samples/ sont
+    # classés dans leur sous-dossier catégorie (808/, kick/, bass/, ...) pour que la DB indexe
+    # directement les nouveaux chemins. Désactivable : AI_STUDIO_ORGANIZE_SAMPLES=0 (.env.example).
+    if [[ "${AI_STUDIO_ORGANIZE_SAMPLES:-1}" != "0" ]]; then
+      log "Organisation des samples de $samples_dir (classement par catégorie)..."
+      local out_org n_moved
+      if out_org="$("$venv_py" "$STUDIO_DIR/scripts/organize_samples.py" --dir "$samples_dir" --move 2>&1)"; then
+        n_moved="$(printf '%s\n' "$out_org" | grep -c '^OK ' || true)"
+        printf '%s\n' "$out_org" | grep -E 'fichier\(s\)|déplacement|Rien à classer' | tail -2 || true
+        ok "Organisation terminée : $n_moved fichier(s) classé(s) dans leur catégorie."
+      else
+        warn "Organisation des samples non bloquante en échec : $(printf '%s' "$out_org" | tail -1)"
+      fi
+    fi
+    log "Indexation incrémentale de $sample_count fichiers dans $samples_dir ..."
     local out
     if [[ $SKIP_CLAP -eq 0 ]]; then
       out="$(HF_HUB_OFFLINE=1 TRANSFORMERS_VERBOSITY=error "$venv_py" "$STUDIO_DIR/mcp-servers/audio-index/indexer.py" --with-clap)"
       printf '%s\n' "$out"; printf '%s' "$out" | summarize_index_report samples
-      out="$(HF_HUB_OFFLINE=1 TRANSFORMERS_VERBOSITY=error "$venv_py" "$STUDIO_DIR/scripts/index_samples.py" --input-dir "$STUDIO_DIR/samples")"
+      out="$(HF_HUB_OFFLINE=1 TRANSFORMERS_VERBOSITY=error "$venv_py" "$STUDIO_DIR/scripts/index_samples.py" --input-dir "$samples_dir")"
       printf '%s\n' "$out"; printf '%s' "$out" | summarize_index_report samples
     else
       out="$("$venv_py" "$STUDIO_DIR/mcp-servers/audio-index/indexer.py")"
       printf '%s\n' "$out"; printf '%s' "$out" | summarize_index_report samples
-      out="$("$venv_py" "$STUDIO_DIR/scripts/index_samples.py" --input-dir "$STUDIO_DIR/samples" --no-clap)"
+      out="$("$venv_py" "$STUDIO_DIR/scripts/index_samples.py" --input-dir "$samples_dir" --no-clap)"
       printf '%s\n' "$out"; printf '%s' "$out" | summarize_index_report samples
     fi
   else
-    warn "Aucun sample audio détecté dans $STUDIO_DIR/samples/ (dépose tes packs ici puis relance install.sh ou indexer.py)."
+    warn "Aucun sample audio détecté dans $samples_dir/ (dépose tes packs ici puis relance install.sh ou indexer.py)."
   fi
 
   if have gridline; then

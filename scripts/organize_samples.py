@@ -75,7 +75,7 @@ def apply_moves(plan: list[dict]) -> list[dict]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Classe les samples de la racine de samples/ dans des sous-dossiers par catégorie")
-    ap.add_argument("--dir", default=os.path.join(ROOT, "samples"))
+    ap.add_argument("--dir", default=os.environ.get("AI_STUDIO_SAMPLES_DIR") or os.path.join(ROOT, "samples"))
     ap.add_argument("--move", action="store_true", help="applique les déplacements (défaut: dry-run)")
     args = ap.parse_args()
     plan = plan_moves(args.dir)
