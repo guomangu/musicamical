@@ -113,6 +113,17 @@ def write_handoff(project_dir: str, report: dict[str, Any]) -> str:
             sha = hashlib.sha256(fh.read()).hexdigest()[:10]
     fc = report.get("full_coverage") or {}
     ev = report.get("evaluate") or {}
+    pf = report.get("preflight") or {}
+    pf_checks = pf.get("checks") or {}
+    if pf_checks:
+        pf_line = (f"preflight={'PASS' if pf.get('passed') else 'FAIL'}"
+                   f" gf={pf_checks.get('gap_fill', {}).get('value')}"
+                   f" sw={pf_checks.get('stepwise_ratio', {}).get('value')}"
+                   f" rest={pf_checks.get('rest_ratio', {}).get('value')}"
+                   f" bad_leaps={pf.get('n_bad_leaps')}"
+                   f" (0 rendu: scripts/preflight_strudel_gate.py <projet>)")
+    else:
+        pf_line = "preflight=n/a"
     lines = [
         f"HANDOFF v4 {os.path.basename(proj)}",
         f"strudel=composition.strudel#{sha} seed={report.get('seed', '?')}",
@@ -120,6 +131,7 @@ def write_handoff(project_dir: str, report: dict[str, Any]) -> str:
         f"sections={','.join(s.get('name', '?') for s in report.get('sections', []))}",
         f"eval_passed={ev.get('passed')} compile_passed={(report.get('compile') or {}).get('passed')} fc_passed={fc.get('passed')}",
         f"guards={json.dumps(report.get('guards', {}), separators=(',', ':'))}",
+        pf_line,
         "score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json",
         f"master={'renders/master.wav' if report.get('master') else 'n/a (gridline absent ou auto_master off)'}",
         "next: studio_refine(delta_json=...) ou strudel_patch={{\"replace_track\":\"lead\",\"code\":\"...\"}}",
@@ -331,6 +343,9 @@ def _summarize(report: dict[str, Any], limit: int = 400) -> str:
         f"guards={json.dumps(report.get('guards', {}), separators=(',', ':'))[:120]}",
         f"eval={ (report.get('evaluate') or {}).get('passed') } fc={(report.get('full_coverage') or {}).get('passed')}",
     ]
+    pf = report.get("preflight") or {}
+    if pf.get("checks"):
+        parts.append(f"gate={'PASS' if pf.get('passed') else 'FAIL'} gf={pf['checks'].get('gap_fill', {}).get('value')} sw={pf['checks'].get('stepwise_ratio', {}).get('value')} rest={pf['checks'].get('rest_ratio', {}).get('value')}")
     if report.get("master"):
         parts.append("master=renders/master.wav")
     if report.get("patched"):
