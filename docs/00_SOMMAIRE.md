@@ -1,6 +1,7 @@
 # Facette 0 — SOMMAIRE & Index Autonome du Framework AI-Studio
 > **v3.0** : en session de production, seul [AGENT_RUNBOOK.md](AGENT_RUNBOOK.md) est chargé (3 macro-tours, < 1 500 tokens) ; l'archive détaillée est dans [REFERENCE_ARCHIVE.md](REFERENCE_ARCHIVE.md).
 > **v3.2** : roadmap des 5 carences musicales majeures post-v3.1 dans [AUDIT_CARENCES_ET_SOLUTIONS_V3_2.md](AUDIT_CARENCES_ET_SOLUTIONS_V3_2.md) (NarrativeHarmony, ExpressionArticulations, FullCoverageCoreValidator, TimbralCohesion, MelodicAppealIndex + CI documentaire).
+> **v4.0** : pont **Strudel headless** (frontend de composition ultra-compact, ~300–600 tokens) dans [06_PONT_STRUDEL_HEADLESS.md](06_PONT_STRUDEL_HEADLESS.md) — `scripts/strudel_eval.mjs` (Node.js pur, `queryArc`) → `scripts/strudel_to_score_ir.py` → même `ScoreIR` + `arrangement_plan.json` (voir Phase 9 ci-dessous).
 
 
 > **Objectif** : Point d'entrée unique pour qu'un agent IA autonome localise immédiatement **chaque dossier et fichier** du framework (racine `$AI_STUDIO_DIR`), connaisse ses **fonctions / outils MCP exacts**, et suive l'**ordre d'utilité exact dans le workflow** sans explorer à l'aveugle.
@@ -36,6 +37,7 @@
 | `.gitignore` | Règles d'exclusion Git (`.venv`, `.env`, gros média, bases temporaires). | **—** (Git) |
 | `.venv/` | Environnement virtuel Python isolé. **Toujours** invoquer `$AI_STUDIO_DIR/.venv/bin/python`. | **1–7** |
 | `schemas/song_blueprint.schema.json` | Schéma JSON Schema normatif validant tout `song_blueprint.json` (`mix_profile`, `has_drums`, `emotion_vector`, `bpm`, `time_signature`, `harmonic_core`, `motif_cell`, `structure`, `frequency_plan`, `tracks`, `vocals`). | **2** (`song_builder.load_blueprint(..., validate=True)`) |
+| `schemas/strudel_haps.schema.json` | Schéma de la sortie JSON de `scripts/strudel_eval.mjs` (Haps par piste `$role` + `@strudel-meta`) consommée par `scripts/strudel_to_score_ir.py`. | **v4.0** (pont Strudel, Phase 9) |
 | `samples` *(symlink → `soundbanks/`)* | Point d'entrée canonique vers les banques locales utilisées par les indexeurs (`sfz/` exclu automatiquement). | **3** |
 | `soundbanks/` | Stockage réel des packs locaux WAV/OGG/MP3, boucles et sous-dossiers `.sfz` (exclus du scan mélodique). | **3** |
 | `SAMPLES/` | Arborescence pré-classée par rôle (`808/`, `bass/`, `clap/`, `fx/`, `guitar/`, `hat/`, `kick/`, `loop/`, `open_hat/`, `perc/`, `piano/`, `snare/`, `synth/`, `synth-samples/`, `vocal/`). | **3** |
@@ -55,6 +57,7 @@ Lire **just-in-time** uniquement la facette correspondant à l'étape courante :
 | :--- | :--- | :--- |
 | **`docs/00_SOMMAIRE.md`** *(ce fichier)* | **Tour 0** (Orientation) | Carte complète des dossiers/fichiers, fonctions clés, outils MCP et ordre exact d'utilisation. |
 | **`docs/AGENT_RUNBOOK.md`** | **Production (Tours 1–3)** — seul fichier lu en session | Runbook compact ($\le 1\,500$ tokens) pilotant les 3 macro-tours MCP (v3.3 : `--probe`, `ScoreIR`, `NarrativeHarmony`, articulations, tournoi `MelodicAppealIndex`). |
+| **`docs/AGENT_RUNBOOK_V4.md`** | **Production v4.0 (profil `ai-studio-prod`, 2 tours)** — préfixe 100 % statique (prompt caching) | Runbook ≤ 750 tokens : flux 2 appels, 1 exemple canonique 22 lignes (`grid`/`deg`/`track`/`glide`), 5 règles dures, garde-fous locaux 0 token. Budget testé par `tests/test_token_budget_v4.py` (< 1 800 tokens combinés). |
 | **`docs/REFERENCE_ARCHIVE.md`** | **Dev / Débogage** (jamais lu en production) | Archive technique v3.0–v3.3, playbook des pièges et journal PQ. |
 | **`docs/AUDIT_CARENCES_ET_SOLUTIONS_V3_2.md`** | **Roadmap / Amélioration continue** | Les 5 carences majeures post-v3.1 et leurs solutions, avec état d'implémentation P1–P5 (commits). |
 | **`docs/01_SYSTEME_STACK_ET_GUIDE.md`** | **Tour 0 / 3** (Outils & DSL) | Stack Linux/PipeWire, budget DSP strict, inventaire des 5 MCP, catalogue vérifié des synthés/effets `gl.*`, DSL `gl_dsl.py`, conversion d'unités beats/ticks/s et syntaxe MCP/Lua. |
@@ -62,6 +65,7 @@ Lire **just-in-time** uniquement la facette correspondant à l'étape courante :
 | **`docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md`** | **Tour 1 / 2 / 3** (Structure) | Contrat `song_blueprint.json`, templates multi-genres, matrice d'arrangement par section, grille 4/8/16 & `transitions_lib.py`, plafond cognitif (5–8 pistes simultanées vs isolation `1 sonorité = 1 piste`), `master_sketch.mid`, seuils `audit_midi_harmony`, table `_infer_roles()`, correction `midi_autofix.py`, patron `build_song.py`. |
 | **`docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md`** | **Tour 1 / 3** (Audio & Chant) | Arbre de choix des sons, index unifié `samples.db` (`< 25 ms`), pipeline DSP 0 GPU, pureté `mono_oneshot` & signature vocale, lois d'hygiène & `sample_prep_lib.py`, APIs CC0 (`fetch_samples_api.py`), protocole Reverse-Engineering/Remix (`reverse-engineer`), workflow chant (`vocaloid` / OpenUTAU). |
 | **`docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md`** | **Tour 4 / 5** (Mix & Validation) | 7 `mix_profile`s, plan 5 bandes, pente rose (`-3..-4.5 dB/oct`), spatialisation 3D, topologie bus `17..20` + `Master 0`, hiérarchie de stems (`analyze_stem_hierarchy`), `spectral_match_score`, Quality Gate conditionnel (dont `has_drums=false`), table Symptôme→Fix + `--auto-fix`, playbook des pièges, journal de références. |
+| **`docs/06_PONT_STRUDEL_HEADLESS.md`** | **v4.0** (Pont Strudel headless) | Architecture 4 couches « Strudel → ScoreIR → AI-Studio → Gridline », contrat `composition.strudel` (`$role`, `@strudel-meta`), 5 règles d'or, garde-fous 0 token, commandes CLI et tests du pont. |
 
 ---
 
@@ -120,6 +124,8 @@ Lire **just-in-time** uniquement la facette correspondant à l'étape courante :
 | **v3.x** | `scripts/compile_song.py` | `compile_song` | Compilateur 100 % déclaratif (`--core-only` / `--probe` / complet) appliquant l'ordre canonique MIDI -> ScoreIR -> clamp frontière 20 ms ; tournoi de variantes `MelodicAppealIndex` en Tour 2 (v3.2). |
 | **v3.x** | `scripts/mix_config.py` | `mix_config` | Chargeur unique de `config/mix_profiles.json` (100 % des seuils mix/gate : `get_profile_config`, `tuning_tolerance`, `notch_budget`, `stem_hierarchy_bounds`, `autofix_step_bounds`). |
 | **v3.x** | `scripts/score_ir.py` | `score_ir` | ScoreIR (v3.1) + v3.2 articulations (`articulation`, `glide_ms`, `vibrato_delay_beats`) : groove non destructif (`expression`), clamp de frontière harmonique 20 ms, suspensions `4->3`/`9->8` résolues. |
+| **v4.0** | `scripts/strudel_to_score_ir.py` | `strudel_to_score_ir`, `run_strudel_eval`, `build_arrangement_plan`, `parse_chord_symbol`, `symbol_to_roman`, `optimize_voicings_lil`, `fix_lead_b2_clashes` | **Pont Strudel headless (couche 2, 0 token)** : Haps JSON (`scripts/strudel_eval.mjs` + `scripts/strudel_loader.mjs` + `scripts/strudel_prelude.mjs` + `scripts/strudel_lint.mjs` + `scripts/package.json`, Node pur `queryArc`) → pistes par rôle → garde-fous (registre 808 `[31,48]`, apex Lead `<= 74`, LIL, b2, inertie) → `score_ir.json` + `arrangement_plan.json` + `FullCoverageCoreValidator`. |
+| **v4.0** | `scripts/math_mix_solver.py` | `solve_mix_parameters`, `solve_from_stems_dir` | **Solveur mathématique conjoint de mixage** (0 token, 0 rendu Gridline suppl., < 0.8 s) : surrogate DSP Bark24 + biquads analytiques, 4 blocs couplés (EQ L-BFGS-B, gains `lsq_linear`, stéréo/DRR, dynamique `sosfilt` + limiteur par dichotomie), piloté par `mix_config` + `spectral_corridors.json`, détection `saturated_tracks_for_swap` (AUTO_SWAP_SAMPLE local). |
 | **v3.x** | `scripts/stem_matrix_evaluator.py` | `stem_matrix_evaluator` | Évaluation NumPy V1..V4 d'un rendu stems + `evaluate_barwise_harmonic_alignment` (chroma-vs-grille par segment, contrat §4.3) + solveur de gains. |
 
 ---
@@ -161,6 +167,11 @@ Lire **just-in-time** uniquement la facette correspondant à l'étape courante :
 | :--- | :--- | :--- |
 | `vocaloid_server.py` | **`list_voicebanks`**, **`syllabify_lyrics`**, **`create_ustx`**, **`synthesize_vocal_preview`**, **`open_in_openutau`** | Découverte des voix (`voicebanks/`), syllabation FR/EN, génération `.ustx`, pré-synthèse WAV calée BPM/MIDI et ouverture dans `tools/OpenUtau/OpenUtau`. |
 
+### 5.6 Serveur `ai-studio-prod` (`mcp-servers/ai-studio-prod/`) — façade de PRODUCTION v4.0
+| Fichier | Outils `@mcp.tool()` | Usage & Rôle |
+| :--- | :--- | :--- |
+| `prod_server.py` | **`studio_prepare`**, **`studio_compose`**, **`studio_refine`** | **3 seuls outils exposés en production** (~600 tokens de schémas vs ~14 000) : prepare retourne un format tabulaire ≤ 450 cars (`CTX`/`PALETTES`/`GROOVES_AVAIL`) ; compose écrit `composition.strudel` de façon atomique, évalue Node headless, compile le pont 0 token et chaine master (`auto_master=true`) + `handoff.txt` (≤ 350 tokens) ; refine accepte `delta_json` (mix, ~40 tokens) ou `strudel_patch` (`replace_track` + `code`, diff minimal). Escalade locale 0-token (lint ≤ 2 lignes, garde-fous ScoreIR, AUTO_SWAP_SAMPLE) avant toute remontée au LLM. |
+
 ---
 
 ## 6. Index de la Suite de Tests & Validation (`tests/`)
@@ -175,6 +186,9 @@ Lire **just-in-time** uniquement la facette correspondant à l'étape courante :
 | `tests/test_phase8_balance_space_expressivity.py` | `.venv/bin/python -m unittest tests/test_phase8_balance_space_expressivity.py -v` | Phase 8 `Q1..Q7` : sonie active & gain staging, matrice stems bornée + `ADJUST_TRACK_FADER`, bus `17..22` (`Dry=0`), audits `stereo_balance_db` / `mid_high_side_to_mid_db`, références externes & garde `taste_memory`, fills/risers/anticipation, registres sombres, `synth_voice(expressive=True)` validé contre `gridline plugin-params`, budget CPU Phase 8 `< 1.5 s` et pyramide `<= 1500` chars. |
 | `tests/test_quality_improvements.py` | `.venv/bin/python -m unittest tests/test_quality_improvements.py -v` | Régressions qualité/portabilité : classification par tokens, filtrage BPM des boucles, propagation `root_note`, résonances notchables, swing/humanisation/pocket, template embarqué, pin `essentia`, verrou `auto_fetch`. |
 | `tests/regression_multi_genre.py` | `.venv/bin/python tests/regression_multi_genre.py -v` | CI bout-en-bout : génère, valide (MIDI Gate), compile 100 % headless (`gl.*` natifs) et audite (`--no-neural`) les 7 `mix_profile`s (`trap_rap`, `pop_rnb`, `edm_club`, `rock_metal`, `lofi_chill`, `jazz_acoustic`, `classical_ambient` sans batterie) en `< 3 min` CPU. |
+| `tests/test_strudel_bridge.py` | `.venv/bin/python -m unittest tests/test_strudel_bridge.py -v` | **v4.0** pont Strudel : garde-fous 0 token sur l'exemple Trap fautif (registre 808, apex Lead, b2, LIL, 1 piste = 1 rôle), plan valide schéma, déterminisme `seed`, éval Node réelle + E2E (skip si `node`/`@strudel` absent). |
+| `tests/test_math_mix_solver.py` | `.venv/bin/python -m unittest tests/test_math_mix_solver.py -v` | **v4.0** solveur mathématique conjoint de mixage (spec §6.3) : conflit spectral sévère réparé en 1 passe, L/R + perte mono, parcimonie ±0.3 dB, détection source défectueuse (`saturated_tracks_for_swap`), budget CPU < 1.0 s sur 8 stems × 12 mesures (skip si numpy/scipy absents). |
+| `tests/test_token_budget_v4.py` | `.venv/bin/python -m unittest tests/test_token_budget_v4.py -v` | **v4.0** budget tokens profil Production : 3 outils MCP + runbook V4 (≤ 750 tokens) + retour prepare (≤ 450 cars) < 1 800 tokens ; patch Strudel chirurgical, `handoff.txt` ≤ 350 tokens, lint Node ≤ 2 lignes, prélude `grid`/`deg`/`track`/`glide`, compose E2E (skip si node absent). |
 | `mcp-servers/audio-analyzer/test_musicality_metrics.py` | `PYTHONPATH=mcp-servers/audio-analyzer .venv/bin/python -m unittest test_musicality_metrics -v` | Métriques musicales de base, détection des frottements `b2` et `optimize_voice_leading`. |
 
 
@@ -219,3 +233,27 @@ Lire **just-in-time** uniquement la facette correspondant à l'étape courante :
 | **`Q5` Transitions Riches** | `scripts/transitions_lib.py`, `schemas/arrangement_plan.schema.json`, `scripts/song_builder.py`, `musicality_metrics.py` | `generate_drum_fill`, `add_transition_fx` (riser `300 Hz -> 9 kHz` + impact), `apply_harmonic_anticipation`, registres sombres `Chords 48-60` / `Lead 60-72` (`gap >= 5 st`), 2 sauts expressifs/8 mes. tolérés, anticipations évaluées sur l'accord suivant. |
 | **`Q6` Timbres Vivants** | `gl_dsl.synth_voice(..., expressive=True)`, `sample_prep_lib.build_multizone_samples`, `song_builder.split_notes_by_pitch_zones` | LFO filtre/vélocité par rôle sur paramètres `gl.*` vérifiés (`gridline plugin-params`), `makeup_gain_db` LPF, sampler 3 zones pré-transposées (`±4 st` max par zone, même insert mixeur). |
 | **`Q7` Orchestration** | `scripts/artifact_cache.py`, `scripts/multiscale_pyramid.py`, `tests/test_phase8_balance_space_expressivity.py` | Hashes E1/E2 incluant `gain_staging_overrides`, `delay_send`, `hall_send`, `expressive` ; nouveaux codes dans le Top-3 ; suite `Q1..Q7` et budget CPU Phase 8 `< 1.5 s`. |
+
+---
+
+## Phase 9 — Pont Strudel Headless (v4.0) : frontend ultra-compact → même ScoreIR
+
+| Élément | Fichier / Outil | Rôle exact |
+| ----- | ----- | ----- |
+| **Évaluateur headless** | `scripts/strudel_eval.mjs`, `scripts/strudel_loader.mjs`, `scripts/package.json` | Node.js pur (`@strudel/core` `queryArc`, `seed` déterministe) : `composition.strudel` → Haps JSON (`schemas/strudel_haps.schema.json`), < 100 ms, 0 Chromium, 0 temps réel |
+| **Compilateur 0 token** | `scripts/strudel_to_score_ir.py` | Haps → `score_ir.json` + `arrangement_plan.json` + garde-fous (registre 808 `[31,48]`, apex Lead `<= 74`, voice leading + LIL, b2 Lead/accord, inertie, clamp 20 ms, `FullCoverageCoreValidator`), puis `compile_song.py` inchangé |
+| **Exemple** | `assets/composition_trap_example.strudel` | Contrat `1 piste $ = 1 rôle atomique` + bloc `// @strudel-meta` (Trap C minor) |
+| **Doc** | [06_PONT_STRUDEL_HEADLESS.md](06_PONT_STRUDEL_HEADLESS.md) | Architecture 4 couches « Strudel → ScoreIR → AI-Studio → Gridline », 5 règles d'or, commandes CLI |
+| **Tests** | `tests/test_strudel_bridge.py` | Garde-fous sur l'exemple Trap fautif, plan valide schéma, déterminisme `seed`, éval Node réelle + E2E (skip si `node`/`@strudel` absent) |
+
+---
+
+## Phase 10 — v4.0 Optimisé : façade MCP 3 outils, solveur mathématique de mixage, prélude/lint Strudel
+
+| Élément | Fichier / Outil | Rôle exact |
+| ----- | ----- | ----- |
+| **Façade production** | `mcp-servers/ai-studio-prod/prod_server.py` | 3 outils (`studio_prepare` ≤ 450 cars tabulaire, `studio_compose` atomique + `auto_master` + `handoff.txt` ≤ 350 tokens, `studio_refine` via `delta_json`/`strudel_patch`) ; profil Zed `ai-studio-prod` seul (généré par `install.sh`) |
+| **Solveur math conjoint** | `scripts/math_mix_solver.py` | 1 seul rendu stems → gains/EQ/pan/largeur/sends/sidechain/limiteur optimaux en < 0.8 s, 0 token, 0 rendu suppl. ; piloté par `config/mix_profiles.json` + `golden_references/spectral_corridors.json` ; `saturated_tracks_for_swap` → AUTO_SWAP_SAMPLE local |
+| **Préluge/lint Strudel** | `scripts/strudel_prelude.mjs`, `scripts/strudel_lint.mjs` | Helpers anti-erreur `grid()`/`track()`/`deg()`/`glide()` injectés dans l'évaluateur headless ; lint ≤ 2 lignes `ERR L..:..` au lieu d'une stacktrace |
+| **Runbook V4** | `docs/AGENT_RUNBOOK_V4.md` | ≤ 750 tokens, préfixe 100 % statique (prompt caching), 1 exemple canonique 22 lignes, 5 règles dures |
+| **Tests** | `tests/test_math_mix_solver.py`, `tests/test_token_budget_v4.py` | 6 tests solveur (spec §6.3) + budget < 1 800 tokens, patch, handoff, lint, prélude, compose E2E |

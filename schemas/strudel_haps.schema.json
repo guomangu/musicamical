@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI-Studio Strudel Haps (v4.0)",
+  "description": "Sortie JSON de scripts/strudel_eval.mjs (Node.js headless, @strudel/core queryArc) : evenements (haps) par piste nommee $role, plus meta declarative extraite du bloc // @strudel-meta. Consomme par scripts/strudel_to_score_ir.py.",
+  "type": "object",
+  "required": ["schema_version", "source", "meta", "bars", "beats_per_bar", "seed", "tracks"],
+  "$defs": {
+    "hapEvent": {
+      "type": "object",
+      "properties": {
+        "start": { "type": "number", "minimum": 0.0, "description": "debut en CYCLES (1 cycle = 1 mesure)" },
+        "end": { "type": "number", "description": "fin en cycles" },
+        "notes": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 127 }, "description": "hauteurs MIDI (control note, C4 = 60)" },
+        "chord": { "type": "string", "description": "symbole d'accord (control chord, ex. Cm7)" },
+        "s": { "type": "string", "description": "nom de sample/percussion (control s/sound, ex. bd, cp, hh)" },
+        "gain": { "type": "number" },
+        "pan": { "type": "number" },
+        "cutoff": { "type": "number", "description": "lpf echantillonne par hap (Hz)" },
+        "lpf": { "type": "number" },
+        "hpf": { "type": "number" },
+        "speed": { "type": "number" },
+        "sustain": { "type": "number" },
+        "legato": { "type": "number" },
+        "attack": { "type": "number" },
+        "release": { "type": "number" },
+        "octave": { "type": "number" }
+      },
+      "anyOf": [{ "required": ["notes"] }, { "required": ["chord"] }, { "required": ["s"] }]
+    },
+    "track": {
+      "type": "object",
+      "required": ["events"],
+      "properties": {
+        "events": { "type": "array", "items": { "$ref": "#/$defs/hapEvent" } },
+        "automations": {
+          "type": "object",
+          "description": "courbes de signaux (lpf/gain/pan...) echantillonnees : control -> [{t (cycles), v}]",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["t", "v"],
+              "properties": { "t": { "type": "number" }, "v": { "type": "number" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema_version": { "type": "string", "const": "4.0" },
+    "source": { "type": "string" },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "bpm": { "type": "number" },
+        "key": { "type": "string" },
+        "mode": { "type": "string" },
+        "time_signature": {
+          "type": "object",
+          "properties": { "numerator": { "type": "integer" }, "denominator": { "type": "integer" } }
+        },
+        "seed": { "type": "integer" },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "bars"],
+            "properties": { "name": { "type": "string" }, "bars": { "type": "integer", "minimum": 1 } }
+          }
+        },
+        "progression": {
+          "type": "array",
+          "items": { "type": ["string", "null"] },
+          "description": "symbole d'accord par mesure (piste chord maitresse), null = tenue"
+        },
+        "mix_profile": { "type": "string" },
+        "valence": { "type": "number" }
+      }
+    },
+    "bars": { "type": "integer", "minimum": 1 },
+    "beats_per_bar": { "type": "integer", "minimum": 1 },
+    "seed": { "type": "integer" },
+    "tracks": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/track" },
+      "description": "1 piste nommee $role = 1 role atomique (jamais 2 percussions sur le meme canal)"
+    },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

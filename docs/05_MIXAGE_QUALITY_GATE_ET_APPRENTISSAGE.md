@@ -206,3 +206,14 @@ En cas d'échec, **`render_and_audit.py --auto-fix --max-passes 2`** applique au
 * **Mémoire de Goût (`scripts/taste_memory.py` → `memory/user_taste_profile.json`)** :
   * `record_validated_taste()` mémorise automatiquement tout morceau `PASS` (hors dossiers temporaires, ou explicitement via `--approve-taste` poids `2.0`, max `50` entrées dédupliquées par `project_id`).
   * Si `reference_tracks` est vide au départ en É0, `target_fingerprint.py` interroge `query_taste_prior()` pondéré par distance euclidienne sur `(V, T, E, D)` **avant** le repli générique et inscrit `"source": "user_taste_memory"` dans `multi_scale_contract.json`.
+
+---
+
+## Phase 9 — v4.0 Pont Strudel headless (le même Quality Gate, en entrée compacte)
+
+Le frontend `composition.strudel` (économie de tokens LLM : ~300–600 tokens/ morceau) est évalué en Node.js
+headless (`scripts/strudel_eval.mjs`) puis compilé par `scripts/strudel_to_score_ir.py` en `score_ir.json` +
+`arrangement_plan.json` **avec les mêmes garde-fous 0 token** (registre 808 `[31,48]`, apex Lead `<= 74`,
+voice leading + LIL, b2, clamp frontière 20 ms, `FullCoverageCoreValidator`). Le rendu final passe ensuite
+par **ce même quality gate** (`render_and_audit.py --auto-fix`, matrice stems, corridors spectraux) : aucune
+règle de mix n'est affaiblie par le pont Strudel. Doc : [06_PONT_STRUDEL_HEADLESS.md](06_PONT_STRUDEL_HEADLESS.md).

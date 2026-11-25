@@ -13,6 +13,7 @@ ARCH="$(uname -m)"
 SKIP_PLUGINS=0
 SKIP_CLAP=0
 SKIP_ZED=0
+SKIP_STRUDEL=0
 NO_SUDO=0
 CHECK_ONLY=0
 FORCE_RESCAN=0
@@ -26,6 +27,7 @@ Options:
   --skip-plugins   N'installe pas les plugins audio tiers (Surge XT, ZL EQ2, TDR Nova, CHOW, Dragonfly, LSP)
   --skip-clap      Ignore le préchargement CLAP et calcule uniquement l'index Essentia rapide
   --skip-zed       N'installe pas Zed automatiquement s'il est absent (génère tout de même la config)
+  --skip-strudel   N'installe pas les dépendances Node du pont Strudel headless (scripts/package.json)
   --no-sudo        N'appelle pas sudo dnf (ignore l'installation des paquets système manquants)
   --force-rescan   Force un rescan complet des plugins dans Gridline
   -h, --help       Affiche cette aide
@@ -38,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     --skip-plugins) SKIP_PLUGINS=1 ;;
     --skip-clap)    SKIP_CLAP=1 ;;
     --skip-zed)     SKIP_ZED=1 ;;
+    --skip-strudel) SKIP_STRUDEL=1 ;;
     --no-sudo)      NO_SUDO=1 ;;
     --force-rescan) FORCE_RESCAN=1 ;;
     -h|--help)      usage; exit 0 ;;
@@ -656,6 +659,7 @@ agy_data["mcpServers"].update({
     "audio-analyzer": {"command": venv_py, "args": [os.path.join(studio, "mcp-servers/audio-analyzer/audio_analyzer_server.py")]},
     "vocaloid": {"command": venv_py, "args": [os.path.join(studio, "mcp-servers/vocaloid/vocaloid_server.py")]},
     "reverse-engineer": {"command": venv_py, "args": [os.path.join(studio, "mcp-servers/reverse-engineer/reverse_engineer_server.py")]},
+    "ai-studio-prod": {"command": venv_py, "args": [os.path.join(studio, "mcp-servers/ai-studio-prod/prod_server.py")]},
 })
 with open(agy_cfg, "w", encoding="utf-8") as f:
     json.dump(agy_data, f, indent=2, ensure_ascii=False)
@@ -674,6 +678,7 @@ zed_servers = {
     "audio-analyzer": {"command": {"path": venv_py, "args": [os.path.join(studio, "mcp-servers/audio-analyzer/audio_analyzer_server.py")]}},
     "vocaloid": {"command": {"path": venv_py, "args": [os.path.join(studio, "mcp-servers/vocaloid/vocaloid_server.py")]}},
     "reverse-engineer": {"command": {"path": venv_py, "args": [os.path.join(studio, "mcp-servers/reverse-engineer/reverse_engineer_server.py")]}},
+    "ai-studio-prod": {"command": {"path": venv_py, "args": [os.path.join(studio, "mcp-servers/ai-studio-prod/prod_server.py")]}},
 }
 with open(os.path.join(studio, ".zed/settings.json"), "w", encoding="utf-8") as f:
     json.dump({"context_servers": zed_servers}, f, indent=2, ensure_ascii=False)
@@ -772,10 +777,34 @@ index_samples_and_verify() {
 }
 
 check_fedora
+install_strudel_bridge() {
+  log "Pont Strudel headless v4.0 (dépendances Node de scripts/package.json)..."
+  if [[ $CHECK_ONLY -eq 1 ]]; then
+    if [[ -d "$STUDIO_DIR/scripts/node_modules/@strudel/core" ]]; then
+      ok "@strudel/core déjà installé (pont Strudel headless prêt)."
+    else
+      warn "@strudel/core absent : `cd scripts && npm install` pour activer le pont Strudel."
+    fi
+    return 0
+  fi
+  if [[ $SKIP_STRUDEL -eq 1 ]]; then
+    warn "Pont Strudel ignoré (--skip-strudel)."
+    return 0
+  fi
+  if have node && have npm; then
+    (cd "$STUDIO_DIR/scripts" && npm install --no-audit --no-fund --loglevel=error) \
+      && ok "Pont Strudel headless installé (@strudel/core, @strudel/mini, @strudel/tonal)." \
+      || warn "npm install du pont Strudel a échoué (relance `cd scripts && npm install`)."
+  else
+    warn "node/npm absent : pont Strudel headless non installé (--skip-strudel pour masquer)."
+  fi
+}
+
 install_system_deps
 install_gridline_and_stems
 check_or_install_zed
 setup_python_venv
+install_strudel_bridge
 setup_models_and_openutau
 install_native_plugins
 configure_workspace_and_mcps

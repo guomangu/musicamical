@@ -1,0 +1,13 @@
+{
+  "name": "ai-studio-strudel-bridge",
+  "private": true,
+  "version": "4.0.0",
+  "description": "Pont Strudel headless (v4.0) : @strudel/core + @strudel/mini evalues en Node.js pur (queryArc), sans Chromium ni snd-virmidi. Installer avec `npm install` dans scripts/.",
+  "type": "module",
+  "dependencies": {
+    "@strudel/core": "1.2.6",
+    "@strudel/mini": "1.2.6",
+    "@strudel/tonal": "1.2.6",
+    "@tonaljs/tonal": "4.10.0"
+  }
+}

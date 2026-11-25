@@ -80,6 +80,8 @@ Toute demande utilisateur se traduit en 4 axes mesurables :
 ## Chapitre 4 — Catalogue Universel de 14 Progressions Harmoniques Éprouvées
 
 > Une IA textuelle ne doit **jamais inventer des accords au hasard**. Choisir une progression éprouvée dans le bloc correspondant à la valence `(V)` cible, la transposer dans la tonalité cible, puis calculer ses renversements via `optimize_voice_leading()`.
+>
+> **v4.0 (pont Strudel)** : avec le frontend `composition.strudel`, les mêmes progressions s'écrivent en symboles d'accords absolus — `$chords: chord("<Cm7 Abmaj7 Fm7 G7>").slow(2)` — que `scripts/strudel_to_score_ir.py` convertit en degrés romains (`symbol_to_roman`) pour la même `harmonic_grid` ; la mélodie s'écrit en degrés via `.scale("C:minor")` (jamais de noms de notes bruts susceptibles de se désynchroniser).
 
 ### A. Sombre & Triste (`V < -0.3`)
 
