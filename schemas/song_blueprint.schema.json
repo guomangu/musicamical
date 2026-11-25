@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI-Studio Song Blueprint",
+  "description": "Contrat de structure musicale généré avant la production dans Gridline.",
+  "type": "object",
+  "required": [
+    "title",
+    "genre",
+    "bpm",
+    "time_signature",
+    "key",
+    "harmonic_core",
+    "structure",
+    "tracks"
+  ],
+  "properties": {
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "v3.3 : graine de reproductibilité bit-à-bit (défaut dérivé SHA-256(title|key|bpm) via scripts/determinism.py)"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "genre": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mood": {
+      "type": "string"
+    },
+    "mix_profile": {
+      "type": "string",
+      "enum": [
+        "trap_rap",
+        "pop_rnb",
+        "edm_club",
+        "rock_metal",
+        "lofi_chill",
+        "jazz_acoustic",
+        "classical_ambient"
+      ],
+      "default": "trap_rap"
+    },
+    "has_drums": {
+      "type": "boolean",
+      "default": true
+    },
+    "emotion_vector": {
+      "type": "object",
+      "properties": {
+        "valence": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        },
+        "tension": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "energy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "depth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "bpm": {
+      "type": "number",
+      "minimum": 40,
+      "maximum": 300
+    },
+    "time_signature": {
+      "type": "object",
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "properties": {
+        "numerator": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "denominator": {
+          "type": "integer",
+          "enum": [
+            2,
+            4,
+            8,
+            16
+          ]
+        }
+      }
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "swing": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "target_lufs": {
+      "type": "number",
+      "minimum": -30,
+      "maximum": -4
+    },
+    "harmonic_core": {
+      "type": "object",
+      "required": [
+        "key",
+        "mode",
+        "progression_bars",
+        "chord_progression",
+        "motif_cell",
+        "phrase_plan"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "Tonique exacte, ex: 'E', 'D', 'C', 'Eb'"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "ionian",
+            "major",
+            "aeolian",
+            "minor",
+            "dorian",
+            "phrygian",
+            "phrygian_dominant",
+            "lydian",
+            "mixolydian",
+            "harmonic_minor",
+            "melodic_minor",
+            "locrian",
+            "pentatonic_minor",
+            "pentatonic_major",
+            "blues"
+          ]
+        },
+        "progression_bars": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "chord_progression": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "bar",
+              "symbol",
+              "bass_midi",
+              "voicing_midi"
+            ],
+            "properties": {
+              "bar": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "symbol": {
+                "type": "string",
+                "description": "Ex: 'Em7', 'Cmaj7', 'Am9', 'B7', 'Fmaj9'"
+              },
+              "bass_midi": {
+                "type": "integer",
+                "minimum": 24,
+                "maximum": 60,
+                "description": "Fondamentale basse/808 (MIDI 31-48 / G1-C3 >= 49 Hz pour sub/808 — pour C..F#, écrire en Octave 2 MIDI 36-42 pour éviter l'infra-sub < 42 Hz ; 33-55 pour basse acoustique/électrique)"
+              },
+              "voicing_midi": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 6,
+                "items": {
+                  "type": "integer",
+                  "minimum": 36,
+                  "maximum": 84
+                },
+                "description": "Notes MIDI déjà renversées pour voice leading minimal (plage 48-67 recommandée, <= 2.5 st moyen)"
+              },
+              "chord_tones_pc": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 11
+                },
+                "description": "Pitch classes (0=C..11=B) autorisées sur temps forts"
+              }
+            }
+          }
+        },
+        "motif_cell": {
+          "type": "object",
+          "required": [
+            "intervals_from_tonic",
+            "rhythm_beats",
+            "apex_midi"
+          ],
+          "properties": {
+            "intervals_from_tonic": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 12,
+              "items": {
+                "type": "integer"
+              }
+            },
+            "rhythm_beats": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 12,
+              "items": {
+                "type": "number"
+              }
+            },
+            "apex_midi": {
+              "type": "integer",
+              "minimum": 55,
+              "maximum": 88,
+              "description": "Sommet mélodique (<= 74 par défaut ; 75-81 réservé exclusivement aux timbres très doux si valence > +0.3)"
+            }
+          }
+        },
+        "phrase_plan": {
+          "type": "string",
+          "enum": [
+            "A-A'-A''-B",
+            "A-B-A'-C",
+            "A-A'-B-B'",
+            "A-A-B-A",
+            "free_ambient"
+          ],
+          "default": "A-A'-A''-B"
+        },
+        "section_progressions": {
+          "type": "object",
+          "description": "v3.2 NarrativeHarmony : variantes de progression par section (intro/verse/pre_chorus/chorus/bridge/outro), ex. {\"chorus\": [\"iv\",\"V\",\"i\",\"VI\"], \"bridge\": [\"bII\",\"V7\",\"i\",\"VI\"]}. Rétro-compatible (optionnel).",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "degrees": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "bass_mode": {
+                    "type": "string",
+                    "enum": [
+                      "root",
+                      "stepwise_inversions",
+                      "tonic_pedal",
+                      "dominant_pedal",
+                      "walking"
+                    ]
+                  }
+                },
+                "required": [
+                  "degrees"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "structure": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "section",
+          "bars",
+          "start_bar"
+        ],
+        "properties": {
+          "section": {
+            "type": "string"
+          },
+          "start_bar": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bars": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "energy": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "active_roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "frequency_plan": {
+      "type": "object",
+      "properties": {
+        "sub_20_60": {
+          "type": "string"
+        },
+        "bass_60_250": {
+          "type": "string"
+        },
+        "low_mids_250_500": {
+          "type": "string"
+        },
+        "mids_500_4000": {
+          "type": "string"
+        },
+        "highs_4000_20000": {
+          "type": "string"
+        }
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "role",
+          "source_type",
+          "mixer_track"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "gridline_native",
+              "sample",
+              "vocaloid",
+              "loop"
+            ]
+          },
+          "plugin": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string"
+          },
+          "sample_path": {
+            "type": "string"
+          },
+          "mixer_track": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 128
+          },
+          "freq_lane": {
+            "type": "string"
+          },
+          "pan": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "notes": {
+            "type": "string"
+          },
+          "root_note": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 127,
+            "description": "Root note (MIDI) of the sample in gl.sampler; defaults to detected midi_root from the palette/catalog, NOT C4."
+          },
+          "fine_tune_ct": {
+            "type": "number",
+            "minimum": -1200,
+            "maximum": 1200,
+            "description": "Fine tune in cents applied on top of root_note (A4=440 Hz +/-5 ct target)."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source_type": {
+                  "const": "sample"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "sample_path",
+                "root_note"
+              ]
+            },
+            "else": {
+              "required": [
+                "name",
+                "role",
+                "source_type",
+                "mixer_track"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "vocals": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "language": {
+          "type": "string",
+          "enum": [
+            "fr",
+            "en",
+            "ja"
+          ]
+        },
+        "singer": {
+          "type": "string"
+        },
+        "lyrics_sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "section": {
+                "type": "string"
+              },
+              "lyrics": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

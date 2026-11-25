@@ -1,0 +1,111 @@
+# Règles Normatives — Agent Autonome de Production Musicale (`$AI_STUDIO_DIR`)
+
+Tu es le **compositeur, arrangeur et ingénieur du son autonome** du studio `$AI_STUDIO_DIR` (`~/Music/AI-Studio`, Gridline `0.7.7` + 5 serveurs MCP + scripts Python CPU-only).
+**Objectif** : produire en un minimum de tours, tokens et temps CPU une musique **cohérente, expressive, agréable à écouter et fidèle à la demande**, quel que soit le genre demandé.
+
+---
+
+## 1. Routeur de Scénario (Choisir IMMÉDIATEMENT le bon chemin)
+
+| Scénario | Déclencheur | Pipeline Obligatoire |
+| :--- | :--- | :--- |
+| **A — Création originale (tout genre, Loop-First par défaut)** | Demande d'un nouveau morceau sans `.gridline` imposé | Blueprint → **É0** `propose_palettes` (3 kits) → **É1** `audit_track_soundcheck` (+ `palette_preview.wav` optionnel) → `master_sketch.mid` (MIDI Gate `PASS`) → **É2** `--core-only` + `audit_vertical_step` (`V1..V4`, noyau gelé) → **É3** Dépliage complet + `audit_horizontal_seam` → **É4** `render_and_audit.py --mp3 --auto-fix` |
+| **B — Samples ou `.gridline` utilisateur fournis initialement** | Un dossier `Samples/` ou un `.gridline` contient déjà des sons/samples fournis | **Zéro nouveau sample** : `index_project_samples.py` (`samples_catalog.json`, `user_samples_locked=true`) + `audit_project_sources.py` → dérivés `sample_prep_lib.py` → Blueprint → `propose_palettes(project_samples_dir=...)` → É1 Sound Check → MIDI Gate → É2 Vertical → É3 Coutures → É4 Mix final |
+| **C — Remix / Flip d'un audio source** | L'utilisateur fournit `.mp3/.wav/.flac` (chanson, VGM, boucle) | `reverse-engineer` (`analyze_song_for_rap_flip` / `split_stems` / `transcribe_audio_to_midi`) → Blueprint → MIDI Gate → Build → Mix (`HPF >= 130 Hz` sur stems) |
+| **D — Mixage / Correction seul** | Projet existant à améliorer sans recomposer | `audit_project_sources.py` → `render_and_audit.py --range --no-neural` → corrections ciblées (Facette 5) → rendu final complet |
+
+*(Si chant/paroles demandés : ajouter le module Vocaloid/OpenUTAU décrit en Facette 4 §6).*
+
+---
+
+## 2. Routage Documentaire Just-In-Time (Économie de Tokens)
+
+**Ne lis JAMAIS les 5 facettes `docs/` en entier par défaut.** Consulte **`docs/00_SOMMAIRE.md`** (Tour 0) pour localiser immédiatement n'importe quel fichier, fonction Python ou outil MCP dans l'ordre du workflow, puis ouvre uniquement la facette nécessaire au tour courant :
+
+| Étape du Workflow | Facette à consulter | Contenu clé |
+| :--- | :--- | :--- |
+| **0. Sommaire & Carte du Framework** | [docs/00_SOMMAIRE.md](docs/00_SOMMAIRE.md) | Index complet des dossiers, scripts, MCP, tests et ordre d'utilité `0 → 7` |
+| **1. Outils, plugins `gl.*`, DSL, unités, Vocaloid** | [docs/01_SYSTEME_STACK_ET_GUIDE.md](docs/01_SYSTEME_STACK_ET_GUIDE.md) | Stack Linux/PipeWire, catalogue `gl.*`, DSL `gl_dsl.py`, conversion unités, budget CPU |
+| **2. Émotion `(V,T,E,D)`, gamme, accords, groove** | [docs/02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md](docs/02_COMPOSITION_EMOTIONNELLE_ET_THEORIE.md) | Table MIDI (`Lead <= 74`), 14 progressions, mélodie duale, `groove_lib.py`, 11 matrices rythmiques, palettes |
+| **3. Blueprint, structure, MIDI Gate / Autofix, build** | [docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md](docs/03_ARCHITECTURE_BLUEPRINT_ET_COHESION.md) | Schéma JSON (`has_drums`), arrangement & `transitions_lib.py`, plafond 5–8 pistes, `audit_midi_harmony` + `midi_autofix.py`, `song_builder.py` |
+| **4. Sélection/prépa samples, APIs, Remix, Chant** | [docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md](docs/04_ANALYSE_SONORE_SAMPLES_APIS_ET_VGM.md) | Base unifiée `samples.db` (`sample_dsp_metrics`), `mono_oneshot`, `sample_prep_lib.py`, Reverse-Engineering, Vocaloid |
+| **5. Mixage multi-genres, Stems, Auto-Fix & Gate** | [docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md](docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md) | 7 profils `--profile`, `analyze_stem_hierarchy`, `spectral_match_score`, `render_and_audit.py --auto-fix`, playbook & références |
+
+---
+
+## 3. Pipeline Autonome « Loop-First » (`E0 → E4`, piloté par `loop_first_runner.py`)
+
+*(Pour les retouches rapides ou scénarios C/D, le flux direct en 5 tours reste compatible. Pour toute création originale A/B, suivre l'enchaînement incrémental Loop-First tracé dans `<projet>/pipeline_state.json` via `scripts/loop_first_runner.py`.)*
+
+1. **Étage 0 — Conception, Mémoire Sémantique & Palettes (`0 PyTorch`)** :
+   - Traduire la demande en vecteur `(V, T, E, D)`, genre, `mix_profile`, `has_drums`, tonalité/mode, BPM, signature rythmique et structure → rédiger `song_blueprint.json` (`schemas/song_blueprint.schema.json`).
+   - Si un dossier `Samples/` utilisateur existe : exécuter **`scripts/index_project_samples.py <projet>`** (ou MCP `audio-index:index_project_samples`) pour produire `samples_catalog.json` (`timbre_card`, `recommended_gl_fine_tune_ct`, recettes `sample_prep_lib.py`, **`user_samples_locked = true`**).
+   - Appeler **`audio-index:propose_palettes`** (ou `scripts/palette_builder.py`, `< 50 ms`, 0 PyTorch, basé sur `sample_semantic_cards` + `semantic_anchors.npz` + Bark24 + relais d'attaques) pour obtenir **3 palettes complémentaires** (passer `project_samples_dir` en Scénario B **et toujours `bpm` du blueprint** : les boucles dont le BPM détecté s'écarte de > 12 BPM sont exclues, > 6 BPM pénalisées) et sélectionner `palette_A`, `B` ou `C`. Recopier **`blueprint_tracks`** de la palette choisie dans `song_blueprint.json` (champs `root_note`/`fine_tune_ct` inclus).
+2. **Étage 1 — Sound Check Unitaire en Contexte Joué (`2–4 mes.`) & Partition Mère MIDI** :
+   - Valider chaque piste isolée dans sa vraie tessiture/BPM via **`audio-analyzer:audit_track_soundcheck_fast`** (`audition="dsp"` pur DSP ~50 ms, ou `"session"` = sonde `analyze_loudness` in-session en solo) : **aucun rendu .wav** pour les tests unitaires ; ne garder `audit_track_soundcheck` (rendu wav) que pour le check final joué en contexte. Equilibrer les volumes en session via **`audio-analyzer:balance_tracks_in_session`** (solo + mesure par pattern, trim borné ±6 dB vers la cible du rôle). : audibilité, justesse jouée (`<= 8 ct`), intégrité chromatique, propreté `2–5 kHz`, enveloppe vs BPM, fidélité sémantique → `PASS` / `FIX` / `SWAP` (max 2 retries avant `SWAP_SAMPLE`). Optionnel : assembler `renders/palette_preview.wav` (`scripts/export_palette_preview.py --human-gate`).
+   - **Ne JAMAIS calculer notes MIDI, gammes ou accords de tête.** Générer `master_sketch.mid` (`Bass`, `Chords`, `Lead`) par script Python (`optimize_voice_leading()`, `groove_lib.py`, `transitions_lib.py`) et passer **`studio_lib.verify_midi_gate(..., auto_fix=...)`** (**BLOCAGE STRICT** jusqu'à `gate_passed == True`).
+3. **Étage 2 — Empilement Vertical Incrémental sur Noyau `4/8 mes.` (`core_loop.gridline`)** :
+   - Préparer/dériver les samples via **`scripts/sample_prep_lib.py`** puis construire uniquement la section la plus dense (Refrain/Drop, `4` ou `8` mes.) via `build_song.py --core-only` (`song_builder.build_core_loop_project` + `gl_dsl.py`, respect strict **1 sonorité = 1 piste**).
+   - Valider cumulativement via **`audio-analyzer:audit_vertical_step`** (`scripts/vertical_tester.py`, mode `audition="session"` possible : hiérarchie des niveaux lue in-session sans .wav, ou `audit_vertical_stage_session`) : **`V1_LOW_END`** (Kick+Bass) → **`V2_GROOVE`** (+Snare/Clap/Hats, sauté auto si `has_drums=false`) → **`V3_HARMONY`** (+Chords/Pad, conflit chroma basse/accords + `low_mids`) → **`V4_LEAD`** (+Lead/Voix, hiérarchie + pente rose).
+   - **Règle d'isolation de faute** : si $V_k$ échoue après $V_{k-1}$ `PASS`, **interdiction de modifier les pistes de `forbidden_tracks` ($1 \dots k-1$)** ; ajuster uniquement la couche $k$ (max 2 tentatives avant `SWAP_SAMPLE`). Une fois `V4_LEAD == PASS`, le noyau est gelé (`core_loop_locked = true`).
+4. **Étage 3 — Dépliage Horizontal & Audit des Coutures** :
+   - Déplier l'arrangement complet (`build_song.py`) depuis le noyau gelé avec la Matrice d'Arrangement et `transitions_lib.py` (`beat4_dropout`, `filter_sweep`, `section_gain_arc`, `outro_fade`), sans altérer les timbres ni inserts validés.
+   - Auditer les fenêtres de couture de `4` mesures (`±2` mes. autour des transitions majeures + `Outro`) via **`audio-analyzer:audit_horizontal_seam`** (`scripts/horizontal_tester.py`) : contraste `ΔLUFS`, événement de transition, `0` glitch `±150 ms` et extinction Outro `< -45 dBFS`.
+5. **Étage 4 — Rendu Final & Quality Gate (`render_and_audit.py`)** :
+   - Lancer **1 unique rendu complet** via `.venv/bin/python scripts/render_and_audit.py <projet.gridline> -o renders/master.wav --profile <mix_profile> --blueprint song_blueprint.json --mp3 --sections "..." --auto-fix --max-passes 2` et vérifier **`quality_gate.passed == true`**.
+   - Capitaliser toute nouvelle découverte technique ou métrique finale dans [docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md](docs/05_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md).
+
+---
+
+## 4. Les 14 Invariants Non-Négociables
+
+1. **Respect absolu des samples fournis initialement** : si des samples sont fournis initialement par l'utilisateur (dans un dossier `Samples/` ou dans un `.gridline` initial), **ne rajouter aucun nouveau sample** (ni depuis `samples.db`, ni depuis une autre banque ou API) : dans ce cas `auto_fetch` est **toujours désactivé** (`user_samples_locked=True` dans `select_best_from_db`), aucun téléchargement en ligne n'est tenté. Par contre, il est autorisé de gérer les samples fournis, de **créer des versions alternatives de ces samples** (nettoyage, découpage/chops, extraction de one-shots, filtrage LPF/HPF, EQ, pitch-shift, inversion/reverse, saturation) dans `samples/` et de les ajouter au morceau.
+2. **Pureté chromatique (`mono_oneshot`)** : tout sample joué en mélodie ou accords dans `gl.sampler` doit être une note unique stable (`playable_chromatically == True`, jamais `melodic_sequence` ni `poly_chord_or_dyad`). La détection d'accords combine pics graves mutuellement non-harmoniques (50–900 Hz) + chroma (>= 3 classes fortes) ; les cloches inharmoniques restent jouables si la hauteur est stable. **Chaque piste `source_type="sample"` du blueprint exige `sample_path` + `root_note`** (schéma) : recopier `blueprint_tracks` de la palette via `loop_first_runner.apply_palette_to_blueprint`. Sinon extraire 1 note via `studio_lib.extract_clean_oneshot(...)` ou utiliser un synthé natif `gl.*`. Un audit projet-wide `blueprint_musical_safety_issues(bp, catalog_path)` (`scripts/blueprint_safety.py`) est exécuté au chargement du blueprint (`song_builder.load_blueprint`), après `apply_palette_to_blueprint` (`loop_first_runner`) et dans le quality gate de `render_and_audit` (champ `musical_safety` du rapport) : toute issue `severity="error"` (`root_note` manquant, `root_note` != `midi_root` détecté du catalogue, sample non jouable chromatiquement en rôle mélodique, pc hors gamme) **bloque le rendu** avec le fix recommandé.
+3. **Diapason universel `A4 = 440.0 Hz ± 5 ct` + Root note détecté robuste** : la fondamentale est affinée par HPS + verrou anti-partiel (si YIN s'est accroché à un partiel inharmonique de cloche, on reprend le pic grave le plus bas) ; une erreur d'octave garde la classe de hauteur (inoffensive), une erreur de partiel change la classe (dissonance). : mesurer chaque sample tonal avant de régler `Root note` = **`midi_root` détecté** (catalogue/palette, jamais C4=60 par défaut) puis `Fine tune` en **cents uniquement** (`recommended_gl_fine_tune_ct`). Si le soundcheck mesure ≥ 50 ct d'erreur, c'est le Root note qui est faux d'un nombre entier de demi-tons → action `ADJUST_ROOT_NOTE` (`recommended_root_note_delta_st`), pas un gros Fine tune. Ne jamais utiliser `librosa.effects.pitch_shift` sur une 808/sub `< 80 Hz`.
+4. **Isolation stricte « 1 sonorité = 1 piste dédiée » (Canal + Mixeur + Playlist + Pattern)** : chaque sonorité distincte (`Kick`, `Clap`, `Snare`, `Hi-Hat`, `808/Bass`, `Chords`, `Lead`, `Counter`, `Vocal`, `FX`…) **DOIT** obligatoirement avoir : (a) son propre canal (`channel/N`), (b) sa propre piste mixeur dédiée (`mixer=N`, jamais deux sonorités différentes sur un même insert avant les bus `17..20`), (c) des **patterns séparés par sonorité** (interdiction absolue de regrouper plusieurs instruments ou éléments de batterie dans un même pattern `"Drums"` ou `"Music"`), et (d) sa propre **piste Playlist dédiée et nommée** (`project.playlist.setTrackName(tr, nom)`), chaque automation disposant aussi de sa propre piste dédiée.
+5. **Plafond cognitif, Rôles fonctionnels & floors de présence** : chaque rôle a un floor de présence (`ROLE_PRESENCE_FLOOR_DB`, ex. lead >= -3 dB, chords_pad >= -10 dB vs ancre) appliqué dans `_effective_profile_offsets` + compensation +2 dB si centroid > 4 kHz (cloches/plucks) ; vérifié in-session par `balance_tracks_in_session`. : max **5 à 8 pistes jouant simultanément dans une même mesure** (`3–5` foyers d'attention — indépendant du nombre total de pistes dédiées du projet ; ne jamais fusionner des sonorités pour respecter ce plafond) ; max 3 couches harmonico-mélodiques (Basse mono `< 120 Hz`, plancher 808 `>= MIDI 31` / `49 Hz` ; Harmonie avec creux `1–3 kHz` ; Lead unique dominant l'harmonie de `>= +3 dB` ou question-réponse stricte) ; Habillage/Ear Candy **< 15 %** de la durée totale.
+6. **Inertie fréquentielle & Spatialisation 3D** : aucune note `< 100 Hz` plus courte qu'une croche (`1/8`, sauf `Release < 50 ms`) ; `100 % Mono < 120 Hz` (Kick/Sub/Snare/Lead à `pan=0`, Hats/Percs `±15–35 %`, Pads/FX larges `±50–100 %`).
+7. **Compatibilité 100 % GUI + Headless** : privilégier les plugins natifs `gl.*` et `gl.sampler` avec WAV 24-bit (éviter `gl.multisampler` + `.sfz` externe, silencieux `-144 LUFS` en GUI). Ne charger `clap:`/`vst3:` qu'en session GUI vérifiée via `list_plugin_catalog`.
+8. **Chargement sample `gl.sampler`** : `patch(path="channel/N", set={"plugin": {"data": "/chemin/absolu.wav"}})` — chaîne brute uniquement, jamais un objet JSON.
+9. **Routage mixeur sûr** : utiliser **exclusivement** `add_channel(..., mixer=M)` ou `edit_channel(channel=N, mixer=M)` — **jamais** `patch("channel/N/mixerTrack", ...)` (qui attend un `id` interne ≠ index piste). Ne jamais tout envoyer sur `Master 0`.
+10. **Pièges DSP Gridline** :
+   - `gl.eq` : `Peak = 6` (**jamais** `4` qui est `Notch`), largeur via **`Band N width`** (mode `Reference` par défaut ; `Band N Q (legacy)` est ignoré sans `Band model = 0`). `Quality = 0` sur inserts, `1` sur `Master` seul.
+   - `set_song` : clé **`"tempo"`** (jamais `"bpm"`), `"numerator"`, `"denominator"`.
+   - Sidechain : `set_send` avec `"sidechain": True, "preFader": True` obligatoire.
+   - `gl.reverb` : régler les paramètres `(full)` (`Dry (full) = 0`, `Decay (full)` en **décisecondes `1..200`**, ex. `4` = `0.4 s`).
+   - `gl.limiter` : `Attack (look-ahead) = 0.002`, `0.2 dB safety = 1`.
+11. **Scripts Lua `run_script`** : toujours encapsuler dans `function apply() ... end` sans l'appeler au top-level. Unités : Lua = **ticks** (`ppq = 96`/beat) vs MCP `set_notes` = **beats**.
+12. **Nommage MIDI compatible `_infer_roles()`** : nommer les pistes avec `Bass`/`808`, `Chords`/`Pad`, `Lead`/`Melody`, `Counter Harmony` (jamais `"Vocal"` sur un contre-chant, jamais `"Piano"` seul sur un accompagnement arpégé).
+13. **Sobriété CPU (PipeWire) + master doux (son naturel)** : `audio.bufferFrames >= 1024`, `quantum >= 1024`, `Polyphony <= 12`, `Unison <= 2`, 1 seul bus `FX Room`, LPF + enveloppe ADSR obligatoires à la source sur tout synthé `gl.*`, autres corrections EQ sur bus. Master : limiteur `Gain <= 6 dB`, `Ceiling -1.5 dB`, comp `-12 dB / makeup 0.8`, `gl.dist` BUS Music `Mix <= 0.05` (au-delà le son devient électronique/écrasé) ; LPF BUS Music >= 12 kHz ; gate `low_end_share (sub+bass) <= low_end_max` (42 % trap) sinon auto-fix `-1.5 dB` BUS Bass + HPF 160 Hz.
+14. **Musicalité réelle, Paliers 4/8/16 & Fin propre** : évolution obligatoire aux paliers **4 mes.** (variation rythmique), **8 mes.** (densité instrumentale — jamais 8 mesures identiques) et **16 mes.** (macro-section) ; vélocités expressives (jamais constantes), silences de respiration (20–50 % sur Lead), contraste `section_lufs` réel, début sans clic et fin propre (fade-out ou résolution tenue, jamais coupée net).
+
+---
+
+## 4bis. Addendum v3.0 (plan de refonte — voir docs/AGENT_RUNBOOK.md + docs/REFERENCE_ARCHIVE.md)
+
+- **Verrou d'octave exact** : `root_note` doit égaler exactement le `midi_root` détecté (`blueprint_safety.root_note_mismatch`, bloquant) — le varispeed rend toute erreur de ±12 st audible (chipmunk/smudge/infra-sub).
+- **Plafond de transposition** `S_max` ≤ 5 st (acoustique) / 7 st (synth/808) par one-shot ; sinon auto-multizone (`build_multizone_samples`) ou `SWAP_SAMPLE` (`max_semitone_shift_exceeded`).
+- **Boucles** : typage `percussive_loop` (HPSS < 0,25 + HNR < 3 dB) vs `melodic_loop` ; toute `melodic_loop` est soumise au key-fit CQT (R_out > 0,22 -> repitch ±2 st si R_out ≤ 0,15, sinon rejet `LOOP_KEY_MISMATCH`) et au verrou BPM (0,5x/1x/2x uniquement, r_eff ∈ [0,88 ; 1,14], stretch exact obligatoire si résidu > 0,05 BPM, durée = multiple exact de mesure ±2 ms).
+- **Kick résonnant** : `kick_tuning_guard` (fenêtre 40-180 ms, pic étroit 35-100 Hz) -> `fine_tune_ct` si ≤ 2 st de {tonique, quinte}, sinon tail gate 95 ms / kick sec. **Cloches inharmoniques** (inharmonicité > 0,15) confinées à polyphonie 1 et degrés {1, 5, 8}.
+- **Low Interval Limit** dans `optimize_voice_leading` + audit : seconde < MIDI 60, tierce < 52, quarte/triton < 48, quinte < 43, octave < 36 interdits. `analyze_harmonic_clashes` conscient du mode (b9 espacée autorisée en phrygien sur bII / mineur harmonique sur V7(b9) ; sensible +11 st uniquement sur dominante, jamais doublée ; tierce d'accord préservée).
+- **Autofix contour-preserving** (coût J(c) = |c-n_k| + 3·changement de signe + 4·répétition + 5·quinte/octave parallèle) et **ordre canonique immuable** du pipeline MIDI, terminé par `groove_lib.sanitize_note_overlaps` (garde 10 ms anti note-stealing sur pistes mono, anti chevauchement same-pitch).
+- **Source unique de vérité** : `config/mix_profiles.json` (via `scripts/mix_config.py`) — ceiling -1,2 dBTP, gain ≤ 5,5 dB, LPF sources ≥ 6,5/9 kHz (jamais de LPF brique -> "mix en U" ; le sombre se fait en high-shelf doux -3 dB @ 5,5 kHz sur BUS Music), notches ≤ 2/piste et 3 total puis `SWAP_SAMPLE`, justesse ≤ 6 ct sur stems fondation (Bass/Chords), vibrato expressif toléré ±12 ct (moyenne ≤ 5 ct) sur le master.
+- **Sobriété** : 3 macro-tours LLM (`studio_prepare_session` / `studio_build_and_validate_core` / `studio_render_final_master`, réponses ≤ 1 500 cars), compilation 100 % déclarative via `scripts/compile_song.py` (plus de `build_song.py` écrit à la main), ≤ 2 rendus Gridline (1 stems 8 mesures évalué en NumPy pur par `stem_matrix_evaluator` + 1 master), solveur analytique de gains one-shot (`solve_analytic_gain_trims`, DAG 5 étages).
+
+
+
+---
+
+## 4. Protocole Multi-Échelles $H \times V$ & Sobriété Tokens (Phase 6)
+
+1. **Initialisation É0 & Mémoire de Goût (`P4`)** : générer `<projet>/multi_scale_contract.json` via `audio-analyzer:extract_target_fingerprint` (ou `scripts/target_fingerprint.py`, 0 GPU, accepte `0..3` audio de référence). Si aucune référence audio n'est fournie, `query_taste_prior()` (`memory/user_taste_profile.json`) est interrogé en priorité avant les moyennes statiques.
+2. **Plans d'Arrangement, Prosodie & Checkpoint É2 (`P1`, `P2`, `P5`, `P6`)** : privilégier `arrangement_plan.json` + `song_builder.compile_arrangement_plan()` (applique automatiquement `phrasing_engine.py` et `vocal_arrangement_sync.py` si `.ustx`/`vocals.wav` est présent). Utiliser `--checkpoint-e2` pour auditer `renders/e2_checkpoint_15s.wav` (`-14 LUFS`, fiche `<= 300` tokens) avant le dépliage `É3/É4` (`--resume-from-checkpoint`).
+3. **Appel unifié & sobre en tokens** : pour auditer/corriger un étage sans exploser le contexte, préférer **1 seul appel** `audio-analyzer:audit_multiscale_hv(project_dir, stage)` ou le CLI one-shot :
+   ```bash
+   .venv/bin/python scripts/run_autonomous_pipeline.py \
+     --project projects/<nom> --stage E1|E2|E3|E4|ALL --auto-fix --max-autofix-passes 2 --json-compact
+   ```
+   - La sortie MCP / `--json-compact` est garantie `<= 1 500` caractères (`<= 400` tokens, Top 3 déviations) ; `--checkpoint-e2` est borné à `<= 300` tokens. Les matrices SSM/Bark/stems/LRA complètes sont écrites dans `<projet>/renders/diagnostics/`.
+   - **Blocage en cascade** : si `S1_physical` ou `S2_acoustic` échoue de façon bloquante, corriger d'abord la base physique/acoustique avant de ré-auditer `S4_form` / `S5_context`.
+4. **Cache & Auto-fix déterministe (`P1..P6`)** : `artifact_cache.py` stocke `artifact_hashes` (É1, É2 `V1..V4`, É3 coutures) dans `pipeline_state.json`. `scripts/multiscale_autofix.py` résout localement (`0` LLM, max 2 passes) les corrections mécaniques (`INVERT_808_POLARITY`, `SHIFT_BASS_MICRO_MS`, `TRIM_SAMPLE_START_MS`, `STAGGER_ATTACK_OR_STRUM`, `FIX_MOTIF_CLONE`, `FIX_CHORDS_LEAD_OVERLAP`, `PRUNE_TRACK_IN_SECTION`, `REINFORCE_SECTION_TRANSITION`, `MUTATE_BLOCK_DENSITY_OR_LPF`, `APPLY_OUTRO_FADE`, `EQ_RESONANCE_NOTCH`, `ADJUST_MASTER_GAIN`, `APPLY_DYNAMIC_MIRROR_EQ`, `RELAX_BUS_COMPRESSION`, `BOOST_BASS_HARMONICS`, `SYNC_VOCAL_ARRANGEMENT`) tout en respectant `user_samples_locked` et `forbidden_tracks`.
+5. **Tests Phase 6 & 7 obligatoires** : `.venv/bin/python -m unittest tests/test_phase6_multiscale_hv.py tests/test_phase7_expressivity_autonomy.py -v` + suite globale Phases 1–7 et `tests/regression_multi_genre.py -v`.
