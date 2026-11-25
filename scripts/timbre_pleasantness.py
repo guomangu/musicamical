@@ -193,27 +193,27 @@ def pick_gl_plugin(role: str, mix_profile: str = "trap_rap", valence: float = 0.
     (`gl_dsl.resolve_archetype`, dark_overrides si valence < -0.2), avec préférence au confort :
     attaque douce, cutoff raisonnable. Repli : carte statique ROLE_PLUGIN de la façade."""
     from gl_dsl import SYNTH_REGISTRY, resolve_archetype
-    role_map = {"bass_sub": "bass", "bass": "bass", "chord_keys": "chords", "chords": "chords",
-                "pad_atmosphere": "chords", "lead_melody": "lead", "lead": "lead",
-                "snare_clap": "chords", "hihat_perc": "lead", "kick": "bass",
-                "vocals": "lead", "counter": "lead", "fx": "chords", "perc": "lead"}
-    arch = resolve_archetype(mix_profile, role_map.get(role, role), valence=valence)
+    tonal_map = {"bass_sub": "bass", "bass": "bass", "chord_keys": "chords", "chords": "chords",
+                 "pad_atmosphere": "chords", "lead_melody": "lead", "lead": "lead",
+                 "vocals": "lead", "counter": "lead"}
+    # rôles percussifs (kick/snare/hihat/clap/perc/fx) : PAS d'archetype tonal -> repli direct gl.*
+    arch = resolve_archetype(mix_profile, tonal_map[role], valence=valence) if role in tonal_map else None
     fallback = {
         "kick": "gl.kick", "snare": "gl.snare", "clap": "gl.clap", "hihat": "gl.hat", "perc": "gl.hat",
         "bass": "gl.fingerbass", "808": "gl.fingerbass", "sub": "gl.fingerbass",
         "chords": "gl.keys", "pad": "gl.keys", "lead": "gl.warmsynth", "counter": "gl.pluck",
         "vocals": "gl.sampler", "fx": "gl.wavetable",
     }
-    plugin = (arch or {}).get("plugin") or fallback.get(role_map.get(role, role), "gl.warmsynth")
+    plugin = (arch or {}).get("plugin") or fallback.get(role) or fallback.get(tonal_map.get(role, role), "gl.warmsynth")
     if plugin not in SYNTH_REGISTRY:
-        plugin = fallback.get(role, "gl.warmsynth")
+        plugin = fallback.get(role) or fallback.get(tonal_map.get(role, role), "gl.warmsynth")
     params = dict((arch or {}).get("params") or {})
-    # garde-fou de confort : attaque >= 2 ms, release >= 60 ms, cutoff <= 9 kHz sur les rôles tonaux
-    if role_map.get(role) in ("lead", "chords", "bass"):
-        params.setdefault("attack_ms", max(2.0, float(params.get("attack_ms", 2.0))))
-        params.setdefault("release_ms", max(60.0, float(params.get("release_ms", 60.0))))
-        if "cutoff_hz" in params:
-            params["cutoff_hz"] = min(float(params["cutoff_hz"]), 9000.0)
+    # garde-fou de confort FORCÉ sur les rôles tonaux : attaque >= 2 ms, release >= 60 ms,
+    # cutoff <= 9 kHz — même si l'archetype fournit des valeurs trop sèches/aigues (son criard)
+    if role in tonal_map:
+        params["attack_ms"] = max(2.0, float(params.get("attack_ms", 2.0)))
+        params["release_ms"] = max(60.0, float(params.get("release_ms", 60.0)))
+        params["cutoff_hz"] = min(float(params.get("cutoff_hz", 9000.0)), 9000.0)
     return {"plugin": plugin, "params": params, "archetype": bool(arch)}
 
 

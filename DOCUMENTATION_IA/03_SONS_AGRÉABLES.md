@@ -17,6 +17,12 @@ choisis sont durs, grinçants ou se masquent entre eux.
    synthés `gl.*`, même quand des samples propres étaient indexés ; et les samples posés à la
    racine de `samples/` restaient physiquement non classés.
 
+**Preuves concrètes sur un morceau généré** (blueprint + handoff fournis) : les 8 pistes étaient
+toutes `source_type: "gridline_native"` (`gl.keys`, `gl.fingerbass`, `gl.warmsynth`, `gl.pluck`,
+`gl.kick`…) avec **aucune clé `palette`** — la résolution de palette n'avait jamais branché de
+sample ; et le log d'indexation montrait `q2_pass: 0, q2_rejected: 0` sur 7 324 rows DSP : la
+table `sample_quality_v2` n'était remplie que pour les nouveaux fichiers, jamais en incrémental.
+
 ## La solution désormais câblée (0 token pour l'agent)
 
 `scripts/timbre_pleasantness.py` fournit le **gate d'agréabilité** :
@@ -42,7 +48,10 @@ choisis sont durs, grinçants ou se masquent entre eux.
 |---|---|
 | `palette_builder.propose_palettes` | candidats SWAP filtrés, confort réel des synthés `gl.*`, pénalité de cohérence `−0,2×(1−score)`, champ `timbre_coherence` en sortie |
 | `select_sample.py` | les samples SWAP sont exclus de la sélection |
-| `prod_server._resolve_palette` (`palette_id="auto"`, défaut) | **cherche dans les samples par défaut** : `samples.db` global + `Samples/`/`samples/` du projet → branche les meilleurs samples RÉELS sur les pistes du blueprint (`source_type="sample"`, `sample_path`, `gl.sampler`, `root_note`, `fine_tune_ct`) ; repli `gl.*` par archetype sinon |
+| `prod_server._resolve_palette` (systématique, **tout** `palette_id`) | interroge `samples.db` global + `Samples/`/`samples/` du projet et branche les meilleurs samples RÉELS sur les pistes (`source_type="sample"`, `sample_path`, `gl.sampler`, `root_note`, `fine_tune_ct`) ; **préfère la palette la plus riche en samples réels** (un morceau doit utiliser les sons fournis, pas retomber sur 100 % `gl.*`) ; repli `gl.*` par archetype sinon. Le retour et `handoff.txt` affichent `palette=<id> samples=N theme=…` (observabilité) |
+| `prod_server._ensure_blueprint` | plugin `gl.*` par archetype calibré pour **toutes** les pistes (percussions → repli direct `gl.kick`/`gl.snare`/`gl.hat`, jamais un archetype basse) |
+| `pick_gl_plugin` | garde-fous de confort **forcés** sur les rôles tonaux : attaque ≥ 2 ms, release ≥ 60 ms, cutoff ≤ 9 kHz même si l'archetype fournit des valeurs plus sèches/aiguës (son criard) |
+| `indexer.populate_dsp_metrics` | **backfill v2** : les rows déjà analysées en DSP mais sans profil `sample_quality_v2` sont ré-analysées en incrémental (`q2_pass` réel, exclusion REJECTED effective) |
 | `prod_server._ensure_blueprint` | plugin `gl.*` choisi par `pick_gl_plugin` (plus de table statique) |
 | `sample_quality_v2` (indexation) | samples REJECTED (clipping TP×4, faux WAV, SNR, DC) exclus d'emblée — voir [docs/08](../docs/08_AUDIO_INTELLIGENCE_V2.md) |
 | `scripts/organize_samples.py --move` | classe physiquement les samples de la racine de `samples/` dans leur sous-dossier (`808/`, `kick/`, …) sans jamais écraser, puis relancer `index_samples.py` |
@@ -52,12 +61,16 @@ choisis sont durs, grinçants ou se masquent entre eux.
 1. **Ne touche pas aux timbres** : laisse `palette_id="auto"` (défaut). La recherche de samples et
    le gate d'agréabilité sont automatiques. Ne force un plugin `gl.*` que via un archetype adapté
    au profil (jamais un son dur pour lead/chords/pad).
-2. Évite les intervalles de **triton** entre lead et basse/accompagnement dans `deg(...)` —
+2. **Vérifie la ligne `palette=… samples=N`** dans le retour de `studio_compose` et dans
+   `handoff.txt` : si `samples=0`, tes samples ne sont pas vus → relancer l'indexation
+   (`python scripts/index_samples.py` — backfill v2 inclus), ou déposer les samples dans
+   `<projet>/Samples/` classés par dossier.
+3. Évite les intervalles de **triton** entre lead et basse/accompagnement dans `deg(...)` —
    privilégie {0, 3, 6, 7} (voir [01 §tables b2-safe](01_COMPOSER_AVEC_STRUDEL.md)).
-3. Si tu fournis tes propres samples : mets-les dans `<projet>/Samples/` **classés par dossier**
+4. Si tu fournis tes propres samples : mets-les dans `<projet>/Samples/` **classés par dossier**
    (`python scripts/organize_samples.py --move` puis réindexe), et passe par `studio_prepare`
    (scénario B) pour verrouiller la palette.
-4. Vérification rapide d'un son en 0 rendu :
+5. Vérification rapide d'un son en 0 rendu :
    `python scripts/timbre_pleasantness.py --role lead_melody --metrics '{"r_harsh":0.6,"roughness":0.3}'`
    → SWAP = à remplacer ; `--plugin lead trap_rap -0.6` → plugin `gl.*` conseillé.
 

@@ -132,6 +132,7 @@ def write_handoff(project_dir: str, report: dict[str, Any]) -> str:
         f"eval_passed={ev.get('passed')} compile_passed={(report.get('compile') or {}).get('passed')} fc_passed={fc.get('passed')}",
         f"guards={json.dumps(report.get('guards', {}), separators=(',', ':'))}",
         pf_line,
+        _palette_line(report),
         "score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json",
         f"master={'renders/master.wav' if report.get('master') else 'n/a (gridline absent ou auto_master off)'}",
         "next: studio_refine(delta_json=...) ou strudel_patch={{\"replace_track\":\"lead\",\"code\":\"...\"}}",
@@ -143,6 +144,20 @@ def write_handoff(project_dir: str, report: dict[str, Any]) -> str:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(text + "\n")
     return path
+
+
+def _palette_line(report: dict[str, Any]) -> str:
+    """Ligne compacte `palette=... samples=N theme=...` (observabilité : l'agent voit quels sons réels
+    ont été branchés sur les pistes, ou l'erreur silencieuse sinon)."""
+    pal = report.get("palette") or {}
+    if not pal:
+        return "palette=n/a"
+    line = f"palette={pal.get('palette_id', '?')} samples={pal.get('n_samples', 0)}"
+    if pal.get("theme"):
+        line += f" theme={pal.get('theme')}"
+    if pal.get("error"):
+        line += f" err={str(pal['error'])[:60]}"
+    return line
 
 
 def _run_bridge(proj: str, bars: int = 0, seed: int = 0) -> dict[str, Any]:
@@ -179,15 +194,11 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
     mixer_track = 1
     for name in (haps.get("tracks") or {}):
         role = classify_role(name)
-        plugin = None
-        for kw, plug in ROLE_PLUGIN.items():
-            if kw in str(name).lower():
-                plugin = plug
-                break
-        # v4.1 : archetype calibré (profil, rôle, valence) prioritaire sur la carte statique
-        plugin = pick_gl_plugin(role if plugin is None else str(name).lower(), prof0, val0)["plugin"] if plugin is None else plugin
-        if plugin is None:
-            plugin = ROLE_PLUGIN.get(role, "gl.warmsynth")
+        # v4.1 : archetype calibré (profil, rôle, valence) pour TOUTES les pistes, y compris percussions
+        if role == "vocals":
+            plugin = "gl.sampler"
+        else:
+            plugin = pick_gl_plugin(str(name).lower(), prof0, val0)["plugin"]
         tracks.append({"name": str(name), "role": role,
                        "source_type": "vocaloid" if role == "vocals" else "gridline_native",
                        "plugin": plugin, "mixer_track": mixer_track})
@@ -244,21 +255,21 @@ _SLOT_FOR = {"kick": "kick", "snare": "snare_clap", "clap": "snare_clap", "hihat
 
 
 def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
-    """v4.1 — l'agent CHERCHE DANS LES SAMPLES PAR DÉFAUT : si `palette_id == "auto"`, interroge
-    l'index (dossier `samples/` global via `samples.db` + `Samples/` projet si présent) avec
-    `propose_palettes` (gate d'agréabilité appliqué) et branche les meilleurs samples RÉELS sur les
-    pistes du blueprint (`source_type="sample"` + `sample_path` + `root_note`) ; repli `gl.*`
-    par archetype si pas assez de samples propres. 0 token, jamais bloquant."""
+    """v4.1 — branche les VRAIS samples de l'index sur les pistes du blueprint, quel que soit
+    `palette_id` ("auto" = meilleure palette ; sinon la palette demandée, repli meilleure).
+    Interroge l'index (`samples.db` global + `Samples/`/`samples/` du projet) via
+    `propose_palettes` (gate d'agréabilité appliqué) et préfère la palette qui embarque le
+    PLUS de samples réels — un morceau doit utiliser les sons fournis, pas retomber sur les
+    synthés `gl.*`. Repli `gl.*` par archetype (`pick_gl_plugin`) piste par piste sinon.
+    0 token, jamais bloquant."""
     out = {"palette_id": palette_id, "resolved": False}
-    if palette_id != "auto":
-        return out
     try:
         index_dir = os.path.join(ROOT, "mcp-servers", "audio-index")
         if index_dir not in sys.path:
             sys.path.insert(0, index_dir)
         from indexer import DEFAULT_DB_PATH
         from palette_builder import propose_palettes
-        from timbre_pleasantness import pick_gl_plugin
+        from timbre_pleasantness import pick_gl_plugin, pleasantness_gate
         proj_samples = None
         for cand in (os.path.join(proj, "Samples"), os.path.join(proj, "samples")):
             if os.path.isdir(cand):
@@ -274,9 +285,21 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
         )
         pals = res.get("palettes") or []
         if not pals:
+            out["reason"] = "no_palette"
             return out
-        best = pals[0]
-        slots = best.get("slots") or []
+
+        def _n_samples(p: dict) -> int:
+            return sum(1 for s in (p.get("slots") or [])
+                       if s.get("source_type") in ("sample", "project_sample") and s.get("filepath"))
+
+        def _rank(p: dict) -> tuple:
+            return (_n_samples(p), float(p.get("score") or 0.0))
+
+        if palette_id and palette_id != "auto":
+            chosen = next((p for p in pals if p.get("palette_id") == palette_id), None) or max(pals, key=_rank)
+        else:
+            chosen = max(pals, key=_rank)
+        slots = chosen.get("slots") or []
         role_to_slot = {str(s.get("role")): s for s in slots}
         valence = float((bp.get("emotion_vector") or {}).get("valence", 0.0))
         prof = str(bp.get("mix_profile") or "trap_rap")
@@ -287,24 +310,29 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                 continue
             key = str(tr.get("name") or role).lower()
             slot = role_to_slot.get(_SLOT_FOR.get(key, role))
-            if slot and slot.get("source_type") in ("sample", "project_sample") and slot.get("filepath"):
+            if (slot and slot.get("source_type") in ("sample", "project_sample") and slot.get("filepath")
+                    and slot.get("midi_root") is not None
+                    and pleasantness_gate({
+                        "r_harsh": slot.get("r_harsh"), "roughness": slot.get("roughness"),
+                        "peak_harsh_db": slot.get("peak_harsh_db"), "comfort_score": slot.get("comfort_score"),
+                        "centroid_hz": slot.get("centroid_hz"), "crest_factor_db": slot.get("crest_factor_db"),
+                    }, str(slot.get("role") or role))["verdict"] != "SWAP"):
                 tr["source_type"] = "sample"
                 tr["sample_path"] = str(slot["filepath"])
                 tr["plugin"] = "gl.sampler"
-                if slot.get("midi_root") is not None:
-                    tr["root_note"] = int(slot["midi_root"])
+                tr["root_note"] = int(slot["midi_root"])
                 if slot.get("recommended_fine_tune_ct"):
                     tr["fine_tune_ct"] = int(slot["recommended_fine_tune_ct"])
                 n_samples += 1
             else:
                 tr["source_type"] = "gridline_native"
                 tr["plugin"] = pick_gl_plugin(key, prof, valence)["plugin"]
-        bp["palette"] = {"palette_id": best.get("palette_id"), "score": best.get("score"),
-                         "theme": best.get("theme"), "n_samples": n_samples,
-                         "timbre_coherence": best.get("timbre_coherence"),
+        bp["palette"] = {"palette_id": chosen.get("palette_id"), "score": chosen.get("score"),
+                         "theme": chosen.get("theme"), "n_samples": n_samples,
+                         "timbre_coherence": chosen.get("timbre_coherence"),
                          "project_samples_dir": proj_samples}
-        out.update({"resolved": True, "palette_id": best.get("palette_id"),
-                    "n_samples": n_samples, "theme": best.get("theme")})
+        out.update({"resolved": True, "palette_id": chosen.get("palette_id"),
+                    "n_samples": n_samples, "theme": chosen.get("theme")})
     except Exception as exc:
         out["error"] = str(exc)[:200]
     return out
@@ -339,14 +367,14 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
         return {"ok": False, "stage": "bridge", "error": msg[-300:]}
     report["palette_id"] = palette_id
     bp = _ensure_blueprint(proj, report)
-    if auto_prepare or palette_id == "auto":
-        # v4.1 : recherche de samples réels par défaut (samples.db + Samples/ projet), gate d'agréabilité
-        report["palette"] = _resolve_palette(proj, bp, palette_id)
-        import jsonschema
-        with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
-            jsonschema.validate(bp, json.load(fh))
-        with open(os.path.join(proj, "song_blueprint.json"), "w", encoding="utf-8") as fh:
-            json.dump(bp, fh, ensure_ascii=False, indent=2)
+    # v4.1 : résolution de palette SYSTÉMATIQUE — branche les vrais samples de l'index
+    # (samples.db + Samples/ projet) sur les pistes, quel que soit palette_id ("auto" = meilleure)
+    report["palette"] = _resolve_palette(proj, bp, palette_id)
+    import jsonschema
+    with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
+        jsonschema.validate(bp, json.load(fh))
+    with open(os.path.join(proj, "song_blueprint.json"), "w", encoding="utf-8") as fh:
+        json.dump(bp, fh, ensure_ascii=False, indent=2)
     if auto_prepare:
         bp["auto_prepared"] = True
         report["auto_prepare"] = True
@@ -441,6 +469,7 @@ def _summarize(report: dict[str, Any], limit: int = 400) -> str:
         parts.append("delta=refine_delta.json")
     if report.get("semantic_patch"):
         parts.append("semantic=" + ",".join(report["semantic_patch"].get("applied", []))[:80])
+    parts.append(_palette_line(report))
     parts.append("handoff=handoff.txt")
     return " | ".join(parts)[:limit]
 

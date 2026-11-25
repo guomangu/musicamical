@@ -11,6 +11,7 @@ l'organisation des samples racine (`scripts/organize_samples.py`).
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -107,6 +108,27 @@ class TestPleasantnessGate(unittest.TestCase):
         self.assertGreaterEqual(p["params"].get("attack_ms", 2.0), 2.0)
         self.assertLessEqual(p["params"].get("cutoff_hz", 9000.0), 9000.0)
 
+    def test_pick_gl_plugin_percussive_uses_fallback(self):
+        # les rôles percussifs ne doivent PAS hériter d'un archetype tonal (basse/lead)
+        self.assertEqual(tp.pick_gl_plugin("kick", "trap_rap", 0.0)["plugin"], "gl.kick")
+        self.assertEqual(tp.pick_gl_plugin("snare", "trap_rap", 0.0)["plugin"], "gl.snare")
+        self.assertEqual(tp.pick_gl_plugin("hihat", "trap_rap", 0.0)["plugin"], "gl.hat")
+
+    def test_pick_gl_plugin_forces_comfort_even_if_archetype_harsh(self):
+        import gl_dsl
+        orig = gl_dsl.resolve_archetype
+        gl_dsl.resolve_archetype = lambda profile, role, valence=0.0: {
+            "plugin": "gl.warmsynth",
+            "params": {"attack_ms": 0.2, "release_ms": 10.0, "cutoff_hz": 16000.0},
+        }
+        try:
+            p = tp.pick_gl_plugin("lead_melody", "trap_rap", 0.0)
+        finally:
+            gl_dsl.resolve_archetype = orig
+        self.assertGreaterEqual(p["params"]["attack_ms"], 2.0)
+        self.assertGreaterEqual(p["params"]["release_ms"], 60.0)
+        self.assertLessEqual(p["params"]["cutoff_hz"], 9000.0)
+
 
 class TestPaletteWiring(unittest.TestCase):
     def _make_db(self, td: str) -> str:
@@ -171,6 +193,133 @@ class TestPaletteWiring(unittest.TestCase):
                     self.assertIn("palette", bp)
             finally:
                 indexer.DEFAULT_DB_PATH = old_db
+
+
+class TestPaletteResolutionV2(unittest.TestCase):
+    """v4.1 — _resolve_palette branche les vrais samples pour TOUT palette_id et préfère
+    la palette la plus riche en samples réels (anti « 100 % synthés gl.* malgré des samples fournis »)."""
+
+    def _bp(self):
+        return {
+            "title": "t", "genre": "trap_rap", "mix_profile": "trap_rap", "has_drums": True,
+            "seed": 1, "emotion_vector": {"valence": 0.0, "tension": 0.5, "energy": 0.7, "depth": 0.5},
+            "bpm": 140.0, "key": "C", "harmonic_core": {"key": "C", "mode": "minor"},
+            "tracks": [{"name": "kick", "role": "drums", "source_type": "gridline_native",
+                        "plugin": "gl.kick", "mixer_track": 1},
+                       {"name": "lead", "role": "lead", "source_type": "gridline_native",
+                        "plugin": "gl.warmsynth", "mixer_track": 2}],
+        }
+
+    def _patch_propose(self):
+        import palette_builder
+        orig = palette_builder.propose_palettes
+
+        def fake_propose(**kwargs):
+            return {"palettes": [
+                {"palette_id": "palette_A", "score": 0.99, "theme": "synthetic",
+                 "slots": [{"role": "kick", "source_type": "gridline_native", "plugin": "gl.kick",
+                            "filepath": None, "midi_root": None, "comfort_score": 0.9},
+                           {"role": "lead_melody", "source_type": "gridline_native", "plugin": "gl.warmsynth",
+                            "filepath": None, "midi_root": None, "comfort_score": 0.9}]},
+                {"palette_id": "palette_B", "score": 0.50, "theme": "organic",
+                 "slots": [{"role": "kick", "source_type": "sample", "filepath": "/tmp/x/kick.wav",
+                            "midi_root": 36, "recommended_fine_tune_ct": 3, "comfort_score": 0.9,
+                            "centroid_hz": 200.0},
+                           {"role": "lead_melody", "source_type": "sample", "filepath": "/tmp/x/lead.wav",
+                            "midi_root": 60, "recommended_fine_tune_ct": 0, "comfort_score": 0.9,
+                            "centroid_hz": 1200.0}]},
+            ]}
+
+        palette_builder.propose_palettes = fake_propose
+        return orig
+
+    def test_auto_prefers_sample_rich_palette_over_higher_score_synth(self):
+        import prod_server
+        orig = self._patch_propose()
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                proj = os.path.join(td, "proj")
+                os.makedirs(proj)
+                bp = self._bp()
+                out = prod_server._resolve_palette(proj, bp, "auto")
+                self.assertTrue(out.get("resolved"), out)
+                self.assertEqual(out.get("palette_id"), "palette_B")  # + de samples réels, malgré score plus faible
+                self.assertEqual(out.get("n_samples"), 2, out)
+                kick = bp["tracks"][0]
+                self.assertEqual(kick["source_type"], "sample")
+                self.assertEqual(kick["sample_path"], "/tmp/x/kick.wav")
+                self.assertEqual(kick["root_note"], 36)
+                self.assertEqual(kick["fine_tune_ct"], 3)
+                self.assertIn("palette", bp)
+        finally:
+            import palette_builder
+            palette_builder.propose_palettes = orig
+
+    def test_named_palette_id_also_binds(self):
+        import prod_server
+        orig = self._patch_propose()
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                proj = os.path.join(td, "proj")
+                os.makedirs(proj)
+                bp = self._bp()
+                out = prod_server._resolve_palette(proj, bp, "palette_A")
+                self.assertTrue(out.get("resolved"), out)
+                self.assertEqual(out.get("palette_id"), "palette_A")
+                # palette_A = 100 % synthés -> les pistes restent gl.* (jamais de sample sans root_note)
+                self.assertEqual(out.get("n_samples"), 0, out)
+                for tr in bp["tracks"]:
+                    self.assertEqual(tr["source_type"], "gridline_native")
+        finally:
+            import palette_builder
+            palette_builder.propose_palettes = orig
+
+    def test_palette_line_visible_in_summary_and_handoff(self):
+        import prod_server
+        line = prod_server._palette_line({"palette": {"palette_id": "palette_B", "n_samples": 5, "theme": "organic"}})
+        self.assertIn("palette=palette_B", line)
+        self.assertIn("samples=5", line)
+        self.assertEqual(prod_server._palette_line({}), "palette=n/a")
+        s = prod_server._summarize({"ok": True, "n_tracks": 8, "n_notes": 100, "seed": 1,
+                                    "palette": {"palette_id": "palette_B", "n_samples": 5}})
+        self.assertIn("palette=palette_B samples=5", s)
+
+    def test_ensure_blueprint_uses_archetype_for_drums_too(self):
+        import prod_server
+        from gl_dsl import SYNTH_REGISTRY
+        with tempfile.TemporaryDirectory() as td:
+            haps = {"meta": {"mix_profile": "trap_rap", "valence": 0.0, "bpm": 140, "key": "C",
+                             "mode": "minor", "progression": ["Cm7"],
+                             "sections": [{"name": "song", "bars": 8}]},
+                    "tracks": {"kick": {}, "lead": {}}}
+            with open(os.path.join(td, "composition.strudel.haps.json"), "w", encoding="utf-8") as fh:
+                json.dump(haps, fh)
+            bp = prod_server._ensure_blueprint(td, {})
+            by_name = {t["name"]: t for t in bp["tracks"]}
+            self.assertEqual(by_name["kick"]["plugin"], "gl.kick")  # percussif -> repli gl.*, pas archetype basse
+            self.assertIn(by_name["lead"]["plugin"], SYNTH_REGISTRY)
+
+
+class TestIndexerQ2Backfill(unittest.TestCase):
+    def test_q2_backfilled_for_rows_with_dsp_but_no_q2(self):
+        import sqlite3
+        import indexer
+        with tempfile.TemporaryDirectory() as td:
+            sdir = os.path.join(td, "samples")
+            os.makedirs(sdir)
+            sf.write(os.path.join(sdir, "kick_a.wav"), _sine(60.0, 0.8, 0.5).astype(np.float32), SR)
+            db = os.path.join(td, "samples.db")
+            indexer.index_directory(samples_dir=sdir, db_path=db, workers=1)
+            conn = sqlite3.connect(db)
+            conn.row_factory = sqlite3.Row
+            conn.execute("DELETE FROM sample_quality_v2")
+            conn.commit()
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM sample_quality_v2").fetchone()[0], 0)
+            stats = indexer.populate_dsp_metrics(conn, force=False, workers=1)
+            after = conn.execute("SELECT COUNT(*) FROM sample_quality_v2").fetchone()[0]
+            conn.close()
+            self.assertGreater(after, 0, "le backfill q2 doit re-analyser les rows DSP existantes sans q2")
+            self.assertGreaterEqual(stats.get("q2_pass", 0) + stats.get("q2_rejected", 0), 1, stats)
 
 
 class TestOrganizeSamples(unittest.TestCase):
