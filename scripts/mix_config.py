@@ -14,6 +14,12 @@ import json
 import os
 from typing import Any
 
+try:
+    from env_loader import load_dotenv
+    load_dotenv()  # .env du projet : MIX_PROFILES_PATH, AI_STUDIO_DIR (les vraies variables d'env priment)
+except Exception:
+    pass
+
 ROOT = os.environ.get("AI_STUDIO_DIR") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_CONFIG_PATH = os.path.join(ROOT, "config", "mix_profiles.json")
 

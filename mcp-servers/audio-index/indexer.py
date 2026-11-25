@@ -30,13 +30,22 @@ import librosa
 import numpy as np
 import soundfile as sf
 
+_BOOT_SCRIPTS = os.path.join(str(Path(__file__).resolve().parents[2]), "scripts")
+if _BOOT_SCRIPTS not in sys.path:
+    sys.path.insert(0, _BOOT_SCRIPTS)
+try:
+    from env_loader import load_dotenv
+    load_dotenv()  # .env du projet (gitignoré) : les vraies variables d'env priment
+except Exception:
+    pass
+
 STUDIO_DIR = os.environ.get("AI_STUDIO_DIR") or str(Path(__file__).resolve().parents[2])
 SCRIPTS_DIR = os.path.join(STUDIO_DIR, "scripts")
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
-DEFAULT_SAMPLES_DIR = os.path.join(STUDIO_DIR, "samples")
-DEFAULT_DB_PATH = os.path.join(STUDIO_DIR, "mcp-servers/audio-index/samples.db")
+DEFAULT_SAMPLES_DIR = os.environ.get("AI_STUDIO_SAMPLES_DIR") or os.path.join(STUDIO_DIR, "samples")
+DEFAULT_DB_PATH = os.environ.get("AI_STUDIO_DB_PATH") or os.path.join(STUDIO_DIR, "mcp-servers/audio-index/samples.db")
 DEFAULT_ANCHORS_NPZ = os.path.join(STUDIO_DIR, "mcp-servers/audio-index/semantic_anchors.npz")
 AUDIO_EXTS = {".wav", ".ogg", ".flac", ".mp3", ".aiff", ".aif"}
 MIDI_EXTS = {".mid", ".midi"}
@@ -710,7 +719,7 @@ def _compute_clap_embeddings(conn: sqlite3.Connection, batch_limit: int = 0, bat
     if not rows:
         return 0
 
-    model_id = "laion/clap-htsat-unfused"
+    model_id = os.environ.get("AI_STUDIO_CLAP_MODEL") or "laion/clap-htsat-unfused"
     try:
         processor = ClapProcessor.from_pretrained(model_id, local_files_only=True)
         model = ClapModel.from_pretrained(model_id, local_files_only=True)

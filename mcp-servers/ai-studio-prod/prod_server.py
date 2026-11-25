@@ -20,6 +20,15 @@ import subprocess
 import sys
 from typing import Any
 
+try:
+    _BOOT_SCRIPTS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "scripts")
+    if _BOOT_SCRIPTS not in sys.path:
+        sys.path.insert(0, _BOOT_SCRIPTS)
+    from env_loader import load_dotenv
+    load_dotenv()  # .env du projet (gitignoré) : les vraies variables d'env priment
+except Exception:
+    pass
+
 ROOT = os.environ.get("AI_STUDIO_DIR") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(ROOT, "scripts")
 ANALYZER = os.path.join(ROOT, "mcp-servers", "audio-analyzer")

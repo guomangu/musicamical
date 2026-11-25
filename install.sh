@@ -10,13 +10,24 @@ set -euo pipefail
 STUDIO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARCH="$(uname -m)"
 
-SKIP_PLUGINS=0
-SKIP_CLAP=0
-SKIP_ZED=0
-SKIP_STRUDEL=0
-NO_SUDO=0
-CHECK_ONLY=0
-FORCE_RESCAN=0
+# Paramètres du projet : charger .env (gitignoré) s'il existe. Les vraies variables
+# d'environnement du shell priment (sourcing en mode export, sans override).
+if [ -f "$STUDIO_DIR/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$STUDIO_DIR/.env"
+  set +a
+fi
+
+# Flags d'installation : valeur par défaut = variable d'env AI_STUDIO_* (voir .env.example) ;
+# un flag CLI explicite (passé après) reste prioritaire.
+SKIP_PLUGINS="${AI_STUDIO_SKIP_PLUGINS:-0}"
+SKIP_CLAP="${AI_STUDIO_SKIP_CLAP:-0}"
+SKIP_ZED="${AI_STUDIO_SKIP_ZED:-0}"
+SKIP_STRUDEL="${AI_STUDIO_SKIP_STRUDEL:-0}"
+NO_SUDO="${AI_STUDIO_NO_SUDO:-0}"
+CHECK_ONLY="${AI_STUDIO_CHECK_ONLY:-0}"
+FORCE_RESCAN="${AI_STUDIO_FORCE_RESCAN:-0}"
 
 usage() {
   cat << 'EOF'

@@ -25,6 +25,12 @@ _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
+try:
+    from env_loader import load_dotenv
+    load_dotenv()  # .env du projet : AI_STUDIO_DIR, GRIDLINE_EMPTY_TEMPLATE (les vraies variables d'env priment)
+except Exception:
+    pass
+
 from gl_dsl import (
     delay_send_fx,
     eq_band as dsl_eq_band,

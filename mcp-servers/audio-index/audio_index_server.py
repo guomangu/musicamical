@@ -83,7 +83,7 @@ def _get_clap_text_encoder() -> tuple[Any, Any] | None:
         import torch
         from transformers import ClapProcessor, ClapTextModelWithProjection
 
-        model_id = "laion/clap-htsat-unfused"
+        model_id = os.environ.get("AI_STUDIO_CLAP_MODEL") or "laion/clap-htsat-unfused"
         processor = ClapProcessor.from_pretrained(model_id, local_files_only=True)
         text_model = ClapTextModelWithProjection.from_pretrained(model_id, local_files_only=True)
         text_model.eval()

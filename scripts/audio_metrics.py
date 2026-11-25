@@ -1093,7 +1093,7 @@ def compute_role_score(dsp: dict[str, Any], duration_sec: float, role_id: str) -
 class ClapEmbedder:
     """Lazy LAION-CLAP wrapper for audio embeddings & zero-shot aesthetic scoring."""
 
-    def __init__(self, device: str = "cpu", model_id: str = "laion/clap-htsat-unfused"):
+    def __init__(self, device: str = "cpu", model_id: str = os.environ.get("AI_STUDIO_CLAP_MODEL") or "laion/clap-htsat-unfused"):
         self.requested_device = device
         self.model_id = model_id
         self._model = None

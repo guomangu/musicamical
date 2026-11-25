@@ -58,21 +58,10 @@ def _safe_download_bytes(url: str, timeout: float = 30.0) -> tuple[bytes, str]:
 
 
 def load_studio_env(env_path: str = DEFAULT_ENV_PATH) -> dict[str, str]:
-    """Load key=value secrets from .env without overriding already-set env vars."""
-    loaded: dict[str, str] = {}
-    if os.path.isfile(env_path):
-        with open(env_path, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                k = k.strip()
-                v = v.strip().strip('"').strip("'")
-                if k and k not in os.environ and v:
-                    os.environ[k] = v
-                loaded[k] = v
-    return loaded
+    """Load key=value secrets from .env without overriding already-set env vars.
+    Délègue au chargeur partagé `scripts/env_loader.py` (parseur unique, voir .env.example)."""
+    from env_loader import load_dotenv
+    return load_dotenv(env_path)
 
 
 def _sanitize_slug(text: str) -> str:

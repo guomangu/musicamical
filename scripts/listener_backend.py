@@ -27,6 +27,12 @@ import os
 import urllib.request
 from typing import Any, Callable
 
+try:
+    from env_loader import load_dotenv
+    load_dotenv()  # .env du projet : AI_STUDIO_AUDIO_LISTENER_* (les vraies variables d'env priment)
+except Exception:
+    pass
+
 
 VALID_VERDICTS = ("PASS", "FIX", "SWAP")
 

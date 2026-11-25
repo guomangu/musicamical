@@ -342,7 +342,7 @@ def _load_clap():
         return _CLAP_CACHE["processor"], _CLAP_CACHE["model"]
     from transformers import ClapModel, ClapProcessor
 
-    model_id = "laion/clap-htsat-unfused"
+    model_id = os.environ.get("AI_STUDIO_CLAP_MODEL") or "laion/clap-htsat-unfused"
     with contextlib.redirect_stdout(sys.stderr):
         try:
             proc = ClapProcessor.from_pretrained(model_id, local_files_only=True)
