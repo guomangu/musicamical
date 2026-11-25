@@ -1,6 +1,6 @@
 # AGENT RUNBOOK V4.1 — 2 tours (1 si auto_prepare), préfixe 100 % statique (prompt caching)
 
-Règles de production v4.x. Archive : [REFERENCE_ARCHIVE.md](REFERENCE_ARCHIVE.md) · pont : [06_PONT_STRUDEL_HEADLESS.md](06_PONT_STRUDEL_HEADLESS.md) · RETEX : [RETEX_SESSION_RAP_FR_2026-11-25.md](RETEX_SESSION_RAP_FR_2026-11-25.md).
+v4.1 · [archive](REFERENCE_ARCHIVE.md) · [pont](06_PONT_STRUDEL_HEADLESS.md) · [RETEX](RETEX_SESSION_RAP_FR_2026-11-25.md) · [guide conception](07_GUIDE_CONCEPTION_STRUDEL.md).
 
 ## Flux
 1. `studio_prepare(project_dir, intent)` — **Scénarios B/C/D seuls** (`remix`, `lyrics`). Sans `Samples/` : étape 2 directe, `auto_prepare=true` (palette `auto` = synthés `gl.*`, 0 token). Le `CTX` du retour est une **valeur par défaut à surcharger** dans `@meta`.
@@ -17,11 +17,12 @@ Règles de production v4.x. Archive : [REFERENCE_ARCHIVE.md](REFERENCE_ARCHIVE.m
 kit("trap_half", {var: 2, hats: "rolls"})
 $chords: grid("Cm7 Abmaj7 Fm7 G7").slow(2).gain(0.7).muteIn("intro,outro")
 $bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 40}).slow(4).in("verse,chorus,outro")
-$lead: deg("0 ~ 2 ~ 4 ~ 3 ~ 5 ~ 4 ~ 2 ~", 4).slow(2).gain(0.6).sometimesBy(0.25, x => x.degradeBy(0.5)).in("verse,chorus")
+$lead: deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.6).sometimesBy(0.25, x => x.degradeBy(0.5)).in("verse,chorus")
 ```
 
 ## Anti-clone & gate MIDI (1er coup)
-- Variations seedées par piste (`.sometimesBy(0.2-0.3, x => x.degradeBy(0.5))`) ; cycles bass/lead de **16 mesures** (`.slow(4)`/`.slow(2)`), jamais 4 mesures statiques (`clone_8bar`). Lead : saut ≥ 5 st résolu en sens inverse, 20–50 % de `~` ; basse en sens contraire.
+- Variations seedées par piste (`.sometimesBy(0.2-0.3, x => x.degradeBy(0.5))`) ; cycles bass/lead de **16 mesures** (`.slow(4)`/`.slow(2)`), jamais 4 mesures statiques (`clone_8bar`). Lead : saut ≥5 st résolu en sens inverse ; 20–50 % de `~`.
+- Pré-flight gate (0 rendu) avant tout rendu : `preflight_strudel_gate.py <projet>` → gap_fill ≥ 0.60, stepwise ≥ 0.65, rest 0.20–0.50.
 - Durée : `bars = round(180 * bpm / 240)` (90 BPM → 68 mes. ≈ 3 min).
 
 ## 5 règles dures
