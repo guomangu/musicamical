@@ -719,7 +719,7 @@ def main() -> None:
     ap.add_argument("--depth", type=float, default=None)
     ap.add_argument("--no-drums", action="store_true")
     ap.add_argument("--taste-memory", default="", help="Optional user_taste_profile.json override")
-    ap.add_argument("--approve-taste", action="store_true", help="Allow up to 60% taste-memory weight over external pro anchors")
+    ap.add_argument("--approve-taste", action="store_true", help="Allow up to 60 pourcent taste-memory weight over external pro anchors")
     ap.add_argument("--json-compact", action="store_true")
     args = ap.parse_args()
 

@@ -519,6 +519,7 @@ def run_deep_audit(
     headphone_target: str = "sony_xm6",
 ) -> dict[str, Any]:
     """Assemble le diagnostic complet multi-domaines d'un rendu audio."""
+    issues: list[dict[str, Any]] = []  # v4.1 hotfix : declare en tete (UnboundLocalError sinon)
     mono = np.mean(data, axis=1).astype(np.float32)
     third_oct = _third_octave_profile(mono, sr)
     resonances, resonance_candidates = classify_resonances(third_oct)
@@ -551,7 +552,7 @@ def run_deep_audit(
         issues.append({
             "category": "mono_folddown_loss",
             "severity": "high",
-            "detail": f"perte mono {(L+R)/2} = {mono_fold['master']} dB > {mono_fold['max_master_db']} dB sur le master (annulation de phase mid/high).",
+            "detail": f"perte mono master = {mono_fold['master']} dB > {mono_fold['max_master_db']} dB (annulation de phase mid/high).",
             "fix": "REDUCE_STEREO_CANCELLATION : resserrer gl.stereo (Side level -25%) sur Chords/Lead.",
         })
     _sp95_max = 2.15
@@ -575,7 +576,6 @@ def run_deep_audit(
     stereo_image = analyze_stereo_image(data, sr, target_genre)
     neural = _run_neural_perceptual_audit(audio_path, data, mono, sr) if use_neural else {}
 
-    issues: list[dict[str, Any]] = []
     if not stereo_image["balance_ok"]:
         issues.append(
             {

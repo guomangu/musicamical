@@ -550,7 +550,10 @@ def run_strudel_eval(strudel_path: str, bars: int, seed: int, out_path: str) -> 
     if not node:
         raise RuntimeError("node introuvable : installe Node.js puis `npm install` dans scripts/ (pont Strudel headless)")
     script = os.path.join(SCRIPTS_DIR, "strudel_eval.mjs")
-    cmd = [node, script, strudel_path, "--bars", str(bars), "--seed", str(seed), "--out", out_path, "--compact"]
+    cmd = [node, script, strudel_path, "--bars", str(bars)]
+    if seed:
+        cmd += ["--seed", str(seed)]
+    cmd += ["--out", out_path, "--compact"]
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if proc.returncode != 0:
         raise RuntimeError(f"strudel_eval.mjs a echoue (rc={proc.returncode}): {(proc.stderr or proc.stdout)[-400:]}")
@@ -588,7 +591,7 @@ def strudel_to_score_ir(
             bars = sum(int(s["bars"]) for s in blueprint["structure"])
         if not seed and blueprint:
             seed = int(blueprint.get("seed") or 0)
-        seed = seed or 42
+        # v4.1 hotfix : seed=0 -> on ne passe PAS --seed, l'eval derive meta.seed (ou SHA-256 du source)
         bars = bars or 16
         haps = run_strudel_eval(strudel, bars, seed, haps_file)
     else:

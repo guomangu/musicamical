@@ -135,7 +135,7 @@ def main() -> None:
     ap.add_argument("project_dir")
     ap.add_argument("--core-only", action="store_true", help="Compile seulement la boucle noyau 8 mesures (core_loop.gridline)")
     ap.add_argument("--probe", action="store_true", help="v3.2 : compile la sonde composite 12 mesures (core_probe.gridline : 8 noyau + 1 silence + 4 hors-noyau)")
-    ap.add_argument("--no-validate-full", action="store_true", help="Désactive le pré-vol symbolique 100 % (full_coverage) après compilation")
+    ap.add_argument("--no-validate-full", action="store_true", help="Désactive le pré-vol symbolique complet (full_coverage) après compilation")
     ap.add_argument("--out", default="", help="Chemin .gridline de sortie (défaut: <proj>/projet.gridline)")
     args = ap.parse_args()
     report = compile_song(args.project_dir, core_only=args.core_only, out_gridline=args.out,
