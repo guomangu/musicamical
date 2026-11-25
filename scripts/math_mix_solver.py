@@ -180,8 +180,22 @@ def _find_role(names: list[str], roles: dict[str, str], role_key: str) -> int | 
 
 
 def load_corridors(path: str, profile: str, valence: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
-    with open(path, encoding="utf-8") as fh:
-        doc = json.load(fh)
+    doc = None
+    # v4.1 P4 : corridors externes (vrais masters commerciaux, provenance external_pro_reference)
+    # priment sur le fichier versionné auto-référent quand il existe à côté.
+    ext_path = path.replace("spectral_corridors.json", "spectral_corridors_external.json")
+    if ext_path != path and os.path.isfile(ext_path):
+        try:
+            with open(ext_path, encoding="utf-8") as fh:
+                ext_doc = json.load(fh)
+            ext_prof = (ext_doc.get("profiles") or {}).get(profile)
+            if isinstance(ext_prof, dict) and ext_prof.get("provenance") == "external_pro_reference":
+                doc = ext_doc
+        except Exception:
+            doc = None
+    if doc is None:
+        with open(path, encoding="utf-8") as fh:
+            doc = json.load(fh)
     prof = (doc.get("profiles") or {}).get(profile) or next(iter((doc.get("profiles") or {}).values()))
     bark = prof.get("bark24") or {}
     p10 = np.asarray(bark.get("p10"), dtype=np.float64)
@@ -199,7 +213,9 @@ def load_corridors(path: str, profile: str, valence: float) -> tuple[np.ndarray,
             p10 = p10.copy() * 0.98
             p90 = np.minimum(p90 * 1.02, 1.0)
             p90 /= max(p90.sum(), EPS)
-    return p10, p50, p90, prof.get("metrics") or {}
+    metrics_out = dict(prof.get("metrics") or {})
+    metrics_out["reference_provenance"] = prof.get("provenance", "unknown")
+    return p10, p50, p90, metrics_out
 
 
 class _Surrogate:
