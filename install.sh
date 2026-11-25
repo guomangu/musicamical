@@ -28,6 +28,7 @@ SKIP_STRUDEL="${AI_STUDIO_SKIP_STRUDEL:-0}"
 NO_SUDO="${AI_STUDIO_NO_SUDO:-0}"
 CHECK_ONLY="${AI_STUDIO_CHECK_ONLY:-0}"
 FORCE_RESCAN="${AI_STUDIO_FORCE_RESCAN:-0}"
+CODE_UPDATED=0  # mis à 1 si git pull a réellement changé le code (=> redémarrer la session agent)
 
 usage() {
   cat << 'EOF'
@@ -76,6 +77,33 @@ check_fedora() {
     else
       ok "OS compatible Fedora détecté : ${PRETTY_NAME:-Fedora} ($ARCH)"
     fi
+  fi
+}
+
+git_update_code() {
+  # Mise à jour du code du projet : git pull --ff-only pour synchroniser avec la version à jour
+  # (désactivable : AI_STUDIO_GIT_PULL=0 dans .env ; ignoré en --check-only et hors dépôt git).
+  # Non bloquant : en cas d'échec (modifs locales, divergence), le code courant est conservé.
+  if [[ "${AI_STUDIO_GIT_PULL:-1}" == "0" || $CHECK_ONLY -eq 1 ]]; then
+    return 0
+  fi
+  if ! git -C "$STUDIO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    warn "Pas un dépôt git (archive exportée ?) : git pull ignoré."
+    return 0
+  fi
+  local before after out
+  before="$(git -C "$STUDIO_DIR" rev-parse HEAD 2>/dev/null || echo none)"
+  log "Mise à jour du code (git pull --ff-only)..."
+  if out="$(git -C "$STUDIO_DIR" pull --ff-only 2>&1)"; then
+    after="$(git -C "$STUDIO_DIR" rev-parse HEAD 2>/dev/null || echo none)"
+    if [[ "$before" != "$after" ]]; then
+      ok "Code mis à jour : ${before:0:10} -> ${after:0:10} — toutes les dépendances seront réinstallées/réalignées ci-dessous."
+      CODE_UPDATED=1
+    else
+      ok "Code déjà à jour (${after:0:10})."
+    fi
+  else
+    warn "git pull --ff-only a échoué (modifications locales ou divergence) : $(printf '%s' "$out" | tail -1) — code courant conservé."
   fi
 }
 
@@ -781,9 +809,12 @@ index_samples_and_verify() {
 
   ok "Installation et vérification complète terminées !"
   echo ""
+  if [[ "$CODE_UPDATED" == "1" ]]; then
+    warn "Le code a été mis à jour par git pull : REDÉMARRE la session agent (fermer/rouvrir Antigravity ou Zed) pour recharger les serveurs MCP — sinon studio_compose tourne l'ancien code (alerte 'RESTART session agent' dans le retour/handoff)."
+  fi
   echo "Pour démarrer une session :"
   echo "  1. (Optionnel Live GUI) : $STUDIO_DIR/scripts/launch-gridline.sh"
-  echo "  2. Ouvrir $STUDIO_DIR dans Antigravity ou Zed."
+  echo "  2. Ouvrir $STUDIO_DIR dans Antigravity ou Zed (redémarrer la session si le code vient d'être mis à jour)."
   echo "  3. Consulter le tutoriel : $STUDIO_DIR/docs/01_SYSTEME_STACK_ET_GUIDE.md"
 }
 
@@ -811,6 +842,7 @@ install_strudel_bridge() {
   fi
 }
 
+git_update_code
 install_system_deps
 install_gridline_and_stems
 check_or_install_zed

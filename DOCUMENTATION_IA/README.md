@@ -28,6 +28,7 @@ Budget total : ~4 documents compacts, code-first.
 3. Toujours un en-tête `// @meta ... form=I4-V8-C8-O4` + présence par section (`.in()`/`.only()`/`.muteIn()`).
 4. Production = serveur MCP `ai-studio-prod` **seul** (3 outils) ; jamais les 5 serveurs bas niveau.
 5. Erreur Strudel : ≤ 2 lignes `ERR L..:..` du lint → corriger et relancer ; pas de stacktrace.
+6. **Après chaque `git pull` / `install.sh` : redémarrer la session agent** (les serveurs MCP chargent le code au démarrage). Signes : `RESTART session agent` dans le retour, ou `palette=n/a` / pistes 100 % `gl.*` dans le blueprint → le serveur tourne un vieux code.
 
 ## Pour aller plus loin (développement uniquement)
 

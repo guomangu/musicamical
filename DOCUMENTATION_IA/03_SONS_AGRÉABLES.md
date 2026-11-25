@@ -16,6 +16,21 @@ choisis sont durs, grinçants ou se masquent entre eux.
 4. **La façade ne cherchait pas dans `samples/`** : `palette_id="auto"` ne proposait que des
    synthés `gl.*`, même quand des samples propres étaient indexés ; et les samples posés à la
    racine de `samples/` restaient physiquement non classés.
+5. **Serveur MCP périmé après `git pull`** : le processus serveur en mémoire garde l'ancien code
+   → `palette: null`, pistes 100 % `gl.*`, aucune ligne `palette=`. Correctif : `studio_compose`
+   détecte que `prod_server.py` a changé depuis son démarrage et affiche `RESTART session agent`
+   (retour + `handoff.txt`) → fermer/rouvrir la session agent. `install.sh` fait aussi un
+   `git pull --ff-only` et rappelle de redémarrer.
+6. **Chemins de samples fantômes** (DB indexée depuis une ancienne racine, ex. `.../musicos/...`) :
+   `indexer.reroute_sample_path` re-reroute sous `<racine>/samples/...` si le fichier existe, sinon
+   le sample est exclu (jamais branché).
+7. **`root_note` des percussions absurde** (pitch détecté d'un one-shot, ex. rimshot à 84 → chaque
+   hit pitch-shifté de −40 st = inaudible) : désormais `root_note` = **hauteur notée du kit**
+   (kick=36, snare=38, hihat=42, lu dans `score_ir.json`, repli GM).
+8. **Volumes inégaux** : sans métriques soundcheck, le gain staging applique un calibrage nominal
+   **absolu** par rôle (ancre = kick ; chaque piste réglée à `ancre × 10^(offset/40)`, ex. hihat −10 dB,
+   pad −8 dB) au lieu d'un décalage borné à ±6 dB qui ne suffisait pas ; le rapport affiche enfin le
+   vrai `volume_before` et le statut `NOMINAL_APPLIED`.
 
 **Preuves concrètes sur un morceau généré** (blueprint + handoff fournis) : les 8 pistes étaient
 toutes `source_type: "gridline_native"` (`gl.keys`, `gl.fingerbass`, `gl.warmsynth`, `gl.pluck`,
@@ -52,6 +67,9 @@ table `sample_quality_v2` n'était remplie que pour les nouveaux fichiers, jamai
 | `prod_server._ensure_blueprint` | plugin `gl.*` par archetype calibré pour **toutes** les pistes (percussions → repli direct `gl.kick`/`gl.snare`/`gl.hat`, jamais un archetype basse) |
 | `pick_gl_plugin` | garde-fous de confort **forcés** sur les rôles tonaux : attaque ≥ 2 ms, release ≥ 60 ms, cutoff ≤ 9 kHz même si l'archetype fournit des valeurs plus sèches/aiguës (son criard) |
 | `indexer.populate_dsp_metrics` | **backfill v2** : les rows déjà analysées en DSP mais sans profil `sample_quality_v2` sont ré-analysées en incrémental (`q2_pass` réel, exclusion REJECTED effective) |
+| `indexer.reroute_sample_path` + `palette_builder` | chemins stale re-rootés, fichiers absents exclus, **`sample_quality_v2` REJECTED exclus dès la proposition de palettes** |
+| `sample_quality_v2` | clamp dur `n_fft <= len(mono)` : plus de `UserWarning librosa n_fft too large` |
+| `gain_staging_lib.apply_nominal_balance` + `song_builder` | calibrage nominal **absolu** par rôle (volumes égaux sans mesure) + rapport `volume_before`/`NOMINAL_APPLIED` correct |
 | `prod_server._ensure_blueprint` | plugin `gl.*` choisi par `pick_gl_plugin` (plus de table statique) |
 | `sample_quality_v2` (indexation) | samples REJECTED (clipping TP×4, faux WAV, SNR, DC) exclus d'emblée — voir [docs/08](../docs/08_AUDIO_INTELLIGENCE_V2.md) |
 | `scripts/organize_samples.py --move` | classe physiquement les samples de la racine de `samples/` dans leur sous-dossier (`808/`, `kick/`, …) sans jamais écraser, puis relancer `index_samples.py` |
@@ -62,7 +80,9 @@ table `sample_quality_v2` n'était remplie que pour les nouveaux fichiers, jamai
    le gate d'agréabilité sont automatiques. Ne force un plugin `gl.*` que via un archetype adapté
    au profil (jamais un son dur pour lead/chords/pad).
 2. **Vérifie la ligne `palette=… samples=N`** dans le retour de `studio_compose` et dans
-   `handoff.txt` : si `samples=0`, tes samples ne sont pas vus → relancer l'indexation
+   `handoff.txt` : si `palette=n/a` ou `samples=0` → soit le serveur MCP tourne un vieux code (voir
+   `RESTART session agent` → redémarrer la session agent après chaque `git pull`/`install.sh`), soit
+   relancer l'indexation
    (`python scripts/index_samples.py` — backfill v2 inclus), ou déposer les samples dans
    `<projet>/Samples/` classés par dossier.
 3. Évite les intervalles de **triton** entre lead et basse/accompagnement dans `deg(...)` —

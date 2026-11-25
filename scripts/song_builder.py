@@ -380,6 +380,7 @@ def _apply_auto_gain_staging(
     `gain_staging_overrides.json` trims, and write `renders/gain_staging_report.json`.
     """
     eff_channels = [copy.copy(ch) for ch in channels]
+    orig_vol = {ch.track_key: round(float(ch.volume), 4) for ch in channels}  # avant toute mutation
     insert_vol_overrides: dict[int, float] = {}
     sc_metrics = _load_soundcheck_metrics(proj_dir) if auto_gain_stage else {}
 
@@ -430,7 +431,7 @@ def _apply_auto_gain_staging(
 
     report_tracks: list[dict[str, Any]] = []
     for ch in eff_channels:
-        vol_before = round(float(ch.volume), 4)
+        vol_before = orig_vol.get(ch.track_key, round(float(ch.volume), 4))
         plan_entry = (plan.get("tracks") or {}).get(ch.track_key)
         status = "UNCHANGED"
         delta_db = 0.0
@@ -444,6 +445,10 @@ def _apply_auto_gain_staging(
             insert_vol = round(clamp(1.0 * (10.0 ** (res_db / 40.0)), 0.15, 1.25), 4)
             insert_vol_overrides[ch.mixer] = insert_vol
             status = str(plan_entry["status"])
+        elif plan.get("nominal_balance") and abs(float(ch.volume) - vol_before) > 1e-4:
+            # repli nominal (pas de métriques soundcheck) : le fader a bien été recalibré
+            delta_db = round(40.0 * math.log10(max(float(ch.volume), 1e-6) / max(vol_before, 1e-6)), 2)
+            status = "NOMINAL_APPLIED"
 
         # Apply persisted Q2 ADJUST_TRACK_FADER overrides (`volume_trim_db`) if present
         ov_entry = None

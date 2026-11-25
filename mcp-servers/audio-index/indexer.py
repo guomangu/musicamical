@@ -46,6 +46,24 @@ if SCRIPTS_DIR not in sys.path:
 
 DEFAULT_SAMPLES_DIR = os.environ.get("AI_STUDIO_SAMPLES_DIR") or os.path.join(STUDIO_DIR, "samples")
 DEFAULT_DB_PATH = os.environ.get("AI_STUDIO_DB_PATH") or os.path.join(STUDIO_DIR, "mcp-servers/audio-index/samples.db")
+
+
+def reroute_sample_path(path: str, root: str | None = None) -> str | None:
+    """Résout un chemin de sample stocké en DB : tel quel s'il existe ; sinon re-rooté sous
+    `<root>/samples/...` (dépôt déplacé/renommé, ex. ancienne racine) ; `None` si introuvable.
+    Évite de brancher des samples fantômes (chemins d'une ancienne installation)."""
+    if not path:
+        return None
+    p = os.path.abspath(os.path.expanduser(str(path)))
+    if os.path.isfile(p):
+        return p
+    marker = os.sep + "samples" + os.sep
+    if marker in p:
+        rel = p[p.index(marker) + len(marker):]
+        cand = os.path.join(root or STUDIO_DIR, "samples", rel)
+        if os.path.isfile(cand):
+            return cand
+    return None
 DEFAULT_ANCHORS_NPZ = os.path.join(STUDIO_DIR, "mcp-servers/audio-index/semantic_anchors.npz")
 AUDIO_EXTS = {".wav", ".ogg", ".flac", ".mp3", ".aiff", ".aif"}
 MIDI_EXTS = {".mid", ".midi"}

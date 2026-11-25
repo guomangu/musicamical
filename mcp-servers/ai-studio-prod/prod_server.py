@@ -31,6 +31,23 @@ except Exception:
 
 ROOT = os.environ.get("AI_STUDIO_DIR") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(ROOT, "scripts")
+
+
+def _code_sha() -> str:
+    try:
+        with open(__file__, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()[:12]
+    except Exception:
+        return ""
+
+
+_SELF_SHA_AT_BOOT = _code_sha()
+
+
+def _server_stale() -> bool:
+    """True si prod_server.py a changé sur disque depuis le démarrage du serveur MCP (ex. git pull) :
+    le processus en cours tourne encore l'ancien code -> redémarrer la session agent (Zed/Antigravity)."""
+    return bool(_SELF_SHA_AT_BOOT) and _code_sha() != _SELF_SHA_AT_BOOT
 ANALYZER = os.path.join(ROOT, "mcp-servers", "audio-analyzer")
 for _d in (SCRIPTS, ANALYZER):
     if _d not in sys.path:
@@ -142,6 +159,7 @@ def write_handoff(project_dir: str, report: dict[str, Any]) -> str:
         f"guards={json.dumps(report.get('guards', {}), separators=(',', ':'))}",
         pf_line,
         _palette_line(report),
+        *(["!! RESTART session agent : prod_server.py a changé depuis le démarrage du serveur MCP -> fermer/rouvrir la session (Zed/Antigravity)"] if report.get("stale_server") else []),
         "score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json",
         f"master={'renders/master.wav' if report.get('master') else 'n/a (gridline absent ou auto_master off)'}",
         "next: studio_refine(delta_json=...) ou strudel_patch={{\"replace_track\":\"lead\",\"code\":\"...\"}}",
@@ -276,7 +294,7 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
         index_dir = os.path.join(ROOT, "mcp-servers", "audio-index")
         if index_dir not in sys.path:
             sys.path.insert(0, index_dir)
-        from indexer import DEFAULT_DB_PATH
+        from indexer import DEFAULT_DB_PATH, reroute_sample_path
         from palette_builder import propose_palettes
         from timbre_pleasantness import pick_gl_plugin, pleasantness_gate
         proj_samples = None
@@ -312,6 +330,24 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
         role_to_slot = {str(s.get("role")): s for s in slots}
         valence = float((bp.get("emotion_vector") or {}).get("valence", 0.0))
         prof = str(bp.get("mix_profile") or "trap_rap")
+        # Hauteurs notées des pistes (score_ir.json) : pour les PERCUSSIONS, root_note = hauteur
+        # notée du kit (kick=36, snare=38, hihat=42...) et PAS le pitch détecté du one-shot
+        # (ex. rimshot détecté à 84 -> pitch-shift de -40 st = son inaudible)
+        notated: dict[str, int] = {}
+        sir_path = os.path.join(proj, "score_ir.json")
+        if os.path.isfile(sir_path):
+            try:
+                with open(sir_path, encoding="utf-8") as fh:
+                    sir = json.load(fh)
+                for tname, t in (sir.get("tracks") or {}).items():
+                    ps = [int(n.get("pitch")) for n in (t.get("notes") or [])
+                          if isinstance(n.get("pitch"), (int, float)) and not isinstance(n.get("pitch"), bool)]
+                    if ps:
+                        notated[str(tname).lower()] = max(set(ps), key=ps.count)
+            except Exception:
+                notated = {}
+        GM_DRUM = {"kick": 36, "snare": 38, "clap": 39, "hihat": 42, "hat": 42, "perc": 39, "rim": 39}
+        PERC_SLOT_ROLES = {"kick", "snare_clap", "hihat_perc"}
         n_samples = 0
         for tr in bp.get("tracks", []):
             role = str(tr.get("role") or "")
@@ -319,17 +355,26 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                 continue
             key = str(tr.get("name") or role).lower()
             slot = role_to_slot.get(_SLOT_FOR.get(key, role))
-            if (slot and slot.get("source_type") in ("sample", "project_sample") and slot.get("filepath")
-                    and slot.get("midi_root") is not None
+            rpath = reroute_sample_path(slot.get("filepath")) if slot else None
+            if (slot and slot.get("source_type") in ("sample", "project_sample") and rpath
                     and pleasantness_gate({
                         "r_harsh": slot.get("r_harsh"), "roughness": slot.get("roughness"),
                         "peak_harsh_db": slot.get("peak_harsh_db"), "comfort_score": slot.get("comfort_score"),
                         "centroid_hz": slot.get("centroid_hz"), "crest_factor_db": slot.get("crest_factor_db"),
                     }, str(slot.get("role") or role))["verdict"] != "SWAP"):
+                if role == "drums" or key in GM_DRUM or str(slot.get("role")) in PERC_SLOT_ROLES:
+                    rn = notated.get(key) or GM_DRUM.get(key) or slot.get("midi_root")
+                else:
+                    rn = slot.get("midi_root")
+                if rn is None:
+                    # pas de root_note fiable pour un rôle tonal -> synthé (schéma valide garanti)
+                    tr["source_type"] = "gridline_native"
+                    tr["plugin"] = pick_gl_plugin(key, prof, valence)["plugin"]
+                    continue
                 tr["source_type"] = "sample"
-                tr["sample_path"] = str(slot["filepath"])
+                tr["sample_path"] = rpath
                 tr["plugin"] = "gl.sampler"
-                tr["root_note"] = int(slot["midi_root"])
+                tr["root_note"] = int(max(0, min(127, int(rn))))
                 if slot.get("recommended_fine_tune_ct"):
                     tr["fine_tune_ct"] = int(slot["recommended_fine_tune_ct"])
                 n_samples += 1
@@ -375,6 +420,8 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
             return {"ok": False, "stage": "lint", "error": tail}
         return {"ok": False, "stage": "bridge", "error": msg[-300:]}
     report["palette_id"] = palette_id
+    if _server_stale():
+        report["stale_server"] = True  # code changé depuis le démarrage du serveur MCP (git pull)
     bp = _ensure_blueprint(proj, report)
     # v4.1 : résolution de palette SYSTÉMATIQUE — branche les vrais samples de l'index
     # (samples.db + Samples/ projet) sur les pistes, quel que soit palette_id ("auto" = meilleure)
@@ -479,6 +526,8 @@ def _summarize(report: dict[str, Any], limit: int = 400) -> str:
     if report.get("semantic_patch"):
         parts.append("semantic=" + ",".join(report["semantic_patch"].get("applied", []))[:80])
     parts.append(_palette_line(report))
+    if report.get("stale_server"):
+        parts.append("!! RESTART session agent (prod_server.py modifié depuis le démarrage du serveur MCP)")
     parts.append("handoff=handoff.txt")
     return " | ".join(parts)[:limit]
 

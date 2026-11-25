@@ -46,6 +46,7 @@ from indexer import (
     DEFAULT_DB_PATH,
     build_timbre_card_from_dsp,
     load_semantic_anchors,
+    reroute_sample_path,
 )
 from select_sample import _fast_comfort_score, _fast_role_score
 
@@ -486,6 +487,9 @@ def _load_sqlite_candidates(
     conn = sqlite3.connect(abs_db)
     has_dsp = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sample_dsp_metrics'").fetchone() is not None
     has_cards = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sample_semantic_cards'").fetchone() is not None
+    has_q2 = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='sample_quality_v2'").fetchone() is not None
+    q2_join = "LEFT JOIN sample_quality_v2 q2 ON q2.sample_id = s.id" if has_q2 else ""
+    q2_clause = "COALESCE(q2.status, 'PASS') != 'REJECTED'" if has_q2 else "1=1"  # v2 : REJECTED exclus
     target_pc = parse_key_tonic_pc(target_key) if target_key else None
 
     role_order_expr = {
@@ -508,7 +512,7 @@ def _load_sqlite_candidates(
 
     for role in roles:
         cats = _ROLE_CATEGORY_FILTER.get(role)
-        base_clauses = ["s.ext NOT IN ('.mid', '.midi')", "COALESCE(d.hard_reject, 0) = 0"]
+        base_clauses = ["s.ext NOT IN ('.mid', '.midi')", "COALESCE(d.hard_reject, 0) = 0", q2_clause]
         if role in MELODIC_ROLES:
             base_clauses.append("d.playable_chromatically = 1")
         if role in ("kick", "bass_sub"):
@@ -530,6 +534,7 @@ def _load_sqlite_candidates(
                     d.bark_24_json, s.bpm, s.is_loop
                 FROM samples s
                 JOIN sample_dsp_metrics d ON d.sample_id = s.id
+                {q2_join}
                 WHERE {' AND '.join(clauses)}
                 ORDER BY ({order_expr}) DESC
                 LIMIT {int(per_role_limit + 4)}
@@ -548,6 +553,7 @@ def _load_sqlite_candidates(
                     d.bark_24_json, s.bpm, s.is_loop
                 FROM samples s
                 JOIN sample_dsp_metrics d ON d.sample_id = s.id
+                {q2_join}
                 WHERE {' AND '.join(base_clauses)}
                 ORDER BY ({order_expr}) DESC
                 LIMIT {int(per_role_limit + 4)}
@@ -569,6 +575,10 @@ def _load_sqlite_candidates(
     for role in roles:
         cands: list[dict[str, Any]] = []
         for r in raw_by_role[role]:
+            rpath = reroute_sample_path(r[1])
+            if rpath is None:
+                continue  # fichier absent (ancienne racine / pack supprimé) : jamais sélectionné
+            r = (r[0], rpath) + tuple(r[2:])
             (
                 sid, path, cat, dur, s_cent,
                 nat, play_int, root_midi,

@@ -299,7 +299,8 @@ def profile_morphology(mono: np.ndarray, sr: int) -> dict:
     harm_ratio = 0.0
     if f0_tail is not None and f0_tail > 0:
         try:
-            n_fft = min(4096, 1 << int(np.ceil(np.log2(max(256, len(mono))))))
+            # clamp dur : n_fft <= len(mono) (sinon UserWarning librosa "n_fft too large")
+            n_fft = 1 << int(np.floor(np.log2(max(1, min(4096, len(mono))))))
             mag = np.abs(librosa.stft(mono, n_fft=n_fft, hop_length=n_fft // 4))
             _, mag_h = librosa.decompose.hpss(mag)
             fgrid = np.fft.rfftfreq(n_fft, 1.0 / sr)

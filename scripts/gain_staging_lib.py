@@ -368,26 +368,28 @@ def nominal_role_offset_db(profile: str, role: str, has_drums: bool = True, role
 def apply_nominal_balance(channels: list, meta: dict[str, Any]) -> list:
     """Balance channel faders by role using nominal offsets (no measurement needed).
 
-    Each channel volume is shifted by `offset(role) - offset(anchor)` (clamped to +/-6 dB)
-    so that a build without soundcheck metrics still has calibrated, even track volumes.
+    Calibrage ABSOLU : le rôle d'ancrage garde son fader ; chaque autre piste est RÉGLÉE à
+    `anchor_volume * 10**(offset_db/40)` (taper quadratique du mixer, clamp [0.10, 1.15]).
+    L'ancien simple décalage borné à ±6 dB ne pouvait pas égaliser des faders arbitraires
+    issus des `.gain()` Strudel (ex. pad 0.12 vs kick 0.76 = +16 dB) -> volumes inégaux.
     """
     profile = str(meta.get("mix_profile", "trap_rap"))
     has_drums = bool(meta.get("has_drums", True))
-    roles_present = [
-        normalize_role_for_gain_staging(f"{getattr(ch, 'name', '')} {getattr(ch, 'role', '') or ''} {getattr(ch, 'track_key', '')}")
-        for ch in channels
-    ]
+
+    def _norm(ch: Any) -> str:
+        return normalize_role_for_gain_staging(f"{getattr(ch, 'name', '')} {getattr(ch, 'role', '') or ''} {getattr(ch, 'track_key', '')}")
+
+    roles_present = [_norm(ch) for ch in channels]
+    _prof, anchor_role, offsets = _effective_profile_offsets(profile, has_drums, roles_present)
+    anchor_ch = next((ch for ch in channels if _norm(ch) == anchor_role), None)
+    anchor_v = float(anchor_ch.volume) if anchor_ch is not None else 0.80
+    anchor_off = float(offsets.get(anchor_role, (0.0, 0.0, 0.0))[1])
     out = []
     for ch in channels:
-        role = normalize_role_for_gain_staging(f"{ch.name} {ch.role or ''} {ch.track_key}")
-        delta = nominal_role_offset_db(profile, role, has_drums, roles_present)
-        delta = max(-6.0, min(6.0, delta))
-        if abs(delta) < 0.05:
-            out.append(ch)
-            continue
-        v = float(ch.volume)
-        new_v = round(clamp(db_to_auto(delta, ref_fader=v) * v, 0.10, 1.15), 4)
-        ch.volume = new_v
+        role = _norm(ch)
+        rel_db = float(offsets.get(role, (0.0, 0.0, 0.0))[1]) - anchor_off
+        target = anchor_v * (10.0 ** (rel_db / 40.0))  # taper quadratique : gain_db = 40*log10(fader)
+        ch.volume = round(clamp(target, 0.10, 1.15), 4)
         out.append(ch)
     return out
 

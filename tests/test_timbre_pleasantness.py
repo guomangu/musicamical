@@ -210,9 +210,14 @@ class TestPaletteResolutionV2(unittest.TestCase):
                         "plugin": "gl.warmsynth", "mixer_track": 2}],
         }
 
-    def _patch_propose(self):
+    def _patch_propose(self, td):
         import palette_builder
         orig = palette_builder.propose_palettes
+        kick_wav = os.path.join(td, "kick.wav")
+        lead_wav = os.path.join(td, "lead.wav")
+        for p in (kick_wav, lead_wav):
+            with open(p, "w", encoding="utf-8") as fh:
+                fh.write("x")  # fichier réel : reroute_sample_path le garde
 
         def fake_propose(**kwargs):
             return {"palettes": [
@@ -222,10 +227,10 @@ class TestPaletteResolutionV2(unittest.TestCase):
                            {"role": "lead_melody", "source_type": "gridline_native", "plugin": "gl.warmsynth",
                             "filepath": None, "midi_root": None, "comfort_score": 0.9}]},
                 {"palette_id": "palette_B", "score": 0.50, "theme": "organic",
-                 "slots": [{"role": "kick", "source_type": "sample", "filepath": "/tmp/x/kick.wav",
+                 "slots": [{"role": "kick", "source_type": "sample", "filepath": kick_wav,
                             "midi_root": 36, "recommended_fine_tune_ct": 3, "comfort_score": 0.9,
                             "centroid_hz": 200.0},
-                           {"role": "lead_melody", "source_type": "sample", "filepath": "/tmp/x/lead.wav",
+                           {"role": "lead_melody", "source_type": "sample", "filepath": lead_wav,
                             "midi_root": 60, "recommended_fine_tune_ct": 0, "comfort_score": 0.9,
                             "centroid_hz": 1200.0}]},
             ]}
@@ -235,9 +240,10 @@ class TestPaletteResolutionV2(unittest.TestCase):
 
     def test_auto_prefers_sample_rich_palette_over_higher_score_synth(self):
         import prod_server
-        orig = self._patch_propose()
-        try:
-            with tempfile.TemporaryDirectory() as td:
+        import palette_builder
+        with tempfile.TemporaryDirectory() as td:
+            orig = self._patch_propose(td)
+            try:
                 proj = os.path.join(td, "proj")
                 os.makedirs(proj)
                 bp = self._bp()
@@ -247,19 +253,19 @@ class TestPaletteResolutionV2(unittest.TestCase):
                 self.assertEqual(out.get("n_samples"), 2, out)
                 kick = bp["tracks"][0]
                 self.assertEqual(kick["source_type"], "sample")
-                self.assertEqual(kick["sample_path"], "/tmp/x/kick.wav")
+                self.assertEqual(kick["sample_path"], os.path.join(td, "kick.wav"))  # vrai fichier -> branché
                 self.assertEqual(kick["root_note"], 36)
                 self.assertEqual(kick["fine_tune_ct"], 3)
                 self.assertIn("palette", bp)
-        finally:
-            import palette_builder
-            palette_builder.propose_palettes = orig
+            finally:
+                palette_builder.propose_palettes = orig
 
     def test_named_palette_id_also_binds(self):
         import prod_server
-        orig = self._patch_propose()
-        try:
-            with tempfile.TemporaryDirectory() as td:
+        import palette_builder
+        with tempfile.TemporaryDirectory() as td:
+            orig = self._patch_propose(td)
+            try:
                 proj = os.path.join(td, "proj")
                 os.makedirs(proj)
                 bp = self._bp()
@@ -270,9 +276,8 @@ class TestPaletteResolutionV2(unittest.TestCase):
                 self.assertEqual(out.get("n_samples"), 0, out)
                 for tr in bp["tracks"]:
                     self.assertEqual(tr["source_type"], "gridline_native")
-        finally:
-            import palette_builder
-            palette_builder.propose_palettes = orig
+            finally:
+                palette_builder.propose_palettes = orig
 
     def test_palette_line_visible_in_summary_and_handoff(self):
         import prod_server
