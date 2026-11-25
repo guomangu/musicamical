@@ -120,9 +120,9 @@ def write_handoff(project_dir: str, report: dict[str, Any]) -> str:
         f"sections={','.join(s.get('name', '?') for s in report.get('sections', []))}",
         f"eval_passed={ev.get('passed')} compile_passed={(report.get('compile') or {}).get('passed')} fc_passed={fc.get('passed')}",
         f"guards={json.dumps(report.get('guards', {}), separators=(',', ':'))}",
-        f"score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json",
+        "score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json",
         f"master={'renders/master.wav' if report.get('master') else 'n/a (gridline absent ou auto_master off)'}",
-        f"next: studio_refine(delta_json=...) ou strudel_patch={{\"replace_track\":\"lead\",\"code\":\"...\"}}",
+        "next: studio_refine(delta_json=...) ou strudel_patch={{\"replace_track\":\"lead\",\"code\":\"...\"}}",
     ]
     text = "\n".join(lines)
     if len(text) > HANDOFF_LIMIT:
