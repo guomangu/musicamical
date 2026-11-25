@@ -424,6 +424,20 @@ def _select_best_from_sqlite(
         ph = 1.0 if phase_corr is None else float(phase_corr)
         if role in ("kick", "bass_sub") and ph < 0.70:
             continue
+        # v4.1 gate d'agréabilité : hors plafonds durs -> jamais proposé (repli géré par propose_palettes)
+        try:
+            from timbre_pleasantness import pleasantness_gate
+            from audio_metrics import compute_comfort_score as _ccs
+            g = pleasantness_gate({
+                "r_harsh": r_harsh, "roughness": rough, "peak_harsh_db": pk_h,
+                "comfort_score": _ccs({"r_harsh": r_harsh or 0.0, "peak_harsh_db": pk_h or 0.0,
+                                       "roughness": rough or 0.0}, needs_fade=bool(needs_fade_int), role=role),
+                "centroid_hz": d_cent, "crest_factor_db": cf_db,
+            }, role)
+            if g["verdict"] == "SWAP":
+                continue
+        except Exception:
+            pass
 
         playable = bool(play_int) if play_int is not None else True
         if monophonic_only and not playable:

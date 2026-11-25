@@ -172,6 +172,9 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
             haps = json.load(fh)
     meta = haps.get("meta") or {}
     from score_ir import classify_role
+    from timbre_pleasantness import pick_gl_plugin
+    prof0 = str(meta.get("mix_profile") or "trap_rap")
+    val0 = float(meta.get("valence") or 0.0)
     tracks = []
     mixer_track = 1
     for name in (haps.get("tracks") or {}):
@@ -181,7 +184,10 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
             if kw in str(name).lower():
                 plugin = plug
                 break
-        plugin = plugin or ROLE_PLUGIN.get(role, "gl.warmsynth")
+        # v4.1 : archetype calibré (profil, rôle, valence) prioritaire sur la carte statique
+        plugin = pick_gl_plugin(role if plugin is None else str(name).lower(), prof0, val0)["plugin"] if plugin is None else plugin
+        if plugin is None:
+            plugin = ROLE_PLUGIN.get(role, "gl.warmsynth")
         tracks.append({"name": str(name), "role": role,
                        "source_type": "vocaloid" if role == "vocals" else "gridline_native",
                        "plugin": plugin, "mixer_track": mixer_track})
@@ -231,6 +237,79 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
     return bp
 
 
+_SLOT_FOR = {"kick": "kick", "snare": "snare_clap", "clap": "snare_clap", "hihat": "hihat_perc",
+             "hat": "hihat_perc", "perc": "hihat_perc", "bass": "bass_sub", "808": "bass_sub",
+             "sub": "bass_sub", "chords": "chord_keys", "keys": "chord_keys", "pad": "pad_atmosphere",
+             "lead": "lead_melody", "melody": "lead_melody", "counter": "lead_melody", "fx": "fx"}
+
+
+def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
+    """v4.1 — l'agent CHERCHE DANS LES SAMPLES PAR DÉFAUT : si `palette_id == "auto"`, interroge
+    l'index (dossier `samples/` global via `samples.db` + `Samples/` projet si présent) avec
+    `propose_palettes` (gate d'agréabilité appliqué) et branche les meilleurs samples RÉELS sur les
+    pistes du blueprint (`source_type="sample"` + `sample_path` + `root_note`) ; repli `gl.*`
+    par archetype si pas assez de samples propres. 0 token, jamais bloquant."""
+    out = {"palette_id": palette_id, "resolved": False}
+    if palette_id != "auto":
+        return out
+    try:
+        index_dir = os.path.join(ROOT, "mcp-servers", "audio-index")
+        if index_dir not in sys.path:
+            sys.path.insert(0, index_dir)
+        from indexer import DEFAULT_DB_PATH
+        from palette_builder import propose_palettes
+        from timbre_pleasantness import pick_gl_plugin
+        proj_samples = None
+        for cand in (os.path.join(proj, "Samples"), os.path.join(proj, "samples")):
+            if os.path.isdir(cand):
+                proj_samples = cand
+                break
+        res = propose_palettes(
+            mix_profile=str(bp.get("mix_profile") or "trap_rap"),
+            emotion_vector=bp.get("emotion_vector") or {},
+            target_key=f"{bp.get('key', 'C')} {bp.get('harmonic_core', {}).get('mode', 'minor')}",
+            project_samples_dir=proj_samples,
+            db_path=DEFAULT_DB_PATH,
+            bpm=float(bp.get("bpm") or 0) or None,
+        )
+        pals = res.get("palettes") or []
+        if not pals:
+            return out
+        best = pals[0]
+        slots = best.get("slots") or []
+        role_to_slot = {str(s.get("role")): s for s in slots}
+        valence = float((bp.get("emotion_vector") or {}).get("valence", 0.0))
+        prof = str(bp.get("mix_profile") or "trap_rap")
+        n_samples = 0
+        for tr in bp.get("tracks", []):
+            role = str(tr.get("role") or "")
+            if role == "vocals":
+                continue
+            key = str(tr.get("name") or role).lower()
+            slot = role_to_slot.get(_SLOT_FOR.get(key, role))
+            if slot and slot.get("source_type") in ("sample", "project_sample") and slot.get("filepath"):
+                tr["source_type"] = "sample"
+                tr["sample_path"] = str(slot["filepath"])
+                tr["plugin"] = "gl.sampler"
+                if slot.get("midi_root") is not None:
+                    tr["root_note"] = int(slot["midi_root"])
+                if slot.get("recommended_fine_tune_ct"):
+                    tr["fine_tune_ct"] = int(slot["recommended_fine_tune_ct"])
+                n_samples += 1
+            else:
+                tr["source_type"] = "gridline_native"
+                tr["plugin"] = pick_gl_plugin(key, prof, valence)["plugin"]
+        bp["palette"] = {"palette_id": best.get("palette_id"), "score": best.get("score"),
+                         "theme": best.get("theme"), "n_samples": n_samples,
+                         "timbre_coherence": best.get("timbre_coherence"),
+                         "project_samples_dir": proj_samples}
+        out.update({"resolved": True, "palette_id": best.get("palette_id"),
+                    "n_samples": n_samples, "theme": best.get("theme")})
+    except Exception as exc:
+        out["error"] = str(exc)[:200]
+    return out
+
+
 def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto",
                     auto_master: bool = True, auto_prepare: bool = False,
                     remix_source_path: str | None = None, lyrics_spec: dict | None = None) -> dict[str, Any]:
@@ -260,6 +339,14 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
         return {"ok": False, "stage": "bridge", "error": msg[-300:]}
     report["palette_id"] = palette_id
     bp = _ensure_blueprint(proj, report)
+    if auto_prepare or palette_id == "auto":
+        # v4.1 : recherche de samples réels par défaut (samples.db + Samples/ projet), gate d'agréabilité
+        report["palette"] = _resolve_palette(proj, bp, palette_id)
+        import jsonschema
+        with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
+            jsonschema.validate(bp, json.load(fh))
+        with open(os.path.join(proj, "song_blueprint.json"), "w", encoding="utf-8") as fh:
+            json.dump(bp, fh, ensure_ascii=False, indent=2)
     if auto_prepare:
         bp["auto_prepared"] = True
         report["auto_prepare"] = True
