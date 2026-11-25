@@ -129,6 +129,7 @@ def audit_gridline_sources(proj_path: str, prepare_dir: str = "") -> dict[str, A
     d = json.load(open(proj_path, encoding="utf-8"))
     mixer_by_id = {m.get("id"): m for m in d.get("mixer", [])}
     mixer_warnings: list[str] = []
+    phase_srcs: dict[str, tuple[np.ndarray, int]] = {}  # v2 : kick vs 808/bass -> alignement de phase
 
     # Check mixer hygiene: sidechain buses must receive sidechain=True sends (not direct audio!), flag muted tracks
     for m in d.get("mixer", []):
@@ -313,6 +314,10 @@ def audit_gridline_sources(proj_path: str, prepare_dir: str = "") -> dict[str, A
 
             if "808" in lname or "bass" in lname or "sub" in lname:
                 entry["bass_harmonics"] = _analyze_808_harmonics(mono, sr)
+                if "kick" not in lname:
+                    phase_srcs.setdefault("bass", (mono[: sr * 2], sr))
+            if "kick" in lname:
+                phase_srcs.setdefault("kick", (mono[: sr * 2], sr))
             elif any(k in lname for k in ("vox", "vocal", "chant", "voice", "air")):
                 entry["vocal_signature"] = analyze_vocal_signature(spath)
             elif dur >= 5.0:
@@ -330,6 +335,19 @@ def audit_gridline_sources(proj_path: str, prepare_dir: str = "") -> dict[str, A
                 )
                 report["prepared_samples"].append(prep)
         report["channels"].append(entry)
+
+    # v2 : cohérence de phase Kick/808 dans la bande [30, 100] Hz (annulation de phase -> action)
+    if "kick" in phase_srcs and "bass" in phase_srcs:
+        try:
+            from sample_quality_v2 import phase_alignment
+            pa = phase_alignment(phase_srcs["kick"][0], phase_srcs["bass"][0], phase_srcs["kick"][1])
+            report["kick_bass_phase"] = pa
+            if not pa.get("no_cancellation"):
+                mixer_warnings.append(
+                    f"PHASE_KICK_BASS(corr={pa.get('corr0')} -> {pa.get('action')})"
+                )
+        except Exception:
+            pass
 
     report["asset_hygiene"] = asset_hygiene
     return report
