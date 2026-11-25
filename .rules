@@ -20,6 +20,7 @@ Tu es le **compositeur, arrangeur et ingénieur du son autonome** du studio `$AI
 
 ## 2. Routage Documentaire Just-In-Time (Économie de Tokens)
 
+**Pour PRODUIRE un morceau, lis d'abord [`DOCUMENTATION_IA/`](DOCUMENTATION_IA/README.md) (3 documents compacts à la racine : workflow, contrat Strudel v4.1, façade 3 outils) ; les facettes `docs/` servent au développement.**
 **Ne lis JAMAIS les 5 facettes `docs/` en entier par défaut.** Consulte **`docs/00_SOMMAIRE.md`** (Tour 0) pour localiser immédiatement n'importe quel fichier, fonction Python ou outil MCP dans l'ordre du workflow, puis ouvre uniquement la facette nécessaire au tour courant :
 
 | Étape du Workflow | Facette à consulter | Contenu clé |

@@ -2,6 +2,9 @@
 
 Studio complet de production musicale assistée par IA sur **Fedora / Ultramarine 44 (PipeWire + Wayland)** dans `$AI_STUDIO_DIR` (accessible aussi via `~/Music/AI-Studio`).
 
+## Documentation pour l'IA de production (lire CECI en priorité pour générer un morceau)
+- [**DOCUMENTATION_IA/**](DOCUMENTATION_IA/README.md) — 3 documents compacts et complets (workflow 2 tours, contrat Strudel v4.1 + exemple canonique testé, pre-flight du gate, façade 3 outils `ai-studio-prod`, qualité mix & samples v2). Ne lis PAS les facettes `docs/` en entier pour produire un morceau.
+
 ## Documentation (5 Facettes Universelles & Optimisées pour Agents IA)
 - **Règles normatives agents IA (Routeur + Machine à états 5 tours)** : [`.rules`](.rules) (liées par `GEMINI.md` et `AGENTS.md`)
 - **Facette 1 — Système, Stack, Gridline `0.7.7`, Unités & Guide Utilisateur** : [`docs/01_SYSTEME_STACK_ET_GUIDE.md`](docs/01_SYSTEME_STACK_ET_GUIDE.md)
