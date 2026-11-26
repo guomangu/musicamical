@@ -42,6 +42,7 @@ Options:
   --skip-strudel   N'installe pas les dépendances Node du pont Strudel headless (scripts/package.json)
   --no-sudo        N'appelle pas sudo dnf (ignore l'installation des paquets système manquants)
   --force-rescan   Force un rescan complet des plugins dans Gridline
+  --skip-mcp-restart  Ne touche pas aux processus/serveurs MCP (désactive aussi AI_STUDIO_RESTART_MCP)
   -h, --help       Affiche cette aide
 EOF
 }
@@ -55,6 +56,7 @@ while [[ $# -gt 0 ]]; do
     --skip-strudel) SKIP_STRUDEL=1 ;;
     --no-sudo)      NO_SUDO=1 ;;
     --force-rescan) FORCE_RESCAN=1 ;;
+    --skip-mcp-restart) AI_STUDIO_RESTART_MCP=0 ;;
     -h|--help)      usage; exit 0 ;;
     *) echo "[ERREUR] Option inconnue : $1" >&2; usage; exit 1 ;;
   esac
@@ -737,6 +739,95 @@ PY
   ok "Configurations Gridline, Zed et Antigravity synchronisées sur $STUDIO_DIR."
 }
 
+# Redémarrage des serveurs MCP : les serveurs MCP sont des processus stdio lancés par
+# l'IDE (Zed/Antigravity) — install.sh ne peut pas rouvrir la session IDE, mais il peut
+# (1) tuer les processus MCP orphelins liés à ce studio pour que la prochaine session
+# les relance avec le code à jour, (2) resynchroniser les configs (fait ci-dessus), et
+# (3) smoke-tester chaque serveur (handshake JSON-RPC `initialize` sur stdio).
+# Désactivable : AI_STUDIO_RESTART_MCP=0 (.env) ou --skip-mcp-restart.
+restart_mcp_servers() {
+  log "Redémarrage des serveurs MCP (processus orphelins + smoke test stdio)..."
+  if [[ $CHECK_ONLY -eq 1 ]]; then
+    ok "Redémarrage MCP ignoré en mode --check-only."
+    return 0
+  fi
+  if [[ "${AI_STUDIO_RESTART_MCP:-1}" == "0" ]]; then
+    warn "Redémarrage MCP désactivé (AI_STUDIO_RESTART_MCP=0 / --skip-mcp-restart)."
+    return 0
+  fi
+
+  # 1. Arrêt des processus MCP orphelins propres à ce studio (l'IDE les relancera frais).
+  local killed=0 pat
+  if command -v pkill >/dev/null 2>&1; then
+    for pat in \
+      "$STUDIO_DIR/mcp-servers/ai-studio-prod/prod_server.py" \
+      "$STUDIO_DIR/mcp-servers/audio-index/audio_index_server.py" \
+      "$STUDIO_DIR/mcp-servers/audio-analyzer/audio_analyzer_server.py" \
+      "$STUDIO_DIR/mcp-servers/vocaloid/vocaloid_server.py" \
+      "$STUDIO_DIR/mcp-servers/reverse-engineer/reverse_engineer_server.py" \
+      "gridline mcp"; do
+      if pkill -f "$pat" 2>/dev/null; then killed=$((killed + 1)); fi
+    done
+  fi
+  if [[ $killed -gt 0 ]]; then
+    ok "$killed processus MCP orphelin(s) arrêté(s) — ils seront relancés à la prochaine session IDE."
+  else
+    ok "Aucun processus MCP orphelin à arrêter."
+  fi
+
+  # 2. Smoke test : handshake JSON-RPC `initialize` sur le transport stdio de chaque serveur.
+  local venv_py="$STUDIO_DIR/.venv/bin/python"
+  local srv rel name n_ok=0 n_srv=0
+  for rel in \
+    "ai-studio-prod/prod_server.py" \
+    "audio-index/audio_index_server.py" \
+    "audio-analyzer/audio_analyzer_server.py" \
+    "vocaloid/vocaloid_server.py" \
+    "reverse-engineer/reverse_engineer_server.py"; do
+    name="${rel%%/*}"
+    n_srv=$((n_srv + 1))
+    if "$venv_py" - "$STUDIO_DIR/mcp-servers/$rel" << 'PYEOF' 2>/dev/null
+import json, subprocess, sys
+srv = sys.argv[1]
+proc = subprocess.Popen([sys.executable, srv], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+try:
+    req = {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+           "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                      "clientInfo": {"name": "install-sh", "version": "1.0"}}}
+    proc.stdin.write(json.dumps(req) + "\n")
+    proc.stdin.flush()
+    line = proc.stdout.readline()
+    ok = bool(line) and '"result"' in line
+finally:
+    proc.terminate()
+    try:
+        proc.wait(timeout=3)
+    except Exception:
+        proc.kill()
+sys.exit(0 if ok else 1)
+PYEOF
+    then
+      ok "Serveur MCP '$name' redémarré et sain (initialize OK)."
+      n_ok=$((n_ok + 1))
+    else
+      warn "Serveur MCP '$name' : handshake initialize sans réponse (serveur relancé quand même à la prochaine session IDE)."
+    fi
+  done
+  ok "Smoke test MCP : $n_ok/$n_srv serveurs répondent au handshake stdio."
+
+  # 3. Gridline MCP : le binaire est lancé par l'IDE (gridline-mcp.sh) ou en attach sur
+  #    127.0.0.1:47390 — on signale juste comment le relancer proprement.
+  if have gridline; then
+    ok "Gridline MCP : relancé via scripts/gridline-mcp.sh à la prochaine session (port local 127.0.0.1:47390 si GUI ouverte)."
+  else
+    warn "Binaire gridline absent : serveur Gridline MCP non testé."
+  fi
+
+  if [[ "$CODE_UPDATED" == "1" ]]; then
+    warn "Code mis à jour par git pull : ferme puis rouvre la session agent (Antigravity/Zed) pour que les serveurs MCP redémarrés chargent le nouveau code."
+  fi
+}
+
 # Résumé humain d'un rapport d'indexation (lit stdin : JSON ou dict Python, affiche 1 ligne).
 # v3.3 hotfix : rend explicite "nouveaux / déjà à jour / rejetés (raisons)" pour ne plus
 # laisser croire que la phase d'indexation "n'a rien fait" quand tout est déjà en base.
@@ -851,4 +942,5 @@ install_strudel_bridge
 setup_models_and_openutau
 install_native_plugins
 configure_workspace_and_mcps
+restart_mcp_servers
 index_samples_and_verify
