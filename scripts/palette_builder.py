@@ -364,8 +364,16 @@ def _load_project_candidates(
     roles: list[str],
     target_key: str = "",
     bpm: float | None = None,
+    relax: bool = False,
+    trace_out: dict[str, Any] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
-    """Load candidates strictly from a user project directory (`samples_catalog.json` or live scan)."""
+    """Load candidates strictly from a user project directory (`samples_catalog.json` or live scan).
+
+    `relax=True` (passe 2) : assouplit le seuil de score de rôle (0.30 -> 0.18) pour les
+    samples acoustiques légitimes qui passeraient sinon à côté (piano doux, guitare, etc.).
+    Les rejets durs (hard_reject, samples corrompus/clippés) et la pureté chromatique des
+    rôles mélodiques restent NON négociables. `trace_out` reçoit le décompte par filtre."""
+    role_threshold = 0.18 if relax else 0.30
     abs_dir = os.path.abspath(os.path.expanduser(project_samples_dir))
     # Support passing either `<proj>` or `<proj>/Samples`
     if os.path.basename(abs_dir).lower() == "samples" and os.path.isdir(os.path.dirname(abs_dir)):
@@ -383,9 +391,15 @@ def _load_project_candidates(
         catalog = index_project_samples(proj_root, with_clap=False, write_catalog=True)
 
     by_role: dict[str, list[dict[str, Any]]] = {r: [] for r in roles}
+    _trace: dict[str, Any] = {"n_catalog": len(catalog.get("samples", [])), "n_hard_reject": 0,
+                               "n_after_quality": 0, "per_role": {r: {"n_in": 0, "n_out": 0} for r in roles}} if trace_out is not None else None
     for s in catalog.get("samples", []):
         if s.get("hard_reject"):
+            if _trace is not None:
+                _trace["n_hard_reject"] += 1
             continue
+        if _trace is not None:
+            _trace["n_after_quality"] += 1
         playable = bool(s.get("playable_chromatically"))
         role_scores = s.get("role_scores") or {}
         for role in roles:
@@ -427,8 +441,10 @@ def _load_project_candidates(
                     needs_stretch = True
                     stretch_rate = comp["r_eff"]
             r_sc = float(role_scores.get(role, 0.35))
-            if role not in (s.get("compatible_roles") or []) and r_sc < 0.30:
+            if role not in (s.get("compatible_roles") or []) and r_sc < role_threshold:
                 continue
+            if _trace is not None:
+                _trace["per_role"][role]["n_in"] += 1
             by_role[role].append({
                 "id": s["filepath"],
                 "role": role,
@@ -458,6 +474,11 @@ def _load_project_candidates(
             })
     for role in roles:
         by_role[role].sort(key=lambda x: x["role_score"] * 0.65 + x["comfort_score"] * 0.35, reverse=True)
+        if _trace is not None:
+            _trace["per_role"][role]["n_out"] = len(by_role[role])
+    if trace_out is not None:
+        trace_out.update(_trace)
+        trace_out["relax"] = bool(relax)
     return by_role
 
 
@@ -515,7 +536,10 @@ def _load_sqlite_candidates(
         base_clauses = ["s.ext NOT IN ('.mid', '.midi')", "COALESCE(d.hard_reject, 0) = 0", q2_clause]
         if role in MELODIC_ROLES:
             base_clauses.append("d.playable_chromatically = 1")
-        if role in ("kick", "bass_sub"):
+        if role == "bass_sub":
+            # Alignement de phase Kick/808 exigé sur la basse uniquement : les one-shots
+            # percussifs (kick/snare/hat/perc) ne doivent JAMAIS être pénalisés sur des
+            # métriques de phase/pitch (faux négatifs massifs sinon).
             base_clauses.append("COALESCE(d.phase_corr, 1.0) >= 0.70")
         order_expr = role_order_expr.get(role, "-COALESCE(d.r_harsh, 0)")
 
@@ -901,10 +925,21 @@ def propose_palettes(
             eff_roles = ["kick", "snare_clap", "hihat_perc", "bass_sub", "chord_keys", "lead_melody"]
 
     user_locked = bool(project_samples_dir and str(project_samples_dir).strip())
+    selection_trace: dict[str, Any] = {"mode": "project" if user_locked else "db", "roles": {}}
     if user_locked:
-        sample_pool = _load_project_candidates(str(project_samples_dir), eff_roles, target_key=target_key, bpm=bpm)
+        sample_pool = _load_project_candidates(str(project_samples_dir), eff_roles, target_key=target_key, bpm=bpm,
+                                                trace_out=selection_trace["roles"])
+        # Passe 2 (relaxée) : un rôle sans aucun candidat strict récupère les candidats
+        # acoustiques légitimes filtrés par des seuils trop stricts (seuil 0.18 au lieu de 0.30).
+        relaxed_pool = _load_project_candidates(str(project_samples_dir), eff_roles, target_key=target_key, bpm=bpm,
+                                                relax=True, trace_out=selection_trace["roles"])
+        for role in eff_roles:
+            if not sample_pool.get(role) and relaxed_pool.get(role):
+                sample_pool[role] = relaxed_pool[role]
+                selection_trace.setdefault("relaxed_roles", []).append(role)
     else:
         sample_pool = _load_sqlite_candidates(db_path, eff_roles, target_key=target_key, bpm=bpm)
+    selection_trace["n_sample_candidates"] = {r: len(sample_pool.get(r, [])) for r in eff_roles}
 
     synth_pool = _build_gl_synth_pool(eff_roles, valence=valence, mix_profile=str(mix_profile or "trap_rap")) if allow_gl_synths else {r: [] for r in eff_roles}
 
@@ -971,8 +1006,10 @@ def propose_palettes(
             best_val = -1e9
             for cand in cands:
                 is_used = cand["id"] in used_ids_per_role[role]
-                # Diversity bonus across palettes (still allow reuse if pool is tiny, e.g. user Samples/)
-                div_pen = 0.22 if (is_used and len(cands) > 1) else 0.0
+                # Diversity bonus across palettes (still allow reuse if pool is tiny, e.g. user Samples/).
+                # Jamais de pénalité de diversité contre un vrai sample quand la banque projet est verrouillée.
+                is_sample = cand["source_type"] in ("sample", "project_sample")
+                div_pen = 0.22 if (is_used and len(cands) > 1 and not (user_locked and is_sample)) else 0.0
                 theme_bonus = 0.08 if cand.get("theme") == pref_theme else 0.0
                 # For Palette B (synthetic) prefer native gl.* on melodic roles if allowed
                 if pref_theme == "synthetic" and cand["source_type"] == "gridline_native" and role in MELODIC_ROLES:
@@ -980,10 +1017,24 @@ def propose_palettes(
                 # For Palette A (organic) prefer real samples if available
                 if pref_theme == "organic" and cand["source_type"] in ("sample", "project_sample"):
                     theme_bonus += 0.09
+                # Politique « Sample-First » : quand la banque projet est verrouillée
+                # (user_samples_locked), un vrai sample utilisateur prime toujours sur un
+                # synthé gl.* de secours pour le même rôle.
+                if user_locked and cand["source_type"] in ("sample", "project_sample"):
+                    theme_bonus += 0.25
+
+                # Cohérence mood/timbre : en contexte calme/organique/mystérieux, pénaliser
+                # fortement les samples agressifs (reese/distorted/acid/saw/metallic) sur
+                # bass et lead au profit de sub/808 propres ou basses chaudes.
+                mood_pen = 0.0
+                if valence <= 0.1 and role in ("bass_sub", "lead_melody") and cand["source_type"] in ("sample", "project_sample"):
+                    hay = f"{cand.get('timbre_card') or ''} {cand.get('filepath') or ''}".lower()
+                    if any(k in hay for k in ("reese", "aggressive", "distorted", "acid", "saw", "metallic", "harsh")):
+                        mood_pen = 0.35
 
                 trial_items = chosen + [cand]
                 trial_score, _ = _score_palette(trial_items, ev, mood_vec)
-                val = trial_score + theme_bonus - div_pen - loop_bpm_penalty(cand, target_bpm, bpm_tolerance)
+                val = trial_score + theme_bonus - div_pen - loop_bpm_penalty(cand, target_bpm, bpm_tolerance) - mood_pen
                 if val > best_val:
                     best_val = val
                     best_cand = cand
@@ -993,6 +1044,12 @@ def propose_palettes(
                 used_ids_per_role[role].add(best_cand["id"])
 
         pal_score, breakdown = _score_palette(chosen, ev, mood_vec)
+        # Sample-First : en banque verrouillée, le score de palette est pondéré par le
+        # nombre de vrais samples embarqués (la meilleure palette = celle qui utilise
+        # le plus les sons fournis, pas celle qui retombe sur gl.*).
+        if user_locked:
+            n_real = sum(1 for it in chosen if it["source_type"] in ("sample", "project_sample") and it.get("filepath"))
+            pal_score += 0.05 * n_real
         timbre_coh = {"score": 1.0, "max_bark_collision": None, "pair_roughness": 0.0, "notes": []}
         try:
             from timbre_pleasantness import palette_timbre_coherence
@@ -1013,6 +1070,12 @@ def propose_palettes(
                 "source_type": it["source_type"],
                 "plugin": it["plugin"],
                 "filepath": it.get("filepath"),
+                "fallback_reason": (
+                    "no_usable_sample_in_index_for_role"
+                    if it["source_type"] == "gridline_native" and sample_pool.get(it["role"])
+                    else None
+                ),
+                "n_candidates_for_role": len(sample_pool.get(it["role"], [])),
                 "detected_note": it.get("detected_note"),
                 "midi_root": it.get("midi_root"),
                 "recommended_fine_tune_ct": int(it.get("recommended_fine_tune_ct") or 0),
@@ -1059,6 +1122,7 @@ def propose_palettes(
         "verdict": verdict,
         "score": best_score,
         "user_samples_locked": user_locked,
+        "selection_trace": selection_trace,
         "mix_profile": mix_profile,
         "target_key": target_key,
         "bpm": (float(bpm) if bpm else None),

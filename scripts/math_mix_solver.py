@@ -44,6 +44,11 @@ except ImportError as _exc:  # pragma: no cover
     raise SystemExit(f"math_mix_solver requiert numpy+scipy : {_exc}")
 
 from mix_config import get_invariant, get_profile_config, stem_hierarchy_bounds  # noqa: E402
+from dsp_interaction_guards import (  # noqa: E402
+    KICK_FUNDAMENTAL_HZ,
+    KICK_FUNDAMENTAL_MAX_CUT_DB,
+    clamp_eq_band_gain,
+)
 
 K_FREQS = 512
 K_OPT = 192
@@ -685,17 +690,24 @@ def solve_mix_parameters(
         room_send = float(np.clip(target_depth * (1.0 - wet), 0.0, SEND_MAX))
         hall_send = float(np.clip(target_depth * 1.4 * (1.0 - wet * 0.5), 0.0, SEND_MAX))
         from gl_dsl import db_to_auto
+        # Bornes dures piste [-6.0, +4.0] dB + protection de la fondamentale du kick
+        # (jamais plus de -3.0 dB dans [45, 70] Hz) : aucune coupe destructrice (-12 dB...).
+        eq_bands = [
+            {"band": 1, "type": "hpf", "freq_hz": round(float(e["hpf"]), 1)},
+            {"band": 3, "type": "peak", "freq_hz": 280.0, "gain_db": clamp_eq_band_gain(e["g_lm"], is_bus=False), "q": 1.2},
+            {"band": 4, "type": "peak", "freq_hz": round(float(e["f_mid"]), 1), "gain_db": clamp_eq_band_gain(e["g_mid"], is_bus=False), "q": 1.6},
+            {"band": 6, "type": "high_shelf", "freq_hz": 7500.0, "gain_db": clamp_eq_band_gain(e["g_hs"], is_bus=False)},
+        ]
+        if role == "kick":
+            for b in eq_bands:
+                if b["type"] in ("peak", "low_shelf", "high_shelf") and KICK_FUNDAMENTAL_HZ[0] <= b["freq_hz"] <= KICK_FUNDAMENTAL_HZ[1]:
+                    b["gain_db"] = max(float(b["gain_db"]), KICK_FUNDAMENTAL_MAX_CUT_DB)
         tracks_out[nm] = {
             "gain_trim_db": round(float(gains[i]), 2),
             "volume_auto": db_to_auto(float(gains[i])),
             "pan": round(float(pan[i]), 3),
             "stereo_width": round(float(width[i]), 3),
-            "eq_bands": [
-                {"band": 1, "type": "hpf", "freq_hz": round(float(e["hpf"]), 1)},
-                {"band": 3, "type": "peak", "freq_hz": 280.0, "gain_db": round(float(e["g_lm"]), 2), "q": 1.2},
-                {"band": 4, "type": "peak", "freq_hz": round(float(e["f_mid"]), 1), "gain_db": round(float(e["g_mid"]), 2), "q": 1.6},
-                {"band": 6, "type": "high_shelf", "freq_hz": 7500.0, "gain_db": round(float(e["g_hs"]), 2)},
-            ],
+            "eq_bands": eq_bands,
             "fx_room_send": round(room_send, 3),
             "fx_hall_send": round(hall_send, 3),
         }

@@ -179,7 +179,13 @@ def _palette_line(report: dict[str, Any]) -> str:
     pal = report.get("palette") or {}
     if not pal:
         return "palette=n/a"
-    line = f"palette={pal.get('palette_id', '?')} samples={pal.get('n_samples', 0)}"
+    n_avail = pal.get("n_tracks_with_available_samples")
+    n_s = pal.get("n_samples", 0)
+    line = f"palette={pal.get('palette_id', '?')} samples={n_s}/{n_avail if n_avail else n_s}"
+    if pal.get("fallback_gate") and pal["fallback_gate"] != "PASS":
+        fb = pal.get("fallback_tracks") or []
+        names = ",".join(str(f.get("track")) for f in fb[:5])
+        line += f" FALLBACK_GATE={pal['fallback_gate']} ({names})"
     if pal.get("theme"):
         line += f" theme={pal.get('theme')}"
     if pal.get("error"):
@@ -193,10 +199,76 @@ def _run_bridge(proj: str, bars: int = 0, seed: int = 0) -> dict[str, Any]:
 
 
 ROLE_PLUGIN = {
-    "kick": "gl.kick", "snare": "gl.snare", "hihat": "gl.hat", "clap": "gl.clap", "perc": "gl.hat",
+    "kick": "gl.kick", "snare": "gl.snare", "hihat": "gl.hat", "clap": "gl.clap", "perc": "gl.clap", "rim": "gl.clap",
     "bass": "gl.fingerbass", "chords": "gl.keys", "lead": "gl.warmsynth", "counter": "gl.pluck",
     "vocals": "gl.sampler", "fx": "gl.wavetable", "drums": "gl.kick", "remix_stem": "gl.sampler",
 }
+
+
+def blueprint_structure(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """`structure[*].start_bar` = position CUMULÉE en mesures (base 1) : pour
+    I4-V16-C8-V16-C8-B8-O8 -> 1, 5, 21, 29, 45, 53, 61 (cohérent avec arrangement_plan
+    base 0 : 0, 4, 20, 28, 44, 52, 60)."""
+    out: list[dict[str, Any]] = []
+    cursor = 1
+    for s in sections or []:
+        nb = int(s.get("bars") or 4)
+        name = s.get("name") or s.get("section") or "song"
+        out.append({"section": str(name), "start_bar": cursor,
+                    "bars": nb, "energy": float(s.get("energy") or 0.7)})
+        cursor += nb
+    return out
+
+
+def _structure_is_cumulative(structure: list[dict[str, Any]]) -> bool:
+    """Détecte l'ancien bug start_bar = i+1 (1, 2, 3...) : non cumulatif si une section
+    a plus d'une mesure et que start_bar vaut juste l'index+1 partout."""
+    if not structure or len(structure) < 2:
+        return True
+    if not any(int(s.get("bars") or 0) > 1 for s in structure):
+        return True
+    return not all(int(s.get("start_bar") or 0) == i + 1 for i, s in enumerate(structure))
+
+
+def upgrade_blueprint_tracks(bp: dict[str, Any]) -> dict[str, Any]:
+    """Mise à niveau non destructive d'un blueprint existant (créé avant les correctifs
+    qualité sonore) :
+    - archétype explicite sur TOUTES les pistes (y compris batterie) ;
+    - `lead`/`counter` en `gl.fm` (timbre métallique/électrique) -> plugin chaud de
+      l'archétype calibré (ex. gl.warmsynth filtré) ;
+    - `perc`/`rim` cloné sur `gl.hat` -> preset percussif distinct (gl.clap) ;
+    - `structure[*].start_bar` recalculé en positions cumulées si l'ancien bug i+1
+      est détecté.
+    Ne touche jamais aux pistes `sample` (chemins fournis par l'utilisateur)."""
+    prof = str(bp.get("mix_profile") or "trap_rap")
+    val = float((bp.get("emotion_vector") or {}).get("valence", 0.0))
+    from gl_dsl import resolve_archetype
+    from timbre_pleasantness import pick_gl_plugin
+    _ARCH_ROLE = {"kick": "kick", "snare": "snare", "clap": "snare", "hihat": "hihat", "hat": "hihat",
+                  "perc": "perc", "rim": "perc", "bass": "bass", "808": "bass", "sub": "bass",
+                  "chords": "chords", "keys": "chords", "pad": "chords", "lead": "lead",
+                  "melody": "lead", "counter": "lead", "fx": "fx"}
+    for tr in bp.get("tracks") or []:
+        if not isinstance(tr, dict):
+            continue
+        name = str(tr.get("name") or "").lower()
+        role = str(tr.get("role") or "")
+        arch_role = next((v for k, v in _ARCH_ROLE.items() if k in name), role)
+        arch = resolve_archetype(prof, arch_role, valence=val)
+        if arch and not tr.get("archetype"):
+            tr["archetype"] = f"{prof}:{arch_role}"
+        if tr.get("source_type") == "gridline_native":
+            if role in ("lead", "counter") and str(tr.get("plugin")) == "gl.fm":
+                plug = pick_gl_plugin(name or role, prof, val)
+                tr["plugin"] = plug["plugin"]
+                if plug.get("params"):
+                    tr["plugin_params"] = plug["params"]
+            if arch_role == "perc" and str(tr.get("plugin")) == "gl.hat":
+                tr["plugin"] = "gl.clap"
+    st = bp.get("structure")
+    if isinstance(st, list) and st and not _structure_is_cumulative(st):
+        bp["structure"] = blueprint_structure(st)
+    return bp
 
 
 def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
@@ -206,7 +278,10 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
     bp_path = os.path.join(proj, "song_blueprint.json")
     if os.path.isfile(bp_path):
         with open(bp_path, encoding="utf-8") as fh:
-            return json.load(fh)
+            bp_old = json.load(fh)
+        # Mise à niveau des blueprints créés avant les correctifs qualité sonore
+        # (archétypes manquants, lead gl.fm métallique, perc cloné sur gl.hat, start_bar i+1)
+        return upgrade_blueprint_tracks(bp_old)
     haps_path = os.path.join(proj, "composition.strudel.haps.json")
     haps = {}
     if os.path.isfile(haps_path):
@@ -219,6 +294,13 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
     val0 = float(meta.get("valence") or 0.0)
     tracks = []
     mixer_track = 1
+    # rôle fin par NOM de piste pour les archétypes (kick/snare/hihat/perc ont le rôle
+    # générique "drums" via classify_role mais leur archétype est par nom de kit)
+    _ARCH_ROLE = {"kick": "kick", "snare": "snare", "clap": "snare", "hihat": "hihat", "hat": "hihat",
+                  "perc": "perc", "rim": "perc", "bass": "bass", "808": "bass", "sub": "bass",
+                  "chords": "chords", "keys": "chords", "pad": "chords", "lead": "lead", "melody": "lead",
+                  "counter": "lead", "fx": "fx", "vocal": "lead", "vocals": "lead"}
+    from gl_dsl import resolve_archetype
     for name in (haps.get("tracks") or {}):
         role = classify_role(name)
         # v4.1 : archetype calibré (profil, rôle, valence) pour TOUTES les pistes, y compris percussions
@@ -227,10 +309,16 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
         else:
             plug = pick_gl_plugin(str(name).lower(), prof0, val0)
         plugin = plug["plugin"]
-        tracks.append({"name": str(name), "role": role,
-                       "source_type": "vocaloid" if role == "vocals" else "gridline_native",
-                       "plugin": plugin, "plugin_params": plug.get("params") or {},
-                       "mixer_track": mixer_track})
+        lname = str(name).lower()
+        arch_role = next((v for k, v in _ARCH_ROLE.items() if k in lname), role)
+        arch = resolve_archetype(prof0, arch_role, valence=val0)
+        tr = {"name": str(name), "role": role,
+              "source_type": "vocaloid" if role == "vocals" else "gridline_native",
+              "plugin": plugin, "plugin_params": plug.get("params") or {},
+              "mixer_track": mixer_track}
+        if arch:
+            tr["archetype"] = f"{prof0}:{arch_role}"
+        tracks.append(tr)
         mixer_track = mixer_track + 1 if mixer_track < 16 else 1
     if not tracks:
         tracks = [{"name": "lead", "role": "lead", "source_type": "gridline_native", "plugin": "gl.warmsynth", "mixer_track": 1}]
@@ -249,6 +337,7 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
     ]
     valence = float(meta.get("valence") or 0.0)
     sections = meta.get("sections") or [{"name": "song", "bars": 16}]
+    structure = blueprint_structure(sections)
     bp = {
         "title": os.path.basename(proj),
         "genre": str(meta.get("mix_profile") or "trap_rap"),
@@ -265,8 +354,7 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
                           "motif_cell": {"intervals_from_tonic": [0, 3, 7], "rhythm_beats": [0, 2],
                                          "apex_midi": 67 if valence < -0.2 else 72},
                           "phrase_plan": "A-A'-A''-B"},
-        "structure": [{"section": str(s.get("name") or "song"), "start_bar": i + 1, "bars": int(s.get("bars") or 4), "energy": 0.7}
-                      for i, s in enumerate(sections)],
+        "structure": structure,
         "tracks": tracks,
     }
     import jsonschema
@@ -304,6 +392,24 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
             if os.path.isdir(cand):
                 proj_samples = cand
                 break
+        if proj_samples is None:
+            # Dossier de samples utilisateur configuré dans l'environnement (.env :
+            # AI_STUDIO_SAMPLES_DIR / PROJECT_SAMPLES_DIR) puis banque racine
+            # `<racine>/samples` (DEFAULT_SAMPLES_DIR) — ne jamais laisser
+            # project_samples_dir à null si un répertoire valide existe.
+            try:
+                from env_loader import load_dotenv
+                load_dotenv()
+            except Exception:
+                pass
+            for env_dir in (os.environ.get("PROJECT_SAMPLES_DIR"), os.environ.get("AI_STUDIO_SAMPLES_DIR")):
+                if env_dir and os.path.isdir(os.path.expanduser(env_dir)):
+                    proj_samples = os.path.expanduser(env_dir)
+                    break
+        if proj_samples is None:
+            root_samples = os.path.join(ROOT, "samples")
+            if os.path.isdir(root_samples):
+                proj_samples = root_samples
         res = propose_palettes(
             mix_profile=str(bp.get("mix_profile") or "trap_rap"),
             emotion_vector=bp.get("emotion_vector") or {},
@@ -386,12 +492,31 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                 tr["plugin"] = pg["plugin"]
                 if pg.get("params"):
                     tr["plugin_params"] = pg["params"]  # cutoff/ADSR bornés, appliqués au rendu
+        # Garde-fou anti-fallback-silencieux (chantier P0) : gate vérifiable, jamais un
+        # statut vert silencieux quand la majorité des pistes retombe sur gridline_native.
+        from audit_project_sources import sample_fallback_gate
+        allow_fallback = str(os.environ.get("ALLOW_SYNTH_FALLBACK", "")).lower() in ("1", "true", "yes")
+        gate_res = sample_fallback_gate(bp, {"slots": chosen.get("slots") or []}, slot_for=_SLOT_FOR,
+                                        min_ratio=0.7, allow_override=allow_fallback)
+        gate_res["n_samples"] = n_samples  # comptage réel appliqué au blueprint
+        gate_res["sample_coverage_ratio"] = round((n_samples / gate_res["n_tracks_with_available_samples"])
+                                                  if gate_res["n_tracks_with_available_samples"] else 1.0, 3)
+        gate_res["passed"] = bool(gate_res["passed"] or allow_fallback or gate_res["n_tracks_with_available_samples"] == 0)
+        gate_res["gate"] = "PASS" if gate_res["passed"] else "FAIL"
+        fallback_tracks = gate_res["fallback_tracks"]
         bp["palette"] = {"palette_id": chosen.get("palette_id"), "score": chosen.get("score"),
                          "theme": chosen.get("theme"), "n_samples": n_samples,
+                         "n_tracks_with_available_samples": gate_res["n_tracks_with_available_samples"],
+                         "sample_coverage_ratio": gate_res["sample_coverage_ratio"],
+                         "fallback_gate": gate_res["gate"],
+                         "fallback_tracks": fallback_tracks,
+                         "selection_trace": res.get("selection_trace"),
                          "timbre_coherence": chosen.get("timbre_coherence"),
                          "project_samples_dir": proj_samples}
         out.update({"resolved": True, "palette_id": chosen.get("palette_id"),
-                    "n_samples": n_samples, "theme": chosen.get("theme")})
+                    "n_samples": n_samples, "n_tracks_with_available_samples": gate_res["n_tracks_with_available_samples"],
+                    "sample_coverage_ratio": gate_res["sample_coverage_ratio"], "fallback_gate": gate_res["gate"],
+                    "fallback_tracks": fallback_tracks, "theme": chosen.get("theme")})
     except Exception as exc:
         out["error"] = str(exc)[:200]
     return out

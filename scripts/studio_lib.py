@@ -485,6 +485,21 @@ def verify_midi_gate(
     return res
 
 
+def music_bus_dist_allowed(profile: str, theme: str = "", energy: float | None = None) -> bool:
+    """Saturation `gl.dist` sur BUS Music réservée aux profils explicites (rock_metal,
+    edm_club) ; jamais en thème organic calme/mélodique (energy <= 0.75)."""
+    if str(profile) in ("rock_metal", "edm_club"):
+        if str(theme).lower() == "organic" and (energy is None or float(energy) <= 0.75):
+            return False
+        return True
+    return False
+
+
+def music_bus_eq_slot(profile: str, theme: str = "", energy: float | None = None) -> int:
+    """Slot du gl.eq sur BUS Music : 2 si gl.dist inséré en slot 1, sinon 1."""
+    return 2 if music_bus_dist_allowed(profile, theme, energy) else 1
+
+
 def setup_standard_buses(
     mcp: GridlineMCP,
     bpm: float = 140.0,
@@ -502,6 +517,9 @@ def setup_standard_buses(
     profile: str = "trap_rap",
     valence: float = 0.0,
     apply_dark_mid_dip: bool = True,
+    theme: str = "",
+    energy: float | None = None,
+    bus_bass_lpf_hz: float | None = None,
 ) -> None:
     """
     Instantiate calibrated Master + BUS Drums + BUS 808/Bass + BUS Music (Timbral Glue)
@@ -522,6 +540,9 @@ def setup_standard_buses(
     acoustic_mode = profile in ("jazz_acoustic", "classical_ambient")
     lofi_mode = profile == "lofi_chill"
     dark_mode = valence < -0.2
+    # Saturation de bus réservée aux profils qui la demandent explicitement ; jamais en
+    # thème organic calme/mélodique (sinon le rendu sonne "électrique"/écrasé).
+    allow_music_dist = music_bus_dist_allowed(profile, theme=theme, energy=energy)
     rt60 = round(min(1.10 if acoustic_mode else 0.42, max(0.18, t_noire_s * (1.2 if acoustic_mode else 0.65))), 3)
     hall_decay = 2.3 if acoustic_mode else 1.8
 
@@ -545,13 +566,13 @@ def setup_standard_buses(
         {"tool": "add_plugin", "arguments": {"mixer": bus_808, "plugin": "gl.stereo"}},
         {"tool": "add_plugin", "arguments": {"mixer": bus_808, "plugin": "gl.comp"}},
         {"tool": "add_plugin", "arguments": {"mixer": bus_808, "plugin": "gl.eq"}},
-        # BUS Music: gl.dist (Slot 1) BEFORE gl.eq (Slot 2) so saturation harmonics are filtered by LPF
-        {"tool": "add_plugin", "arguments": {"mixer": bus_music, "plugin": "gl.dist"}},
+        # BUS Music: gl.dist (Slot 1, uniquement si allow_music_dist) BEFORE gl.eq so saturation
+        # harmonics are filtered by LPF. Jamais de doublon gl.stereo : un seul élargisseur.
+        *([{"tool": "add_plugin", "arguments": {"mixer": bus_music, "plugin": "gl.dist"}}] if allow_music_dist else []),
         {"tool": "add_plugin", "arguments": {"mixer": bus_music, "plugin": "gl.eq"}},
         {"tool": "add_plugin", "arguments": {"mixer": bus_music, "plugin": "gl.comp"}},
         {"tool": "add_plugin", "arguments": {"mixer": bus_music, "plugin": "gl.comp"}},
         # BUS Music mid/high stereo widener (keeps < 250 Hz mono, symmetric => no L/R drift)
-        {"tool": "add_plugin", "arguments": {"mixer": bus_music, "plugin": "gl.stereo"}},
         {"tool": "add_plugin", "arguments": {"mixer": bus_music, "plugin": "gl.stereo"}},
         {"tool": "add_plugin", "arguments": {"mixer": fx_room, "plugin": "gl.reverb"}},
         # FX Delay (21): gl.delay -> gl.eq (wet-only, band-limited)
@@ -608,11 +629,24 @@ def setup_standard_buses(
         (f"mixer/{bus_808}/slot/2/Detector input", 1),
         (f"mixer/{bus_808}/slot/2/Threshold", sc_thresh_bass), (f"mixer/{bus_808}/slot/2/Ratio", sc_ratio_bass),
         (f"mixer/{bus_808}/slot/2/Attack", 0.002), (f"mixer/{bus_808}/slot/2/Release", sc_release_bass), (f"mixer/{bus_808}/slot/2/Lookahead", 2),
-        *dsl_eq_params(bus_808, [dsl_eq_band(1, "hpf", 30)], slot=3),
-        # BUS Music: Slot 1 gl.dist (Tone <= 7500 Hz) -> Slot 2 gl.eq (HPF + LPF) -> Slot 3 Glue -> Slot 4 Duck
-        (f"mixer/{bus_music}/slot/1/Mode", 0), (f"mixer/{bus_music}/slot/1/Drive", 2.5),
-        (f"mixer/{bus_music}/slot/1/Tone", music_dist_tone), (f"mixer/{bus_music}/slot/1/Mix", music_dist_mix),
-        (f"mixer/{bus_music}/slot/1/Output", 0.0), (f"mixer/{bus_music}/slot/1/Oversampling", 2), (f"mixer/{bus_music}/slot/1/Remove DC", 1),
+        *dsl_eq_params(
+            bus_808,
+            [dsl_eq_band(1, "hpf", 30)] + ([dsl_eq_band(7, "lpf", float(bus_bass_lpf_hz))] if bus_bass_lpf_hz else []),
+            slot=3,
+        ),
+    ]
+    # BUS Music : [gl.dist slot 1 si allow_music_dist] -> gl.eq -> Glue -> Duck -> gl.stereo (unique)
+    eq_slot = 2 if allow_music_dist else 1
+    glue_slot = eq_slot + 1
+    duck_slot = eq_slot + 2
+    stereo_slot = eq_slot + 3
+    if allow_music_dist:
+        changes.extend([
+            (f"mixer/{bus_music}/slot/1/Mode", 0), (f"mixer/{bus_music}/slot/1/Drive", 2.5),
+            (f"mixer/{bus_music}/slot/1/Tone", music_dist_tone), (f"mixer/{bus_music}/slot/1/Mix", music_dist_mix),
+            (f"mixer/{bus_music}/slot/1/Output", 0.0), (f"mixer/{bus_music}/slot/1/Oversampling", 2), (f"mixer/{bus_music}/slot/1/Remove DC", 1),
+        ])
+    changes.extend([
         *dsl_eq_params(
             bus_music,
             [
@@ -620,11 +654,11 @@ def setup_standard_buses(
                 dsl_eq_band(5, "high_shelf", 9500.0, 0.8 if (acoustic_mode or lofi_mode) else 1.2),
                 dsl_eq_band(7, "lpf", music_lpf),
             ],
-            slot=2,
+            slot=eq_slot,
         ),
-    ]
+    ])
     if dark_mode and apply_dark_mid_dip:
-        changes.extend(to_mixer_params(bus_music, 2, dsl_eq_band(6, "peak", 3200, -1.5, q=1.4)))
+        changes.extend(to_mixer_params(bus_music, eq_slot, dsl_eq_band(6, "peak", 3200, -1.5, q=1.4)))
     fx_room_params = reverb_room(
         decay_sec=rt60,
         hpf_hz=350.0 if acoustic_mode else 480.0,
@@ -636,23 +670,17 @@ def setup_standard_buses(
     )
     fx_room_params.update({"High damping": 4200, "Width": 0.80})
     changes.extend([
-        (f"mixer/{bus_music}/slot/3/Threshold", -13.5), (f"mixer/{bus_music}/slot/3/Ratio", 1.8),
-        (f"mixer/{bus_music}/slot/3/Attack", 0.022), (f"mixer/{bus_music}/slot/3/Release", 0.110), (f"mixer/{bus_music}/slot/3/Makeup", 1.5),
-        (f"mixer/{bus_music}/slot/4/Detector input", 1),
-        (f"mixer/{bus_music}/slot/4/Threshold", -21.0), (f"mixer/{bus_music}/slot/4/Ratio", sc_ratio_music),
-        (f"mixer/{bus_music}/slot/4/Attack", 0.005), (f"mixer/{bus_music}/slot/4/Release", 0.085), (f"mixer/{bus_music}/slot/4/Lookahead", 1),
-        # Q3.2 default stereo width (legacy engine = real side synthesis, symmetric)
-        (f"mixer/{bus_music}/slot/5/Reference engine", 0),
-        (f"mixer/{bus_music}/slot/5/Width", 1.60 if acoustic_mode else 2.00),
-        (f"mixer/{bus_music}/slot/5/Side level", 10.0 if acoustic_mode else 12.0),
-        (f"mixer/{bus_music}/slot/5/Mono below", 250.0),
-        (f"mixer/{bus_music}/slot/5/Dephase", 0.0),
-        # Second gentle stage: lifts very mono/synth-only arrangements into the Q3.2 width window
-        (f"mixer/{bus_music}/slot/6/Reference engine", 0),
-        (f"mixer/{bus_music}/slot/6/Width", 1.10),
-        (f"mixer/{bus_music}/slot/6/Side level", 4.0),
-        (f"mixer/{bus_music}/slot/6/Mono below", 250.0),
-        (f"mixer/{bus_music}/slot/6/Dephase", 0.0),
+        (f"mixer/{bus_music}/slot/{glue_slot}/Threshold", -13.5), (f"mixer/{bus_music}/slot/{glue_slot}/Ratio", 1.8),
+        (f"mixer/{bus_music}/slot/{glue_slot}/Attack", 0.022), (f"mixer/{bus_music}/slot/{glue_slot}/Release", 0.110), (f"mixer/{bus_music}/slot/{glue_slot}/Makeup", 1.5),
+        (f"mixer/{bus_music}/slot/{duck_slot}/Detector input", 1),
+        (f"mixer/{bus_music}/slot/{duck_slot}/Threshold", -21.0), (f"mixer/{bus_music}/slot/{duck_slot}/Ratio", sc_ratio_music),
+        (f"mixer/{bus_music}/slot/{duck_slot}/Attack", 0.005), (f"mixer/{bus_music}/slot/{duck_slot}/Release", 0.085), (f"mixer/{bus_music}/slot/{duck_slot}/Lookahead", 1),
+        # Q3.2 default stereo width (legacy engine = real side synthesis, symmetric) — UN SEUL gl.stereo
+        (f"mixer/{bus_music}/slot/{stereo_slot}/Reference engine", 0),
+        (f"mixer/{bus_music}/slot/{stereo_slot}/Width", 1.60 if acoustic_mode else 2.00),
+        (f"mixer/{bus_music}/slot/{stereo_slot}/Side level", 10.0 if acoustic_mode else 12.0),
+        (f"mixer/{bus_music}/slot/{stereo_slot}/Mono below", 250.0),
+        (f"mixer/{bus_music}/slot/{stereo_slot}/Dephase", 0.0),
         # FX Room (Dry=0, Dry full=0, Decay <= T_noire for rhythmic genres)
         *to_mixer_params(fx_room, 1, fx_room_params),
         # FX Delay (21) — BPM-synced, Dry=0, band-limited feedback

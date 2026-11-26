@@ -44,6 +44,7 @@ from gl_dsl import (  # noqa: F401 (re-exported for song scripts)
     mixer_gain_to_auto,
     q_to_width,
     reverb_room,
+    sanitize_automations,
     sidechain_send,
     synth_voice,
     to_mixer_params,
@@ -143,6 +144,7 @@ def load_blueprint(blueprint_path: str, validate: bool = True) -> tuple[dict[str
         "energy": float(ev.get("energy", 0.7)),
         "depth": float(ev.get("depth", 0.5)),
         "swing": float(bp.get("swing", 0.0) or 0.0),
+        "theme": str(bp.get("theme") or ""),
         "total_bars": sum(int(s["bars"]) for s in bp["structure"]),
     }
     _cat = os.path.join(os.path.dirname(os.path.abspath(blueprint_path)), "samples_catalog.json")
@@ -272,8 +274,11 @@ def eq_music_pocket(
     ])
 
 
-def eq_kick_clean(mixer: int, hpf_hz: float = 42.0, sub_cut_db: float = -9.5, punch_db: float = 3.0) -> list[tuple[str, Any]]:
-    """Standard Trap/Rap kick EQ (removes sub rumble, trims 50 Hz boom, keeps 95 Hz punch)."""
+def eq_kick_clean(mixer: int, hpf_hz: float = 42.0, sub_cut_db: float = -3.0, punch_db: float = 3.0) -> list[tuple[str, Any]]:
+    """Standard Trap/Rap kick EQ (removes sub rumble, keeps 95 Hz punch).
+    La fondamentale du kick (45-70 Hz) n'est JAMAIS atténuée de plus de -3.0 dB."""
+    from dsp_interaction_guards import KICK_FUNDAMENTAL_MAX_CUT_DB
+    sub_cut_db = max(float(sub_cut_db), KICK_FUNDAMENTAL_MAX_CUT_DB)
     return eq_insert(mixer, [
         (1, "hpf", hpf_hz),
         (2, "peak", 50.0, sub_cut_db, 0.40),
@@ -542,6 +547,17 @@ def build_gridline_project(
     denom = int(meta.get("denominator", 4))
     profile = str(meta.get("mix_profile", "trap_rap"))
     valence = float(meta.get("valence", 0.0))
+    theme = str(meta.get("theme") or "")
+    energy = float(meta.get("energy", 0.7))
+    # Basse calm/mystérieuse sur sample riche en harmoniques (Reese/808 saturée) :
+    # LPF musical sur BUS Bass pour éviter le grésillement dans le haut-médium.
+    bus_bass_lpf_hz: float | None = None
+    calm_ctx = (theme == "organic" and energy <= 0.75) or valence <= 0.1
+    for ch in channels:
+        if ch.plugin == "gl.sampler" and any(k in ch.track_key.lower() for k in ("bass", "808", "sub")):
+            bright = float(ch.cutoff_hz or 16000.0) >= 8000.0
+            if calm_ctx and bright:
+                bus_bass_lpf_hz = 1200.0
 
     mcp = GridlineMCP(proj_path, export_dir)
     try:
@@ -554,6 +570,9 @@ def build_gridline_project(
             limiter_ceiling_db=limiter_ceiling_db,
             limiter_gain_db=limiter_gain_db,
             fx_room_vol=fx_room_vol,
+            theme=theme,
+            energy=energy,
+            bus_bass_lpf_hz=bus_bass_lpf_hz,
             apply_dark_mid_dip=not all(
                 (ch.plugin != "gl.sampler" and (bool(ch.role) or ch.lpf_hz is not None or ch.cutoff_hz is not None))
                 for ch in channels
@@ -571,18 +590,15 @@ def build_gridline_project(
             ]
             mcp.batch(add_extras)
 
-        # Pre-compute synth voices so LPF makeup gain can trim the channel fader deterministically
+        # Pre-compute synth voices so LPF makeup gain can trim the channel fader deterministically.
+        # Les `plugin_params` génériques du blueprint (cutoff_hz, attack_ms, release_ms, glide_ms)
+        # sont traduits ICI dans la voix (unités natives du plugin) — jamais écrits tels quels
+        # sur le canal (Gridline rejette "cutoff_hz" : no parameter "cutoff_hz" here).
         voice_by_idx: dict[int, SynthVoiceConfig] = {}
         for idx, ch in enumerate(channels, start=1):
-            if ch.voice is not None:
-                voice_by_idx[idx] = ch.voice
-            elif ch.plugin != "gl.sampler" and ch.role and ch.plugin in SYNTH_REGISTRY:
-                voice_by_idx[idx] = synth_voice(
-                    ch.plugin,
-                    ch.role,  # type: ignore[arg-type]
-                    valence=ch.valence if ch.valence != 0.0 else valence,
-                    cutoff_hz=ch.lpf_hz if ch.lpf_hz is not None else ch.cutoff_hz,
-                )
+            v = synth_voice_from_channel(ch, valence)
+            if v is not None:
+                voice_by_idx[idx] = v
         eff_volumes: dict[int, float] = {}
         for idx, ch in enumerate(channels, start=1):
             v = float(ch.volume)
@@ -621,39 +637,20 @@ def build_gridline_project(
             voice_cfg: SynthVoiceConfig | None = voice_by_idx.get(idx)
 
             if ch.plugin == "gl.sampler":
-                spath = ch.sample_file if os.path.isabs(ch.sample_file) else os.path.join(samples_dir, ch.sample_file)
-                ft_val = ch.fine_tune
-                if ft_val is None:
-                    bname = os.path.basename(spath)
-                    ft_val = int((manifest_data.get(bname) or {}).get("recommended_gl_fine_tune_ct", 0))
-                patches.append({"path": f"channel/{idx}", "set": {"plugin": {"data": spath}}})
-                param_changes.extend([
-                    (f"channel/{idx}/Root note", ch.root_note),
-                    (f"channel/{idx}/Fine tune", int(ft_val)),
-                    (f"channel/{idx}/One shot", ch.one_shot),
-                    (f"channel/{idx}/Voices", ch.voices),
-                    (f"channel/{idx}/Attack", ch.attack),
-                    (f"channel/{idx}/Release", ch.release),
-                    (f"channel/{idx}/Declick", ch.declick),
-                    (f"channel/{idx}/Remove DC", ch.remove_dc),
-                ])
-                if ch.lpf_hz is not None:
-                    param_changes.extend([
-                        (f"channel/{idx}/Filter", 1),
-                        (f"channel/{idx}/Cutoff", ch.lpf_hz),
-                        (f"channel/{idx}/Resonance", ch.resonance),
-                    ])
-                if getattr(ch, "glide_ms", None):
-                    # v3.2 : portamento 808 vérifié (Glide en secondes, clamp [0.035, 0.090])
-                    param_changes.append((f"channel/{idx}/Glide", round(min(max(float(ch.glide_ms) / 1000.0, 0.035), 0.090), 4)))
+                spatches, sparams = _sampler_param_changes(idx, ch, samples_dir, manifest_data)
+                patches.extend(spatches)
+                param_changes.extend(sparams)
             elif voice_cfg is not None:
                 param_changes.extend(voice_cfg.to_channel_tuples(idx))
                 if voice_cfg.needs_insert_lpf:
                     auto_insert_eq_mixers.append(ch.mixer)
                     auto_insert_lpf_params.extend(voice_cfg.to_insert_eq_tuples(ch.mixer, slot=1))
-
-            for pname, pval in ch.plugin_params.items():
-                param_changes.append((f"channel/{idx}/{pname}", pval))
+                # N'écrire que des noms de paramètres valides pour ce plugin (présents dans la
+                # voix) : les clés génériques (cutoff_hz/attack_ms/...) sont déjà traduites.
+                valid_params = set(voice_cfg.channel_params.keys())
+                for pname, pval in ch.plugin_params.items():
+                    if str(pname) in valid_params:
+                        param_changes.append((f"channel/{idx}/{pname}", pval))
 
         if patches:
             mcp.call("patch", {"patches": patches})
@@ -797,6 +794,8 @@ def build_gridline_project(
         if markers:
             mcp.batch([{"tool": "add_marker", "arguments": m} for m in markers])
 
+        # Hygiène des automations : aucun clip plat (no-op), aucune collision (owner, index)
+        auto_list, _auto_sanitize_report = sanitize_automations(auto_list)
         for a in auto_list:
             mcp.call("add_automation", a)
 
@@ -1307,6 +1306,100 @@ def _apply_dark_register_split(
     }
 
 
+# Traduction des `plugin_params` du blueprint vers les vrais paramètres `gl.sampler`
+# (Gridline attend "Cutoff" en Hz, "Attack"/"Release"/"Glide" en secondes, etc.).
+SAMPLER_PARAM_MAP: dict[str, tuple[str, str]] = {
+    "cutoff_hz": ("Cutoff", "hz"),
+    "attack_ms": ("Attack", "ms_to_s"),
+    "release_ms": ("Release", "ms_to_s"),
+    "glide_ms": ("Glide", "ms_to_s"),
+    "root_note": ("Root note", "raw"),
+    "fine_tune_ct": ("Fine tune", "raw"),
+    "resonance": ("Resonance", "raw"),
+    "one_shot": ("One shot", "raw"),
+    "voices": ("Voices", "raw"),
+}
+
+
+def sampler_effective_cutoff_hz(ch: Any) -> float | None:
+    """Cutoff LPF effectif d'un canal `gl.sampler` : le plus restrictif entre `lpf_hz`
+    et `plugin_params.cutoff_hz` du blueprint (ex. 9000 Hz, idéalement 350-1200 Hz pour
+    une basse calme) — jamais laissé à 20000 Hz quand le blueprint demande un filtrage."""
+    cands = [float(v) for v in (getattr(ch, "lpf_hz", None), (getattr(ch, "plugin_params", {}) or {}).get("cutoff_hz")) if v is not None]
+    return min(cands) if cands else None
+
+
+def _sampler_param_changes(idx: int, ch: Any, samples_dir: str, manifest_data: dict[str, Any]) -> tuple[list[dict[str, Any]], list[tuple[str, Any]]]:
+    """Construit le patch de chargement + les paramètres du canal `gl.sampler` `idx`,
+    en propageant réellement `plugin_params` (cutoff_hz -> Cutoff Hz, ADSR en secondes...)."""
+    spath = ch.sample_file if os.path.isabs(ch.sample_file) else os.path.join(samples_dir, ch.sample_file)
+    ft_val = ch.fine_tune
+    if ft_val is None:
+        bname = os.path.basename(spath)
+        ft_val = int((manifest_data.get(bname) or {}).get("recommended_gl_fine_tune_ct", 0))
+    patches = [{"path": f"channel/{idx}", "set": {"plugin": {"data": spath}}}]
+    param_changes: list[tuple[str, Any]] = [
+        (f"channel/{idx}/Root note", ch.root_note),
+        (f"channel/{idx}/Fine tune", int(ft_val)),
+        (f"channel/{idx}/One shot", ch.one_shot),
+        (f"channel/{idx}/Voices", ch.voices),
+        (f"channel/{idx}/Attack", ch.attack),
+        (f"channel/{idx}/Release", ch.release),
+        (f"channel/{idx}/Declick", ch.declick),
+        (f"channel/{idx}/Remove DC", ch.remove_dc),
+    ]
+    eff_cutoff = sampler_effective_cutoff_hz(ch)
+    if eff_cutoff is not None:
+        param_changes.extend([
+            (f"channel/{idx}/Filter", 1),
+            (f"channel/{idx}/Cutoff", round(float(eff_cutoff), 1)),
+            (f"channel/{idx}/Resonance", ch.resonance),
+        ])
+    if getattr(ch, "glide_ms", None):
+        # v3.2 : portamento 808 vérifié (Glide en secondes, clamp [0.035, 0.090])
+        param_changes.append((f"channel/{idx}/Glide", round(min(max(float(ch.glide_ms) / 1000.0, 0.035), 0.090), 4)))
+    pp = getattr(ch, "plugin_params", {}) or {}
+    for pname, pval in pp.items():
+        entry = SAMPLER_PARAM_MAP.get(str(pname))
+        if entry is None:
+            param_changes.append((f"channel/{idx}/{pname}", pval))
+            continue
+        gl_name, unit = entry
+        if gl_name == "Cutoff":
+            continue  # déjà pris en compte via sampler_effective_cutoff_hz
+        if gl_name in ("Root note", "Fine tune"):
+            continue  # déjà émis depuis ch.root_note / fine_tune
+        if unit == "ms_to_s":
+            param_changes.append((f"channel/{idx}/{gl_name}", round(float(pval) / 1000.0, 4)))
+        else:
+            param_changes.append((f"channel/{idx}/{gl_name}", pval))
+    return patches, param_changes
+
+
+def synth_voice_from_channel(ch: Any, valence: float) -> SynthVoiceConfig | None:
+    """Construit la voix `gl.*` d'un canal synthé en traduisant les `plugin_params`
+    génériques du blueprint (cutoff_hz, attack_ms, release_ms, glide_ms) dans les unités
+    natives du plugin — jamais écrits tels quels sur le canal Gridline."""
+    if ch.voice is not None:
+        return ch.voice
+    if ch.plugin == "gl.sampler" or not ch.role or ch.plugin not in SYNTH_REGISTRY:
+        return None
+    pp = ch.plugin_params or {}
+    cut = ch.lpf_hz if ch.lpf_hz is not None else ch.cutoff_hz
+    if pp.get("cutoff_hz") is not None:
+        c = float(pp["cutoff_hz"])
+        cut = min(cut, c) if cut is not None else c
+    return synth_voice(
+        ch.plugin,
+        ch.role,  # type: ignore[arg-type]
+        valence=ch.valence if ch.valence != 0.0 else valence,
+        cutoff_hz=cut,
+        attack_ms=float(pp["attack_ms"]) if pp.get("attack_ms") is not None else None,
+        release_ms=float(pp["release_ms"]) if pp.get("release_ms") is not None else None,
+        glide_ms=float(pp["glide_ms"]) if pp.get("glide_ms") is not None else None,
+    )
+
+
 def _apply_trim_db_to_volume(base_vol: float, trim_db: float) -> float:
     clamped_trim = clamp(float(trim_db), -8.0, 8.0)
     raw_fader = db_to_auto(clamped_trim, ref_fader=float(base_vol)) * 1.25
@@ -1399,8 +1492,11 @@ def _default_channels_for_plan(
             spec = ChannelSpec("Snare", role, idx, "drums", plugin="gl.snare", volume=0.68, fx_send=0.08)
         elif "clap" in rl:
             spec = ChannelSpec("Clap", role, idx, "drums", plugin="gl.clap", volume=0.64, fx_send=0.10)
-        elif "hat" in rl or "perc" in rl:
+        elif "hat" in rl:
             spec = ChannelSpec("HiHat", role, idx, "drums", plugin="gl.hat", volume=0.52, pan=0.22)
+        elif "perc" in rl or "rim" in rl:
+            # Piste perc/rim DÉDIÉE : jamais un clone du canal HiHat (nom, plugin et pan distincts)
+            spec = ChannelSpec("Perc", role, idx, "drums", plugin="gl.clap", volume=0.48, pan=-0.18)
         elif any(k in rl for k in ("bass", "808", "sub")):
             spec = ChannelSpec("Bass", role, idx, "bass", plugin="gl.warmsynth", role="bass", valence=valence, volume=0.62)
         elif any(k in rl for k in ("pad", "string")):
@@ -1916,12 +2012,19 @@ def compile_arrangement_plan(
                     bpm=bpm,
                 )
                 if phrases:
+                    from studio_lib import music_bus_eq_slot
+                    _bus_eq_slot = music_bus_eq_slot(
+                        str(meta.get("mix_profile", "trap_rap")),
+                        theme=str((_bp_raw or {}).get("theme") or ""),
+                        energy=float(meta.get("energy", 0.7)),
+                    )
                     tracks = mute_counter_during_vocals(tracks, phrases)
-                    insert_eq_params.extend(formant_ducking_eq_params(mixer_idx=19, slot_idx=2, band_idx=5, freq_hz=1850.0, q=1.4))
+                    insert_eq_params.extend(formant_ducking_eq_params(mixer_idx=19, slot_idx=_bus_eq_slot, band_idx=5, freq_hz=1850.0, q=1.4))
                     f_auto = build_formant_ducking_automation(
                         phrases,
                         bpm=bpm,
                         track_idx=min(31, auto_track_cursor),
+                        slot_idx=_bus_eq_slot,
                     )
                     autos.append(f_auto)
                     auto_track_cursor = min(31, auto_track_cursor + 1)
