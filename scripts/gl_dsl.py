@@ -922,3 +922,73 @@ def resolve_archetype(profile: str, role: str, valence: float = 0.0) -> dict[str
     if float(valence) < -0.2:
         params.update(entry.get("dark_overrides") or {})
     return {"plugin": entry.get("plugin", "gl.warmsynth"), "params": params}
+
+
+# ---------------------------------------------------------------------------
+# Automation hygiene — anti-collision (owner, index) + suppression des clips plats
+# ---------------------------------------------------------------------------
+
+AUTOMATION_FLAT_MIN_SPAN = 0.005
+
+
+def automation_target_key(clip: dict[str, Any]) -> tuple:
+    """Cible normalisée d'un clip d'automation : (owner, index) — deux clips ciblant la
+    même paire sur un intervalle qui se chevauche entrent en collision dans le .gridline."""
+    if "channel" in clip:
+        return ("channel", int(clip["channel"]), str(clip.get("param", "")))
+    return ("mixer", int(clip.get("mixer", -1)), int(clip.get("slot", -1)), str(clip.get("param", "")))
+
+
+def _clip_span(clip: dict[str, Any]) -> tuple[float, float]:
+    start = float(clip.get("start", 0.0) or 0.0)
+    length = float(clip.get("length", 0.0) or 0.0)
+    return start, start + length
+
+
+def _is_flat_clip(clip: dict[str, Any], min_span: float = AUTOMATION_FLAT_MIN_SPAN) -> bool:
+    """Un clip dont toutes les valeurs sont identiques (max - min < min_span) est un no-op."""
+    vals = [float(p.get("value", 0.0)) for p in (clip.get("points") or [])]
+    if len(vals) < 2:
+        return True
+    return (max(vals) - min(vals)) < min_span
+
+
+def sanitize_automations(
+    automations: list[dict[str, Any]],
+    min_span: float = AUTOMATION_FLAT_MIN_SPAN,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Hygiène des automations avant `add_automation` :
+    - supprime les clips plats (no-op, ex. clips `vel->cutoff` figés à une valeur constante) ;
+    - résout les collisions de cible (owner, index) : si deux clips se chevauchent en temps
+      sur la même cible, seul le premier (le plus prioritaire, ex. Prosody LPF) est conservé,
+      les autres sont supprimés et listés dans le rapport.
+    Retourne (clips nettoyés, rapport)."""
+    kept: list[dict[str, Any]] = []
+    dropped_flat: list[str] = []
+    dropped_collision: list[dict[str, Any]] = []
+    occupied: dict[tuple, list[tuple[float, float]]] = {}
+    for clip in automations or []:
+        if not isinstance(clip, dict):
+            kept.append(clip)
+            continue
+        name = str(clip.get("name", ""))
+        if _is_flat_clip(clip, min_span):
+            dropped_flat.append(name)
+            continue
+        key = automation_target_key(clip)
+        span = _clip_span(clip)
+        a, b = span
+        clash = any(a < b2 and a2 < b for a2, b2 in occupied.get(key, []))
+        if clash:
+            dropped_collision.append({"name": name, "target": list(key), "span": list(span)})
+            continue
+        occupied.setdefault(key, []).append(span)
+        kept.append(clip)
+    report = {
+        "n_in": len(automations or []),
+        "n_out": len(kept),
+        "dropped_flat": dropped_flat,
+        "dropped_collisions": dropped_collision,
+        "min_span": float(min_span),
+    }
+    return kept, report

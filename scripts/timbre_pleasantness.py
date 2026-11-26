@@ -199,7 +199,8 @@ def pick_gl_plugin(role: str, mix_profile: str = "trap_rap", valence: float = 0.
     # rôles percussifs (kick/snare/hihat/clap/perc/fx) : PAS d'archetype tonal -> repli direct gl.*
     arch = resolve_archetype(mix_profile, tonal_map[role], valence=valence) if role in tonal_map else None
     fallback = {
-        "kick": "gl.kick", "snare": "gl.snare", "clap": "gl.clap", "hihat": "gl.hat", "perc": "gl.hat",
+        "kick": "gl.kick", "snare": "gl.snare", "clap": "gl.clap", "hihat": "gl.hat", "perc": "gl.clap",
+        "rim": "gl.clap",
         "bass": "gl.fingerbass", "808": "gl.fingerbass", "sub": "gl.fingerbass",
         "chords": "gl.keys", "pad": "gl.keys", "lead": "gl.warmsynth", "counter": "gl.pluck",
         "vocals": "gl.sampler", "fx": "gl.wavetable",

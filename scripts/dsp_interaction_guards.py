@@ -29,6 +29,121 @@ GLIDE_PRE_MS = 15.0
 GLIDE_POST_MS = 25.0
 LOOP_ROLES = ("melodic_loop", "percussive_loop", "loop")
 
+# ---------------------------------------------------------------------------
+# Bornes dures d'EQ correctif & gardes anti-destruction du mix (qualité sonore)
+# ---------------------------------------------------------------------------
+
+# Bornes par bande : bus [-4.5, +3.0] dB (Q <= 1.8), piste individuelle [-6.0, +4.0] dB
+# (hors HPF/LPF de nettoyage).
+EQ_BUS_GAIN_BOUNDS = (-4.5, 3.0)
+EQ_TRACK_GAIN_BOUNDS = (-6.0, 4.0)
+EQ_BUS_MAX_Q = 1.8
+# Budget cumulatif piste + bus parent dans les médiums [200, 2000] Hz.
+MID_BUDGET_HZ = (200.0, 2000.0)
+MID_BUDGET_MAX_ATTEN_DB = -7.0
+# Protection de la fondamentale du kick : pas plus de -3.0 dB dans [45, 70] Hz.
+KICK_FUNDAMENTAL_HZ = (45.0, 70.0)
+KICK_FUNDAMENTAL_MAX_CUT_DB = -3.0
+# Plugins dont le doublon sur une même tranche mixer est interdit (sauf intention explicite).
+NO_DUPLICATE_PLUGINS = ("gl.stereo", "gl.dist", "gl.limiter")
+
+
+def clamp_eq_band_gain(gain_db: float, is_bus: bool) -> float:
+    """Borne dure d'un gain de bande EQ : [-4.5, +3.0] dB sur un bus, [-6.0, +4.0] dB sur piste."""
+    lo, hi = EQ_BUS_GAIN_BOUNDS if is_bus else EQ_TRACK_GAIN_BOUNDS
+    return round(float(max(lo, min(hi, float(gain_db)))), 2)
+
+
+def _band_freq(band: dict) -> float:
+    return float(band.get("freq_hz", band.get("freq", 0.0)) or 0.0)
+
+
+def _band_gain_db(band: dict) -> float:
+    return float(band.get("gain_db", band.get("gain", 0.0)) or 0.0)
+
+
+def cumulative_mid_attenuation_db(
+    track_bands: list[dict],
+    bus_bands: list[dict],
+    f_lo: float = MID_BUDGET_HZ[0],
+    f_hi: float = MID_BUDGET_HZ[1],
+) -> float:
+    """Atténuation cumulée (piste + bus parent) dans [f_lo, f_hi] Hz, en dB (négative = coupe).
+    Ne compte que les bandes de type peak/shelf (les HPF/LPF de nettoyage sont exclus)."""
+    total = 0.0
+    for bands in (track_bands or [], bus_bands or []):
+        for b in bands:
+            kind = str(b.get("type", "peak")).lower()
+            if kind in ("hpf", "lpf", "high_cut", "low_cut", "off", "notch", "bandpass"):
+                continue
+            f = _band_freq(b)
+            if f_lo <= f <= f_hi:
+                total += min(0.0, _band_gain_db(b))
+    return round(total, 2)
+
+
+def enforce_mid_budget(
+    track_bands: list[dict],
+    bus_bands: list[dict],
+    max_atten_db: float = MID_BUDGET_MAX_ATTEN_DB,
+) -> tuple[list[dict], list[dict], float]:
+    """Normalise les bandes piste/bus pour que l'atténuation cumulée dans les médiums
+    [200, 2000] Hz ne dépasse jamais `max_atten_db` (-7.0 dB) : la part excédentaire est
+    rendue proportionnellement sur toutes les bandes négatives du bus puis de la piste.
+    Retourne (bandes piste, bandes bus, total après correction)."""
+    track_bands = [dict(b) for b in (track_bands or [])]
+    bus_bands = [dict(b) for b in (bus_bands or [])]
+    cur = cumulative_mid_attenuation_db(track_bands, bus_bands)
+    if cur >= max_atten_db:
+        return track_bands, bus_bands, cur
+    need = max_atten_db - cur  # > 0 : dB à rendre
+    for bands in (bus_bands, track_bands):
+        mids = [b for b in bands
+                if str(b.get("type", "peak")).lower() not in ("hpf", "lpf", "high_cut", "low_cut", "off", "notch", "bandpass")
+                and MID_BUDGET_HZ[0] <= _band_freq(b) <= MID_BUDGET_HZ[1]
+                and _band_gain_db(b) < 0.0]
+        if not mids:
+            continue
+        total_neg = sum(-_band_gain_db(b) for b in mids)
+        for b in mids:
+            share = need * (-_band_gain_db(b)) / max(total_neg, 1e-9)
+            b["gain_db"] = round(min(0.0, _band_gain_db(b) + share), 2)
+        need = max_atten_db - cumulative_mid_attenuation_db(track_bands, bus_bands)
+        if need <= 1e-6:
+            break
+    return track_bands, bus_bands, cumulative_mid_attenuation_db(track_bands, bus_bands)
+
+
+def protect_kick_fundamental(
+    bands: list[dict],
+    f_lo: float = KICK_FUNDAMENTAL_HZ[0],
+    f_hi: float = KICK_FUNDAMENTAL_HZ[1],
+    max_cut_db: float = KICK_FUNDAMENTAL_MAX_CUT_DB,
+) -> list[dict]:
+    """Clamp : aucune bande EQ de la piste Kick ne peut atténuer de plus de `max_cut_db`
+    la fondamentale [45, 70] Hz (ex. -9.5 dB à 50 Hz vidait le kick)."""
+    out = [dict(b) for b in (bands or [])]
+    for b in out:
+        kind = str(b.get("type", "peak")).lower()
+        if kind in ("hpf", "lpf", "high_cut", "low_cut", "off"):
+            continue
+        f = _band_freq(b)
+        if f_lo <= f <= f_hi:
+            g = _band_gain_db(b)
+            if g < max_cut_db:
+                b["gain_db"] = round(float(max_cut_db), 2)
+    return out
+
+
+def find_duplicate_plugins(slots_by_plugin: dict[str, list[int]]) -> dict[str, list[int]]:
+    """Détecte les doublons non intentionnels (gl.stereo, gl.dist, gl.limiter) empilés
+    sur une même tranche mixer : ne garde que le premier slot de chaque type interdit."""
+    dups: dict[str, list[int]] = {}
+    for plugin, slots in (slots_by_plugin or {}).items():
+        if plugin in NO_DUPLICATE_PLUGINS and len(slots) > 1:
+            dups[plugin] = [int(s) for s in slots[1:]]
+    return dups
+
 
 def compute_probe_gap_bars(hall_decay_s: float, bpm: float, beats_per_bar: int = 4) -> int:
     """Nombre de mesures de silence nécessaires pour éteindre FX Hall avant le bloc hors-noyau."""

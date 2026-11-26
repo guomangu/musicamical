@@ -468,6 +468,8 @@ def velocity_cutoff_automation(
             mean_v = sum(float(n.get("velocity", 80)) for n in in_phrase) / len(in_phrase)
             t = max(0.0, min(1.0, (mean_v - 40.0) / 60.0))  # vel 40 -> fermé, 100 -> ouvert
             hz = lo_hz + t * (hi_hz - lo_hz)
+            if abs(hz - lo_hz) < 1.0 and abs(hz - hi_hz) < 1.0:
+                continue  # no-op : un clip d'automation plat (valeur constante) n'est jamais émis
             filter_sweep(
                 autos,
                 mixer_idx=mixer_idx,

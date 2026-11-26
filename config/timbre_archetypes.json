@@ -21,14 +21,36 @@
       "dark_overrides": {}
     },
     "trap_rap:lead": {
-      "plugin": "gl.fm",
+      "plugin": "gl.warmsynth",
       "params": {
-        "cutoff_hz": 8200,
+        "cutoff_hz": 3200,
+        "attack_ms": 12,
+        "release_ms": 200,
         "vibrato_delay_ms": 250
       },
       "dark_overrides": {
-        "cutoff_hz": 8200
+        "cutoff_hz": 2600
       }
+    },
+    "trap_rap:kick": {
+      "plugin": "gl.kick",
+      "params": {},
+      "dark_overrides": {}
+    },
+    "trap_rap:snare": {
+      "plugin": "gl.snare",
+      "params": {},
+      "dark_overrides": {}
+    },
+    "trap_rap:hihat": {
+      "plugin": "gl.hat",
+      "params": {},
+      "dark_overrides": {}
+    },
+    "trap_rap:perc": {
+      "plugin": "gl.clap",
+      "params": {},
+      "dark_overrides": {}
     },
     "pop_rnb:bass": {
       "plugin": "gl.fingerbass",
@@ -48,10 +70,14 @@
     "pop_rnb:lead": {
       "plugin": "gl.twinva",
       "params": {
-        "cutoff_hz": 9500,
+        "cutoff_hz": 8200,
+        "attack_ms": 8,
+        "release_ms": 200,
         "vibrato_delay_ms": 220
       },
-      "dark_overrides": {}
+      "dark_overrides": {
+        "cutoff_hz": 6800
+      }
     },
     "edm_club:bass": {
       "plugin": "gl.analog",
@@ -121,10 +147,14 @@
     "lofi_chill:lead": {
       "plugin": "gl.warmsynth",
       "params": {
-        "cutoff_hz": 9000,
+        "cutoff_hz": 4200,
+        "attack_ms": 10,
+        "release_ms": 200,
         "vibrato_delay_ms": 300
       },
-      "dark_overrides": {}
+      "dark_overrides": {
+        "cutoff_hz": 3400
+      }
     },
     "jazz_acoustic:bass": {
       "plugin": "gl.fingerbass",

@@ -353,6 +353,60 @@ def audit_gridline_sources(proj_path: str, prepare_dir: str = "") -> dict[str, A
     return report
 
 
+def sample_fallback_gate(
+    blueprint: dict[str, Any],
+    palette: dict[str, Any],
+    slot_for: dict[str, str] | None = None,
+    min_ratio: float = 0.7,
+    allow_override: bool = False,
+) -> dict[str, Any]:
+    """Quality gate anti-fallback-silencieux (chantier P0) : si l'index/palette dispose de
+    samples valides pour les rôles demandés mais que des pistes retombent sur
+    `gridline_native`, lever un avertissement explicite — et échouer si
+    `samples_used / tracks_with_available_samples < min_ratio` (sauf override explicite
+    `--allow-synth-fallback` / ALLOW_SYNTH_FALLBACK=1)."""
+    slot_for = slot_for or {
+        "kick": "kick", "snare": "snare_clap", "clap": "snare_clap", "hihat": "hihat_perc",
+        "hat": "hihat_perc", "perc": "hihat_perc", "bass": "bass_sub", "808": "bass_sub",
+        "sub": "bass_sub", "chords": "chord_keys", "keys": "chord_keys", "pad": "pad_atmosphere",
+        "lead": "lead_melody", "melody": "lead_melody", "counter": "lead_melody", "fx": "fx",
+    }
+    slots = (palette.get("slots") or []) if isinstance(palette, dict) else []
+    role_avail: dict[str, bool] = {}
+    for s in slots:
+        if isinstance(s, dict) and s.get("source_type") in ("sample", "project_sample") and s.get("filepath"):
+            role_avail[str(s.get("role"))] = True
+    tracks = [t for t in (blueprint.get("tracks") or []) if isinstance(t, dict)]
+    n_samples = 0
+    fallback_tracks: list[dict[str, Any]] = []
+    avail_tracks: set[str] = set()
+    for tr in tracks:
+        if tr.get("role") == "vocals":
+            continue
+        key = str(tr.get("name") or tr.get("role") or "").lower()
+        slot_role = slot_for.get(key, str(tr.get("role") or ""))
+        if tr.get("source_type") in ("sample", "loop") and tr.get("sample_path"):
+            n_samples += 1
+        if role_avail.get(slot_role):
+            avail_tracks.add(key)
+            if tr.get("source_type") == "gridline_native":
+                fallback_tracks.append({"track": tr.get("name"), "role": slot_role,
+                                        "reason": "sample_available_but_not_selected"})
+    n_avail = len(avail_tracks)
+    ratio = (n_samples / n_avail) if n_avail else 1.0
+    passed = (not fallback_tracks) or ratio >= min_ratio or allow_override or n_avail == 0
+    return {
+        "passed": bool(passed),
+        "gate": "PASS" if passed else "FAIL",
+        "n_samples": n_samples,
+        "n_tracks_with_available_samples": n_avail,
+        "sample_coverage_ratio": round(ratio, 3),
+        "min_ratio": min_ratio,
+        "fallback_tracks": fallback_tracks,
+        "allow_override": bool(allow_override),
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Pre-audit all channels and samples in a .gridline project.")
     ap.add_argument("project", help="Path to .gridline file")

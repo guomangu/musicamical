@@ -141,17 +141,23 @@ def enrich_blueprint(bp: dict[str, Any], project_dir: str | None = None,
                     added["groove_preference"] = bp["groove_preference"]
                     decisions.append(f"groove_preference: template midi_groove_bank bpm={tpl.get('bpm')} source={tpl.get('source')}")
 
-        # 6) archétypes gl.* par (profil, rôle, valence)
+        # 6) archétypes gl.* par (profil, rôle, valence) — TOUTES les pistes, y compris
+        # batterie (kick/snare/hihat/perc ont un archétype par nom de kit, ex. trap_rap:kick)
         from gl_dsl import resolve_archetype
+        _ARCH_ROLE = {"kick": "kick", "snare": "snare", "clap": "snare", "hihat": "hihat", "hat": "hihat",
+                      "perc": "perc", "rim": "perc", "bass": "bass", "808": "bass", "sub": "bass",
+                      "chords": "chords", "keys": "chords", "pad": "chords", "lead": "lead",
+                      "melody": "lead", "counter": "lead", "fx": "fx"}
         for t in tracks:
-            if not isinstance(t, dict):
+            if not isinstance(t, dict) or t.get("archetype"):
                 continue
-            if str(t.get("plugin") or "").startswith("gl.") and not t.get("archetype"):
-                role = _canonical_role(str(t.get("role") or "lead"))
-                arch = resolve_archetype(mix_profile, role, valence)
-                if arch:
-                    t["archetype"] = f"{mix_profile}:{role}"
-                    decisions.append(f"track {t.get('name') or role}: archétype {t['archetype']}")
+            role = _canonical_role(str(t.get("role") or "lead"))
+            name = str(t.get("name") or "").lower()
+            arch_role = next((v for k, v in _ARCH_ROLE.items() if k in name), role)
+            arch = resolve_archetype(mix_profile, arch_role, valence)
+            if arch:
+                t["archetype"] = f"{mix_profile}:{arch_role}"
+                decisions.append(f"track {t.get('name') or role}: archétype {t['archetype']}")
 
     report = {
         "mix_profile": mix_profile,

@@ -188,7 +188,11 @@ class TestSongBuilderCompatAndIntegration(unittest.TestCase):
         kick_eq = song_builder.eq_kick_clean(1)
         d_kick = dict(kick_eq)
         self.assertEqual(d_kick["mixer/1/slot/1/Band 2 type"], 6)
-        self.assertEqual(d_kick["mixer/1/slot/1/Band 2 gain"], -9.5)
+        # Protection de la fondamentale du kick : jamais plus de -3.0 dB à 50 Hz
+        self.assertEqual(d_kick["mixer/1/slot/1/Band 2 gain"], -3.0)
+        # Un appel avec une coupe demandée à -9.5 dB est clampé à -3.0 dB
+        clamped = dict(song_builder.eq_kick_clean(1, sub_cut_db=-9.5))
+        self.assertEqual(clamped["mixer/1/slot/1/Band 2 gain"], -3.0)
 
         ins = song_builder.eq_insert(4, [(1, 1, 250), (4, 6, 1500, -2.5, 0.45), (7, 3, 5500)])
         d_ins = dict(ins)
