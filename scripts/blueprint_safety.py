@@ -346,18 +346,36 @@ def blueprint_musical_safety_issues(
     hc = bp.get("harmonic_core") or {}
     key_label = str(bp.get("key") or hc.get("key") or "")
     proj_dir = os.path.dirname(os.path.abspath(catalog_path)) if catalog_path else ""
-    cat_idx = load_catalog_index(catalog_path) if catalog_path else {}
+    cat_exists = bool(catalog_path and os.path.isfile(catalog_path))
+    cat_idx = load_catalog_index(catalog_path) if cat_exists else {}
     proj_bpm = bp.get("bpm")
-    notes_by_track = notes_by_track or {}
+    notes_ci: dict[str, list[int]] = {}
+    for k, v in (notes_by_track or {}).items():
+        ps = [int(n) for n in (v or []) if isinstance(n, (int, float)) and not isinstance(n, bool)]
+        if ps:
+            notes_ci[str(k)] = ps
+            notes_ci[str(k).lower()] = ps
 
+    has_sample_tracks = False
     for i, tr in enumerate(bp.get("tracks") or []):
         if not isinstance(tr, dict):
             continue
         name = str(tr.get("name") or f"track[{i}]")
         role = str(tr.get("role") or "")
         st = str(tr.get("source_type") or "")
+        if st == "gridline_native" and str(tr.get("plugin") or "") == "gl.sampler":
+            issues.append({
+                "track": name,
+                "role": role,
+                "severity": "error",
+                "code": "native_sampler_without_sample",
+                "fix": "gridline_native track cannot use gl.sampler without sample_path — replace with a calibrated gl.* synth (e.g. gl.fingerbass / gl.warmsynth)",
+            })
+            continue
         if st != "sample":
             continue
+        has_sample_tracks = True
+        percussive = is_percussive_role(role) or is_percussive_role(name)
         base = {"track": name, "role": role}
         sample_path = str(tr.get("sample_path") or "")
         if not sample_path:
@@ -392,13 +410,15 @@ def blueprint_musical_safety_issues(
                     "fix": "this sample is hard-rejected by the indexer; prefer another palette candidate",
                 })
             # v3.0 strict root lock: gl.sampler varispeed -> octave errors are NOT harmless.
+            # F7: skip root lock on percussive roles/tracks where root_note is intentionally
+            # the notated kit pitch (kick=36, snare=38, hihat=42, perc=39), NOT detected f0.
             detected = entry.get("midi_root")
             det_i: int | None = None
             try:
                 det_i = int(detected) if detected is not None else None
             except (TypeError, ValueError):
                 det_i = None
-            if det_i is not None and det_i != rn_i:
+            if not percussive and det_i is not None and det_i != rn_i:
                 issues.append({
                     **base,
                     "severity": "error",
@@ -414,7 +434,7 @@ def blueprint_musical_safety_issues(
                         "(chipmunk / half-speed smudge / infra-sub 808)"
                     ),
                 })
-            if not is_percussive_role(role) and not bool(tr.get("is_loop")) and not bool(entry.get("is_loop")):
+            if not percussive and not bool(tr.get("is_loop")) and not bool(entry.get("is_loop")):
                 if entry.get("playable_chromatically") is False:
                     issues.append({
                         **base,
@@ -428,19 +448,24 @@ def blueprint_musical_safety_issues(
                             "studio_lib.extract_clean_oneshot(...), or use a native gl.* synth"
                         ),
                     })
-            # v3.0 bell confinement
+            # v3.0/v4.2 bell confinement: ERROR on chords/pad/bass (inharmonic partials destroy harmony),
+            # WARNING on lead (confined to {1,5,8}, polyphony_max=1).
             confined = allowed_degrees_for_sample(entry)
-            if confined is not None and not is_percussive_role(role):
+            if confined is not None and not percussive:
+                role_name_l = f"{role} {name}".lower()
+                is_harm_or_bass = any(t in role_name_l for t in ("chord", "key", "pad", "bass", "808", "sub"))
                 issues.append({
                     **base,
-                    "severity": "warning",
+                    "severity": "error" if is_harm_or_bass else "warning",
                     "code": "inharmonic_bell_confined",
                     "sample_path": sample_path,
                     "sample_nature": entry.get("sample_nature"),
                     "allowed_degree_offsets": confined,
                     "fix": (
-                        "inharmonic bell/FM: force polyphony_max=1 and restrict motif degrees to {1,5,8} "
-                        "(tonic, fifth, octave) — its non-integer partials clash on 2/3/6/7 degrees"
+                        "inharmonic bell/FX forbidden on chords/pad/bass — swap for a tonal sample or gl.* synth"
+                        if is_harm_or_bass
+                        else "inharmonic bell/FM: force polyphony_max=1 and restrict motif degrees to {1,5,8} "
+                             "(tonic, fifth, octave) — its non-integer partials clash on 2/3/6/7 degrees"
                     ),
                 })
             # v3.0 melodic loops are NOT exempt from key-fit (CQT chroma when available)
@@ -516,7 +541,6 @@ def blueprint_musical_safety_issues(
                         "fix": f"run time_stretch_stereo(rate={comp['r_eff']:.4f}) and verify the WAV duration is an exact multiple of 4*60/{float(proj_bpm):g} BPM bars (+/-2 ms)",
                     })
 
-        percussive = is_percussive_role(role)
         melodic_loop = is_melodic_loop(entry, tr)
         is_loop = bool(tr.get("is_loop")) or bool((entry or {}).get("is_loop"))
         if percussive or (is_loop and not melodic_loop):
@@ -527,13 +551,19 @@ def blueprint_musical_safety_issues(
             continue
         # v3.0 MAX_SEMITONE_SHIFT for non-percussive one-shots (before the key-fit continue)
         if not percussive and not is_loop:
-            note_midis = list(notes_by_track.get(name) or [])
+            note_midis = list(notes_ci.get(name) or notes_ci.get(name.lower()) or [])
             if note_midis:
-                cat = sample_shift_category(entry)
-                cap = SAMPLE_SHIFT_CAP_ST.get(cat, SAMPLE_SHIFT_CAP_ST["synth"])
+                try:
+                    from sample_fit_guard import effective_shift_cap
+                    cat, cap = effective_shift_cap(entry, role=role or name)
+                except Exception:
+                    cat = sample_shift_category(entry)
+                    cap = SAMPLE_SHIFT_CAP_ST.get(cat, SAMPLE_SHIFT_CAP_ST["synth"])
                 s_max = max_semitone_shift(rn_i, note_midis)
                 ambitus = (max(int(n) for n in note_midis) - min(int(n) for n in note_midis)) if note_midis else 0
-                action = decide_shift_action(s_max, ambitus, cat)
+                action = "ok" if s_max <= cap else (
+                    "multizone" if ambitus <= MULTIZONE_MAX_AMBITUS_ST.get(cat, 20) else "swap"
+                )
                 if action != "ok":
                     issues.append({
                         **base,
@@ -582,17 +612,44 @@ def summarize_musical_safety(
     bp: dict[str, Any],
     catalog_path: str | None = None,
     notes_by_track: dict[str, Iterable[int]] | None = None,
+    project_dir: str | None = None,
 ) -> dict[str, Any]:
     """Structured summary of `blueprint_musical_safety_issues` (wireable into reports)."""
-    issues = blueprint_musical_safety_issues(bp, catalog_path=catalog_path, notes_by_track=notes_by_track)
+    eff_cat = catalog_path
+    eff_notes = notes_by_track
+    if project_dir:
+        try:
+            from sample_fit_guard import notes_by_track_from_score_ir, resolve_catalog_path
+            if not eff_cat:
+                eff_cat = resolve_catalog_path(project_dir, bp=bp if isinstance(bp, dict) else None)
+            if eff_notes is None:
+                eff_notes = notes_by_track_from_score_ir(project_dir) or None
+        except Exception:
+            pass
+    issues = blueprint_musical_safety_issues(bp, catalog_path=eff_cat, notes_by_track=eff_notes)
     pcs = blueprint_key_scale_pcs(bp) if isinstance(bp, dict) else None
     hc = (bp.get("harmonic_core") or {}) if isinstance(bp, dict) else {}
+    has_samples = isinstance(bp, dict) and any(
+        isinstance(t, dict) and t.get("source_type") == "sample" for t in (bp.get("tracks") or [])
+    )
+    cat_ok = bool(eff_cat and os.path.isfile(eff_cat))
+    if has_samples and not cat_ok:
+        issues.append({
+            "track": "*",
+            "role": "*",
+            "severity": "warning",
+            "code": "catalog_missing",
+            "fix": "samples_catalog.json introuvable (cascade projet/palette/racine) : lancer scripts/index_project_samples.py",
+        })
     errors = sum(1 for i in issues if i.get("severity") == "error")
     return {
         "checked": isinstance(bp, dict),
         "key": str(bp.get("key") or hc.get("key") or "") if isinstance(bp, dict) else "",
         "scale_pcs": sorted(pcs) if pcs else None,
-        "catalog_used": bool(catalog_path),
+        "catalog": eff_cat if cat_ok else None,
+        "catalog_used": cat_ok,
+        "catalog_missing": bool(has_samples and not cat_ok),
+        "notes_checked": bool(eff_notes),
         "issues": issues,
         "errors": errors,
         "warnings": len(issues) - errors,

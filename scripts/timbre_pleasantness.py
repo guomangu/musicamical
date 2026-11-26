@@ -111,16 +111,38 @@ def interval_consonance(f1: float, f2: float) -> float:
 
 
 def pleasantness_gate(metrics: dict, role: str = "lead_melody") -> dict:
-    """Verdict dur d'agréabilité d'un son pour un rôle.
-    SWAP si un plafond dur est dépassé ; FIX si on s'en approche (> 80 %) ; PASS sinon.
+    """Verdict dur d'agréabilité d'un son pour un rôle (v4.2 F4+F5).
+    SWAP si un plafond dur est dépassé ou si la politique de catégorie/nature (F4) exclut le son ;
+    FIX si on approche des plafonds (> 80 %) ou si une métrique clé manque sur rôle tonal (F5) ;
+    PASS sinon.
     `metrics` : champs DSP usuels (r_harsh, roughness, peak_harsh_db, comfort_score, centroid_hz,
-    crest_factor_db) — manquants = 0 (neutre)."""
+    crest_factor_db) + optionnels (category, sample_nature, inharmonicity, filepath)."""
     caps = dict(DEFAULT_CAPS)
     caps.update(PLEASANTNESS_CAPS.get(role, {}))
     reasons: list[str] = []
     worst = 0.0
+    policy_rejected = False
+
+    # F4 — politique catégorie / nature / inharmonicité (si fournies dans metrics)
+    if any(metrics.get(k) is not None for k in ("category", "sample_nature", "inharmonicity", "filepath")):
+        try:
+            from sample_fit_guard import candidate_policy
+            pol = candidate_policy(role, metrics)
+            if not pol["allowed"]:
+                policy_rejected = True
+                reasons.extend(pol["reasons"])
+        except Exception:
+            pass
+
+    missing_metrics: list[str] = []
     for key in ("r_harsh", "roughness", "peak_harsh_db"):
-        v = float(metrics.get(key) or 0.0)
+        raw = metrics.get(key)
+        if raw is None:
+            if role in TONAL_ROLES:
+                missing_metrics.append(key)
+            v = 0.0
+        else:
+            v = float(raw)
         cap = caps[key]
         worst = max(worst, v / max(cap, 1e-9))  # ratio même sous le plafond (zone FIX > 0.8)
         if v > cap:
@@ -131,23 +153,43 @@ def pleasantness_gate(metrics: dict, role: str = "lead_melody") -> dict:
         reasons.append(f"centroid={cent:.0f}Hz > {cmax:.0f}Hz (trop sifflant)")
         worst = max(worst, cent / cmax)
     if role in TONAL_ROLES:
-        cf = float(metrics.get("crest_factor_db") or 0.0)
+        raw_cf = metrics.get("crest_factor_db")
+        if raw_cf is None:
+            missing_metrics.append("crest_factor_db")
+            cf = 0.0
+        else:
+            cf = float(raw_cf)
         cfmax = CREST_MAX_DB_TONAL.get(role, 15.0)
         worst = max(worst, cf / cfmax)
         if cf > cfmax:
             reasons.append(f"crest={cf:.1f}dB > {cfmax:.1f}dB (trop claquant pour un rôle tonal)")
-    conf = float(metrics.get("comfort_score", 1.0))
+    raw_conf = metrics.get("comfort_score")
+    conf = float(raw_conf) if raw_conf is not None else 1.0
+    if raw_conf is None and role in TONAL_ROLES:
+        missing_metrics.append("comfort_score")
     worst = max(worst, caps["comfort_min"] / max(conf, 1e-9))
     if conf < caps["comfort_min"]:
         reasons.append(f"comfort={conf:.2f} < plancher {caps['comfort_min']:.2f}")
-    if worst > 1.0:
+
+    unmeasured = bool(missing_metrics and role in TONAL_ROLES)
+    if policy_rejected or worst > 1.0:
         verdict = "SWAP"
-    elif worst > 0.8:
+    elif worst > 0.8 or unmeasured:
         verdict = "FIX"
+        if unmeasured:
+            reasons.append(f"unmeasured({','.join(missing_metrics)})")
     else:
         verdict = "PASS"
-    score = round(float(max(0.0, min(1.0, 1.0 - max(0.0, worst - 0.8) * 5.0))), 3)
-    return {"verdict": verdict, "score": score, "reasons": reasons, "role": role}
+    eff_worst = max(worst, 1.2 if policy_rejected else (0.85 if unmeasured else 0.0))
+    score = round(float(max(0.0, min(1.0, 1.0 - max(0.0, eff_worst - 0.8) * 5.0))), 3)
+    return {
+        "verdict": verdict,
+        "score": score,
+        "reasons": reasons,
+        "role": role,
+        "unmeasured": unmeasured,
+        "missing_metrics": missing_metrics,
+    }
 
 
 def palette_timbre_coherence(items: list[dict]) -> dict:
@@ -182,7 +224,9 @@ def palette_timbre_coherence(items: list[dict]) -> dict:
                 notes.append(f"{r1}~{r2} centroids {c1:.0f}/{c2:.0f} Hz (bande critique {cbw:.0f} Hz)")
     score = 1.0
     if collision is not None:
-        score -= min(0.5, collision * 3.0)
+        # Durcissement §5 : au-delà de 0.35 de collision Bark24, pénalité doublée
+        extra = max(0.0, collision - 0.35) * 3.0
+        score -= min(0.65, collision * 3.0 + extra)
     score -= min(0.4, pair_rough * 0.8)
     return {"score": round(float(max(0.0, min(1.0, score))), 3),
             "max_bark_collision": collision, "pair_roughness": round(pair_rough, 3), "notes": notes}
@@ -206,15 +250,18 @@ def pick_gl_plugin(role: str, mix_profile: str = "trap_rap", valence: float = 0.
         "vocals": "gl.sampler", "fx": "gl.wavetable",
     }
     plugin = (arch or {}).get("plugin") or fallback.get(role) or fallback.get(tonal_map.get(role, role), "gl.warmsynth")
-    if plugin not in SYNTH_REGISTRY:
+    # Jamais renvoyer `gl.sampler` comme repli synthé natif (sans fichier sample -> silence !)
+    if plugin not in SYNTH_REGISTRY or (plugin == "gl.sampler" and role != "vocals"):
         plugin = fallback.get(role) or fallback.get(tonal_map.get(role, role), "gl.warmsynth")
     params = dict((arch or {}).get("params") or {})
     # garde-fou de confort FORCÉ sur les rôles tonaux : attaque >= 2 ms, release >= 60 ms,
-    # cutoff <= 9 kHz — même si l'archetype fournit des valeurs trop sèches/aigues (son criard)
+    # cutoff <= 9 kHz — et sur chords/pad en valence >= -0.2 : attaque >= 8 ms, cutoff <= 6.5 kHz (§5)
     if role in tonal_map:
-        params["attack_ms"] = max(2.0, float(params.get("attack_ms", 2.0)))
+        min_att = 8.0 if (valence >= -0.2 and tonal_map[role] == "chords") else 2.0
+        max_cut = 6500.0 if (valence >= -0.2 and tonal_map[role] == "chords") else 9000.0
+        params["attack_ms"] = max(min_att, float(params.get("attack_ms", min_att)))
         params["release_ms"] = max(60.0, float(params.get("release_ms", 60.0)))
-        params["cutoff_hz"] = min(float(params.get("cutoff_hz", 9000.0)), 9000.0)
+        params["cutoff_hz"] = min(float(params.get("cutoff_hz", max_cut)), max_cut)
     return {"plugin": plugin, "params": params, "archetype": bool(arch)}
 
 

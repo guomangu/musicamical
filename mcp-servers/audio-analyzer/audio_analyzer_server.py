@@ -903,7 +903,8 @@ def studio_prepare_session(project_dir: str, style_intent: str = "", reference_p
                         "id": p.get("palette_id"),
                         "tracks": [
                             {"role": t.get("role"), "file": os.path.basename(str(t.get("filepath") or t.get("name") or "")),
-                             "root_note": t.get("root_note"), "bpm": t.get("bpm")}
+                             "root_note": (t.get("root_note") if t.get("root_note") is not None else t.get("midi_root")),
+                             "bpm": t.get("bpm")}
                             for t in (p.get("slots") or p.get("blueprint_tracks") or [])[:6]
                         ],
                     })

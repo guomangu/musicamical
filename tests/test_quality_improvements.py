@@ -168,13 +168,46 @@ class TestRootNotePropagation(unittest.TestCase):
 
         with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
             schema = json.load(fh)
-        bp = json.load(open(os.path.join(ROOT, "projects", "validation_fm_dark", "song_blueprint.json"), encoding="utf-8"))
-        bp = dict(bp)
+        bp = dict(_load_validation_blueprint())
         bp["tracks"] = [{
             "name": "Lead", "role": "lead_melody", "source_type": "sample",
             "sample_path": "x.wav", "mixer_track": 3, "root_note": 57, "fine_tune_ct": -13,
         }]
         jsonschema.validate(bp, schema)  # must not raise
+
+
+def _minimal_valid_blueprint() -> dict:
+    return {
+        "title": "fixture_valid",
+        "genre": "trap_rap",
+        "mix_profile": "trap_rap",
+        "has_drums": True,
+        "seed": 42,
+        "emotion_vector": {"valence": -0.3, "tension": 0.5, "energy": 0.7, "depth": 0.5},
+        "bpm": 132.0,
+        "time_signature": {"numerator": 4, "denominator": 4},
+        "key": "C minor",
+        "harmonic_core": {
+            "key": "C",
+            "mode": "aeolian",
+            "progression_bars": 4,
+            "chord_progression": [{"bar": 1, "symbol": "Cm7", "bass_midi": 36, "voicing_midi": [60, 63, 67]}],
+            "motif_cell": {"intervals_from_tonic": [0, 3, 7], "rhythm_beats": [0, 2], "apex_midi": 72},
+            "phrase_plan": "A-A'-A''-B",
+        },
+        "structure": [{"section": "Intro", "start_bar": 1, "bars": 4, "energy": 0.5}],
+        "tracks": [
+            {"name": "Lead", "role": "lead_melody", "source_type": "gridline_native", "plugin": "gl.warmsynth", "mixer_track": 1},
+        ],
+    }
+
+
+def _load_validation_blueprint() -> dict:
+    bp_path = os.path.join(ROOT, "projects", "validation_fm_dark", "song_blueprint.json")
+    if os.path.isfile(bp_path):
+        with open(bp_path, encoding="utf-8") as fh:
+            return json.load(fh)
+    return _minimal_valid_blueprint()
 
 
 class TestResonanceClassification(unittest.TestCase):
@@ -487,8 +520,7 @@ class TestPresenceFloorsAndBlueprintWiring(unittest.TestCase):
 
         with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
             schema = json.load(fh)
-        with open(os.path.join(ROOT, "projects", "validation_fm_dark", "song_blueprint.json"), encoding="utf-8") as fh:
-            base = json.load(fh)
+        base = _load_validation_blueprint()
         bad = dict(base)
         bad["tracks"] = [{"name": "X", "role": "lead_melody", "source_type": "sample", "sample_path": "x.wav", "mixer_track": 2}]  # no root_note
         with self.assertRaises(jsonschema.ValidationError):
@@ -645,7 +677,14 @@ class TestBlueprintMusicalSafety(unittest.TestCase):
         from song_builder import load_blueprint
 
         bp_path = os.path.join(ROOT, "projects", "validation_fm_dark", "song_blueprint.json")
-        _bp, meta = load_blueprint(bp_path, validate=True)
+        if os.path.isfile(bp_path):
+            _bp, meta = load_blueprint(bp_path, validate=True)
+        else:
+            with tempfile.TemporaryDirectory() as tmp:
+                tmp_bp = os.path.join(tmp, "song_blueprint.json")
+                with open(tmp_bp, "w", encoding="utf-8") as fh:
+                    json.dump(_minimal_valid_blueprint(), fh)
+                _bp, meta = load_blueprint(tmp_bp, validate=True)
         self.assertIn("musical_safety", meta)
         self.assertTrue(meta["musical_safety"]["checked"])
 

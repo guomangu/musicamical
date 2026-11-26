@@ -433,6 +433,7 @@ def _select_best_from_sqlite(
                 "comfort_score": _ccs({"r_harsh": r_harsh or 0.0, "peak_harsh_db": pk_h or 0.0,
                                        "roughness": rough or 0.0}, needs_fade=bool(needs_fade_int), role=role),
                 "centroid_hz": d_cent, "crest_factor_db": cf_db,
+                "sample_nature": nat, "filepath": path,
             }, role)
             if g["verdict"] == "SWAP":
                 continue

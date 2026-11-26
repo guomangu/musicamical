@@ -1,0 +1,60 @@
+{
+  "project_dir": "/home/gamo/Bureau/musicamical/projects/rap-serene-rythme",
+  "stage": "E0_PALETTE",
+  "substage": null,
+  "has_drums": true,
+  "user_samples_locked": false,
+  "selected_palette_id": null,
+  "contract_path": null,
+  "core_loop_locked": false,
+  "e2_checkpoint_enabled": false,
+  "e2_checkpoint_approved": false,
+  "e2_checkpoint_wav": null,
+  "max_attempts": 2,
+  "track_stage_map": {},
+  "soundcheck_results": {},
+  "vertical_results": {},
+  "horizontal_seams": {},
+  "multiscale_scores": {
+    "ALL": {
+      "verdict": "FIX",
+      "blocking_scale": "S4_form",
+      "global_alignment_score": 0.8,
+      "scale_matrix": {
+        "S1_physical": {
+          "V": 1.0,
+          "H": null
+        },
+        "S2_acoustic": {
+          "V": 1.0,
+          "H": null
+        },
+        "S3_syntax": {
+          "V": 1.0,
+          "H": 1.0
+        },
+        "S4_form": {
+          "V": 1.0,
+          "H": 0.28
+        },
+        "S5_context": {
+          "V": 0.34,
+          "H": null
+        }
+      },
+      "full_report_path": "renders/diagnostics/multiscale_ALL.json"
+    }
+  },
+  "artifact_hashes": {},
+  "final_gate_passed": false,
+  "next_mandatory_step": {
+    "tool": "propose_palettes",
+    "target_track": null,
+    "allowed_actions": [
+      "SELECT_PALETTE_A",
+      "SELECT_PALETTE_B",
+      "SELECT_PALETTE_C"
+    ],
+    "forbidden_tracks": []
+  }
+}

@@ -561,34 +561,34 @@ def analyze_pitch_and_purity(
                     if non_harm_amps:
                         polyphony_ratio = round(min(1.0, max(non_harm_amps)), 3)
                 # Low-register chord evidence: >= 2 strong peaks in 50-900 Hz that are mutually
-                # non-harmonic (e.g. C4+A#4 dyad) => a real chord, not bell partials (which sit high).
+                # non-harmonic (e.g. C4+A#4 dyad) => a real chord, not bell partials (which sit high)
+                # nor saturated 808 harmonics (2*f0 and 3*f0 have ratio 1.5 but share the same f0).
                 low_mask = (fr_t >= 50.0) & (fr_t <= 900.0)
                 if np.any(low_mask):
                     sp_low = sp_t[low_mask]
                     fr_low = fr_t[low_mask]
                     lp_idx, _ = signal.find_peaks(sp_low, height=float(np.max(sp_t)) * 0.25, distance=15)
                     lp = sorted(float(fr_low[i]) for i in lp_idx)
-                    cnt = 0
-                    for i in range(len(lp)):
-                        non_harm = False
-                        for j in range(len(lp)):
-                            if i == j:
-                                continue
-                            ratio = max(lp[i], lp[j]) / max(min(lp[i], lp[j]), 1e-6)
-                            if abs(1200.0 * math.log2(ratio / max(1, round(ratio)))) > 50.0:
-                                non_harm = True
-                        if non_harm or len(lp) == 1:
-                            cnt += 1
-                    chord_peak_count = max(0, cnt if len(lp) >= 2 else 0)
-                    if len(lp) >= 2:
-                        # count peaks that have at least one non-harmonic partner
-                        chord_peak_count = sum(
-                            1 for i in range(len(lp))
-                            if any(
-                                abs(1200.0 * math.log2((max(lp[i], lp[j]) / max(min(lp[i], lp[j]), 1e-6)) / max(1, round(max(lp[i], lp[j]) / max(min(lp[i], lp[j]), 1e-6))))) > 50.0
-                                for j in range(len(lp)) if i != j
-                            )
+
+                    def _is_f0_partial(freq: float) -> bool:
+                        k = round(freq / med_f0)
+                        return 1 <= k <= 8 and abs(1200.0 * math.log2(freq / (k * med_f0))) <= 45.0
+
+                    def _clash(a: float, b: float) -> bool:
+                        if _is_f0_partial(a) and _is_f0_partial(b):
+                            return False  # même fondamental = consonance native (ex. 808 saturée)
+                        ratio = max(a, b) / max(min(a, b), 1e-6)
+                        return abs(1200.0 * math.log2(ratio / max(1, round(ratio)))) > 50.0
+
+                    chord_peak_count = (
+                        sum(
+                            1
+                            for i in range(len(lp))
+                            if any(_clash(lp[i], lp[j]) for j in range(len(lp)) if i != j)
                         )
+                        if len(lp) >= 2
+                        else 0
+                    )
     except Exception:
         pass
 

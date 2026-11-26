@@ -20,8 +20,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import sys
 import time
 from typing import Any
@@ -171,16 +173,53 @@ def _suggest_prep_recipes(
     return recipes
 
 
-def _scan_project_audio(project_dir: str) -> tuple[list[tuple[str, str, str]], list[dict[str, str]]]:
-    """Return (found [(abs, rel, origin)], skipped [{path, reason}]) inside `<proj>/Samples/` and `<proj>/samples/`.
+_SPECIFIC_CAT_RANK: dict[str, int] = {
+    "808": 10, "kick": 10, "snare": 10, "clap": 10, "hat": 10, "open_hat": 10,
+    "perc": 9, "piano": 10, "guitar": 10, "bass": 10, "pad": 9, "synth": 8,
+    "vocal": 8, "fx": 7, "loop": 6, "other": 1, "sfz": 1,
+}
+_DUP_SUFFIX_RE = re.compile(r"(?:-\d+|_copy\d*)\.[^.]+$", re.IGNORECASE)
+
+
+def _content_fingerprint(path: str) -> str:
+    """Hash rapide du contenu (64 Ko + taille totale) pour dédoublonner les copies (F9)."""
+    h = hashlib.sha256()
+    try:
+        st = os.stat(path)
+        h.update(str(st.st_size).encode("ascii"))
+        with open(path, "rb") as fh:
+            h.update(fh.read(65536))
+        return h.hexdigest()[:24]
+    except Exception:
+        return os.path.realpath(path)
+
+
+def _path_specificity_key(abs_p: str, rel_p: str, origin: str) -> tuple[int, int, int, int, str]:
+    """Clé de tri décroissante : garde le dossier spécifique (`kick/` > `other/`),
+    l'original utilisateur avant les dérivés, et le nom sans suffixe `-2.wav`."""
+    parts = [p.lower() for p in os.path.normpath(rel_p).replace("\\", "/").split("/")]
+    folder_cat = parts[-2] if len(parts) >= 2 else "other"
+    if folder_cat == "synth-samples":
+        folder_cat = "synth"
+    cat_rank = _SPECIFIC_CAT_RANK.get(folder_cat, 2)
+    origin_rank = 2 if origin == "user_original" else 1
+    no_dup_suffix = 0 if _DUP_SUFFIX_RE.search(os.path.basename(abs_p)) else 1
+    return (cat_rank, origin_rank, no_dup_suffix, -len(os.path.basename(abs_p)), rel_p)
+
+
+def _scan_project_audio(project_dir: str) -> tuple[list[tuple[str, str, str]], list[dict[str, str]], int]:
+    """Return (found [(abs, rel, origin)], skipped [{path, reason}], deduplicated_count)
+    inside `<proj>/Samples/` and `<proj>/samples/`.
 
     v3.1 ASSET-05: filtre `asset_hygiene.is_audio_file_safe` (whitelist d'extensions, taille,
     magic bytes) — les fichiers pièges (.wav.zpa, __MACOSX/._*, .DS_Store, Icon\r, < 1 Ko)
     sont rejetés proprement avec une raison, sans stacktrace.
+    v4.2 F9: dédoublonnage par hash de contenu (64 Ko + taille), en conservant le dossier
+    de catégorie le plus spécifique (`kick/` bat `other/`).
     """
     from asset_hygiene import is_audio_file_safe
     abs_proj = os.path.abspath(os.path.expanduser(project_dir))
-    found: list[tuple[str, str, str]] = []
+    raw_found: list[tuple[str, str, str]] = []
     skipped: list[dict[str, str]] = []
     seen_real: set[str] = set()
 
@@ -204,8 +243,25 @@ def _scan_project_audio(project_dir: str) -> tuple[list[tuple[str, str, str]], l
                     continue
                 seen_real.add(real)
                 rel = os.path.relpath(full, abs_proj)
-                found.append((full, rel, origin))
-    return found, skipped
+                raw_found.append((full, rel, origin))
+
+    # Dédoublonnage par contenu (F9) : conserver la meilleure localisation par empreinte
+    best_by_fp: dict[str, tuple[str, str, str]] = {}
+    dedup_count = 0
+    for item in raw_found:
+        fp_hash = _content_fingerprint(item[0])
+        prev = best_by_fp.get(fp_hash)
+        if prev is None:
+            best_by_fp[fp_hash] = item
+        else:
+            dedup_count += 1
+            if _path_specificity_key(*item) > _path_specificity_key(*prev):
+                skipped.append({"path": prev[0], "reason": f"duplicate_of:{item[1]}"})
+                best_by_fp[fp_hash] = item
+            else:
+                skipped.append({"path": item[0], "reason": f"duplicate_of:{prev[1]}"})
+    found = sorted(best_by_fp.values(), key=lambda x: x[1])
+    return found, skipped, dedup_count
 
 
 def index_project_samples(
@@ -224,7 +280,7 @@ def index_project_samples(
     if not os.path.isdir(abs_proj):
         raise FileNotFoundError(f"Project directory not found: {abs_proj}")
 
-    files, skipped_files = _scan_project_audio(abs_proj)
+    files, skipped_files, deduplicated_count = _scan_project_audio(abs_proj)
     use_clap_eff = bool(with_clap and 0 < len(files) < 40)
     anchors = load_semantic_anchors(anchors_path) if use_clap_eff else None
     embedder = None
@@ -258,8 +314,9 @@ def index_project_samples(
             inharmonicity = 0.0
             try:
                 y_m, sr_m = librosa.load(abs_p, sr=22050, mono=True, duration=12.0)
-                spec_m = np.abs(librosa.stft(y_m, n_fft=2048, hop_length=512))
-                fr_m = librosa.fft_frequencies(sr=sr_m, n_fft=2048)
+                n_fft_m = min(2048, max(256, int(len(y_m))))
+                spec_m = np.abs(librosa.stft(y_m, n_fft=n_fft_m, hop_length=max(64, n_fft_m // 4)))
+                fr_m = librosa.fft_frequencies(sr=sr_m, n_fft=n_fft_m)
                 low_ratio = float(np.sum(spec_m[fr_m < 150.0])) / (float(np.sum(spec_m)) + 1e-12)
                 midi_root, octave_corrected = validate_midi_root_octave(
                     midi_root, dsp.get("spectral_centroid_hz"), low_ratio
@@ -365,6 +422,9 @@ def index_project_samples(
                 "centroid_hz": dsp.get("spectral_centroid_hz"),
                 "attack_ms": dsp.get("attack_ms"),
                 "r_harsh": dsp.get("r_harsh"),
+                "roughness": dsp.get("roughness"),
+                "peak_harsh_db": dsp.get("peak_harsh_db"),
+                "crest_factor_db": dsp.get("crest_factor_db"),
                 "low_mid_corr": dsp.get("low_mid_corr"),
                 "phase_corr": dsp.get("phase_corr"),
                 "bark_24": dsp.get("bark_24"),
@@ -386,6 +446,7 @@ def index_project_samples(
         "external_samples_forbidden": has_user_originals,
         "used_clap": bool(embedder is not None),
         "sample_count": len(entries),
+        "deduplicated_count": deduplicated_count,
         "error_count": len(errors),
         "skipped_files": skipped_files,
         "skipped_count": len(skipped_files),

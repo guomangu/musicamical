@@ -205,6 +205,27 @@ def preflight(project_dir: str, haps_path: str = "") -> dict:
     if rep["lead_apex_clamped"] > 0:
         rep["warnings"] = rep.get("warnings", []) + [
             f"lead_apex_clamped={rep['lead_apex_clamped']} (LEAD_APEX_MAX=74, sauts de -12 st possibles aux frontières)"]
+    # §5 Pré-vol sonore 0 rendu (sample_fit_guard + blueprint_safety) si song_blueprint.json présent
+    if isinstance(bp, dict):
+        try:
+            from blueprint_safety import summarize_musical_safety
+            from sample_fit_guard import resolve_catalog_path
+            notes_by_track = {
+                str(tname): [int(ev["pitch"]) for ev in evs if isinstance(ev.get("pitch"), (int, float))]
+                for tname, evs in (tracks or {}).items()
+                if evs
+            }
+            cat = resolve_catalog_path(proj, bp=bp)
+            safety = summarize_musical_safety(bp, catalog_path=cat, notes_by_track=notes_by_track, project_dir=proj)
+            rep["sound_preflight"] = {
+                "ok": safety.get("ok"),
+                "errors": safety.get("errors", 0),
+                "warnings": safety.get("warnings", 0),
+                "catalog": safety.get("catalog"),
+                "issues": safety.get("issues", [])[:10],
+            }
+        except Exception:
+            pass
     return rep
 
 

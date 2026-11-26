@@ -29,6 +29,9 @@
       "acoustic": 5,
       "synth": 7
     },
+    "max_semitone_shift_st_by_role": {
+      "bass_sub": 9
+    },
     "loop_stretch_rate_range": [
       0.88,
       1.14

@@ -211,16 +211,22 @@ choisis sont durs, grinçants ou se masquent entre eux.
 7. **`root_note` des percussions absurde** (pitch détecté d'un one-shot, ex. rimshot à 84 → chaque
    hit pitch-shifté de −40 st = inaudible) : désormais `root_note` = **hauteur notée du kit**
    (kick=36, snare=38, hihat=42, lu dans `score_ir.json`, repli GM).
-9. **Lookup blueprint par rôle seul au rendu** : les 4 pistes drums partagent le rôle `drums`, donc
+8. **Lookup blueprint par rôle seul au rendu** : les 4 pistes drums partagent le rôle `drums`, donc
    `song_builder._default_channels_for_plan` ne retrouvait jamais la piste `$kick`/`$snare` → le sample
    branché dans le blueprint n'atteignait PAS le canal (rendu en `gl.kick`/`gl.snare` malgré tout).
    Correctif : indexation du blueprint par rôle **et par nom** de piste. Lié : les `plugin_params`
    de confort (`pick_gl_plugin` : cutoff ≤ 9 kHz, attaque ≥ 2 ms…) étaient perdus (seul le nom du
    plugin était stocké) → désormais stockés dans le blueprint et appliqués au canal (`cutoff_hz`).
-8. **Volumes inégaux** : sans métriques soundcheck, le gain staging applique un calibrage nominal
+9. **Volumes inégaux** : sans métriques soundcheck, le gain staging applique un calibrage nominal
    **absolu** par rôle (ancre = kick ; chaque piste réglée à `ancre × 10^(offset/40)`, ex. hihat −10 dB,
    pad −8 dB) au lieu d'un décalage borné à ±6 dB qui ne suffisait pas ; le rapport affiche enfin le
    vrai `volume_before` et le statut `NOMINAL_APPLIED`.
+10. **Garde-fou timbral & registre (`scripts/sample_fit_guard.py`, v4.2)** : politique catégorie/nature
+    par rôle (FX interdit sur accords, kick interdit en basse, `inharmonic_bell_or_fx` interdit sur
+    accords/pad/basse), filtre de transposition `S_max` sur les notes réelles (`score_ir.json`),
+    dédoublonnage `perc != hihat`, revalidation automatique après `studio_refine`, purge des anciens
+    `renders/master.wav` si aucun rendu frais n'a eu lieu, et observabilité compacte
+    (`safety=0err/0warn`, `sound_guard=OK|FIXED`, `rej=K` dans le retour/`handoff.txt`).
 
 **Preuves concrètes sur un morceau généré** (blueprint + handoff fournis) : les 8 pistes étaient
 toutes `source_type: "gridline_native"` (`gl.keys`, `gl.fingerbass`, `gl.warmsynth`, `gl.pluck`,

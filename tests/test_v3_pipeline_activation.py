@@ -39,7 +39,7 @@ def _minimal_blueprint() -> dict:
             {"name": "808", "role": "bass", "source_type": "gridline_native", "plugin": "gl.warmsynth", "mixer_track": 2},
             {"name": "Chords", "role": "chords", "source_type": "gridline_native", "plugin": "gl.keys", "mixer_track": 4},
             {"name": "Lead", "role": "lead_melody", "source_type": "gridline_native", "plugin": "gl.pluck", "mixer_track": 6},
-            {"name": "HiHat", "role": "hihat", "source_type": "gridline_native", "plugin": "gl.sampler", "mixer_track": 8},
+            {"name": "HiHat", "role": "hihat", "source_type": "gridline_native", "plugin": "gl.hat", "mixer_track": 8},
         ],
     }
 

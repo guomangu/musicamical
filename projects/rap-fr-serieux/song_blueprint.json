@@ -1,0 +1,178 @@
+{
+  "title": "rap-fr-serieux",
+  "genre": "trap_rap",
+  "mix_profile": "trap_rap",
+  "has_drums": true,
+  "seed": 42,
+  "emotion_vector": {
+    "valence": -0.55,
+    "tension": 0.5,
+    "energy": 0.7,
+    "depth": 0.5
+  },
+  "bpm": 90.0,
+  "time_signature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "key": "A",
+  "harmonic_core": {
+    "key": "A",
+    "mode": "minor",
+    "progression_bars": 1,
+    "chord_progression": [
+      {"bar": 1, "symbol": "Am7", "bass_midi": 33, "voicing_midi": [52, 57, 60, 64], "chord_tones_pc": [9, 0, 4, 7]},
+      {"bar": 2, "symbol": "Fmaj7", "bass_midi": 29, "voicing_midi": [53, 57, 60, 64], "chord_tones_pc": [5, 9, 0, 4]},
+      {"bar": 3, "symbol": "Dm7", "bass_midi": 26, "voicing_midi": [50, 53, 57, 62], "chord_tones_pc": [2, 5, 9, 0]},
+      {"bar": 4, "symbol": "E7", "bass_midi": 28, "voicing_midi": [52, 56, 59, 62], "chord_tones_pc": [4, 8, 11, 2]}
+    ],
+    "motif_cell": {"intervals_from_tonic": [0, 3, 7, 10], "rhythm_beats": [0, 1, 2, 2.5, 3], "apex_midi": 69},
+    "phrase_plan": "A-A'-A''-B",
+    "section_progressions": {
+      "verse": [
+        "i",
+        "VI",
+        "III",
+        "VII"
+      ],
+      "pre_chorus": [
+        "i",
+        "VI",
+        "III",
+        "V"
+      ],
+      "chorus": [
+        "i",
+        "VI",
+        "III",
+        "VII"
+      ],
+      "bridge": [
+        "bVI",
+        "bVII",
+        "i",
+        "V7"
+      ],
+      "outro": [
+        "V7",
+        "i"
+      ]
+    }
+  },
+  "structure": [
+    {
+      "section": "intro",
+      "start_bar": 1,
+      "bars": 4,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 2,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 3,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 4,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 5,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "bridge",
+      "start_bar": 6,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 7,
+      "bars": 8,
+      "energy": 0.7
+    }
+  ],
+  "tracks": [
+    {
+      "name": "Kick",
+      "role": "kick",
+      "source_type": "gridline_native",
+      "mixer_track": 17,
+      "plugin": "gl.kick"
+    },
+    {
+      "name": "Snare",
+      "role": "snare",
+      "source_type": "gridline_native",
+      "mixer_track": 18,
+      "plugin": "gl.snare"
+    },
+    {
+      "name": "HiHat",
+      "role": "hihat",
+      "source_type": "gridline_native",
+      "mixer_track": 19,
+      "plugin": "gl.hat"
+    },
+    {
+      "name": "Bass",
+      "role": "bass",
+      "source_type": "gridline_native",
+      "mixer_track": 20,
+      "plugin": "gl.warmsynth",
+      "archetype": "trap_rap:bass"
+    },
+    {
+      "name": "Chords",
+      "role": "chords",
+      "source_type": "gridline_native",
+      "mixer_track": 21,
+      "plugin": "gl.keys",
+      "archetype": "trap_rap:chords"
+    },
+    {
+      "name": "Lead",
+      "role": "lead",
+      "source_type": "gridline_native",
+      "mixer_track": 22,
+      "plugin": "gl.pluck",
+      "archetype": "trap_rap:lead"
+    },
+    {
+      "name": "Counter",
+      "role": "counter",
+      "source_type": "gridline_native",
+      "mixer_track": 21,
+      "plugin": "gl.fm"
+    },
+    {
+      "name": "FX",
+      "role": "fx",
+      "source_type": "gridline_native",
+      "mixer_track": 22,
+      "plugin": "gl.fm"
+    }
+  ],
+  "phrase_length_bars": 8,
+  "expression_defaults": {
+    "bass_808": {
+      "articulation": "glide_to_next",
+      "glide_ms": 60,
+      "climax_bars": [
+        4,
+        8
+      ]
+    }
+  }
+}

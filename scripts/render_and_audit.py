@@ -344,10 +344,20 @@ def render_and_evaluate(
         try:
             with open(bp_safety_path, encoding="utf-8") as fh:
                 bp_safety_obj = json.load(fh)
-            cat_path = os.path.join(proj_dir, "samples_catalog.json")
+            bp_dict = bp_safety_obj if isinstance(bp_safety_obj, dict) else {}
+            try:
+                from sample_fit_guard import notes_by_track_from_score_ir, resolve_catalog_path
+                cat_path = resolve_catalog_path(proj_dir, bp=bp_dict)
+                notes_by_track = notes_by_track_from_score_ir(proj_dir) or None
+            except Exception:
+                _c0 = os.path.join(proj_dir, "samples_catalog.json")
+                cat_path = _c0 if os.path.isfile(_c0) else None
+                notes_by_track = None
             musical_safety = summarize_musical_safety(
-                bp_safety_obj if isinstance(bp_safety_obj, dict) else {},
-                catalog_path=cat_path if os.path.isfile(cat_path) else None,
+                bp_dict,
+                catalog_path=cat_path,
+                notes_by_track=notes_by_track,
+                project_dir=proj_dir,
             )
             musical_safety["blueprint"] = bp_safety_path
         except Exception as exc:

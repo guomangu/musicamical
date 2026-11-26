@@ -150,6 +150,25 @@ def write_handoff(project_dir: str, report: dict[str, Any]) -> str:
                    f" (0 rendu: scripts/preflight_strudel_gate.py <projet>)")
     else:
         pf_line = "preflight=n/a"
+    sg_line = ""
+    sg = report.get("sound_guard") or (report.get("palette") or {}).get("sound_guard")
+    if isinstance(sg, dict) and sg.get("summary_line"):
+        sg_line = str(sg["summary_line"])[:160]
+    elif isinstance(sg, str) and sg:
+        sg_line = sg[:160]
+    ms = report.get("musical_safety") or (report.get("palette") or {}).get("musical_safety")
+    ms_line = (
+        f"safety={ms.get('errors', 0)}err/{ms.get('warnings', 0)}warn"
+        if isinstance(ms, dict) and "errors" in ms
+        else ""
+    )
+    master_line = (
+        "master=renders/master.wav"
+        if report.get("master")
+        else ("master=STALE (ancien fichier present, rendu non effectue)"
+              if report.get("master_stale")
+              else "master=n/a (gridline absent ou auto_master off)")
+    )
     lines = [
         f"HANDOFF v4 {os.path.basename(proj)}",
         f"strudel=composition.strudel#{sha} seed={report.get('seed', '?')}",
@@ -158,10 +177,11 @@ def write_handoff(project_dir: str, report: dict[str, Any]) -> str:
         f"eval_passed={ev.get('passed')} compile_passed={(report.get('compile') or {}).get('passed')} fc_passed={fc.get('passed')}",
         f"guards={json.dumps(report.get('guards', {}), separators=(',', ':'))}",
         pf_line,
-        _palette_line(report),
+        _palette_line(report) + (f" {ms_line}" if ms_line else ""),
+        *([sg_line] if sg_line else []),
         *(["!! RESTART session agent : prod_server.py a changé depuis le démarrage du serveur MCP -> fermer/rouvrir la session (Zed/Antigravity)"] if report.get("stale_server") else []),
         "score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json",
-        f"master={'renders/master.wav' if report.get('master') else 'n/a (gridline absent ou auto_master off)'}",
+        master_line,
         "next: studio_refine(delta_json=...) ou strudel_patch={{\"replace_track\":\"lead\",\"code\":\"...\"}}",
     ]
     text = "\n".join(lines)
@@ -182,6 +202,8 @@ def _palette_line(report: dict[str, Any]) -> str:
     n_avail = pal.get("n_tracks_with_available_samples")
     n_s = pal.get("n_samples", 0)
     line = f"palette={pal.get('palette_id', '?')} samples={n_s}/{n_avail if n_avail else n_s}"
+    if pal.get("n_excluded"):
+        line += f" rej={int(pal['n_excluded'])}"
     if pal.get("fallback_gate") and pal["fallback_gate"] != "PASS":
         fb = pal.get("fallback_tracks") or []
         names = ",".join(str(f.get("track")) for f in fb[:5])
@@ -372,52 +394,90 @@ _SLOT_FOR = {"kick": "kick", "snare": "snare_clap", "clap": "snare_clap", "hihat
 
 
 def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
-    """v4.1 — branche les VRAIS samples de l'index sur les pistes du blueprint, quel que soit
+    """v4.2 — branche les VRAIS samples de l'index sur les pistes du blueprint, quel que soit
     `palette_id` ("auto" = meilleure palette ; sinon la palette demandée, repli meilleure).
-    Interroge l'index (`samples.db` global + `Samples/`/`samples/` du projet) via
-    `propose_palettes` (gate d'agréabilité appliqué) et préfère la palette qui embarque le
-    PLUS de samples réels — un morceau doit utiliser les sons fournis, pas retomber sur les
-    synthés `gl.*`. Repli `gl.*` par archetype (`pick_gl_plugin`) piste par piste sinon.
-    0 token, jamais bloquant."""
-    out = {"palette_id": palette_id, "resolved": False}
+    - Scénario B (dossier `Samples/`/`samples/` projet ou `PROJECT_SAMPLES_DIR`) : verrouillé.
+    - Scénario A (aucun dossier projet) : interroge `samples.db` (global) sans verrouiller
+      faussement la banque racine, avec repli `<racine>/samples` si la DB est vide.
+    - F3 : transmet `note_ranges` (depuis `score_ir.json`) à `propose_palettes`.
+    - F6 : affectation de fichier unique par piste (`perc != hihat`, préférence `perc/`).
+    - Garde finale `enforce_blueprint_sample_fit` (remplace par alternative saine -> `gl.*`,
+      0 blocage) + `summarize_musical_safety` (0 token).
+    """
+    out: dict[str, Any] = {"palette_id": palette_id, "resolved": False}
     try:
         index_dir = os.path.join(ROOT, "mcp-servers", "audio-index")
         if index_dir not in sys.path:
             sys.path.insert(0, index_dir)
+        from audit_project_sources import sample_fallback_gate
+        from blueprint_safety import summarize_musical_safety
         from indexer import DEFAULT_DB_PATH, reroute_sample_path
         from palette_builder import propose_palettes
+        from sample_fit_guard import (
+            cached_note_ranges_and_catalog,
+            enforce_blueprint_sample_fit,
+            infer_sample_category,
+            resolve_catalog_path,
+        )
         from timbre_pleasantness import pick_gl_plugin, pleasantness_gate
+
+        try:
+            from env_loader import load_dotenv
+            load_dotenv()
+        except Exception:
+            pass
+
+        # Scénario B (verrouillé) uniquement si l'utilisateur a fourni un dossier Samples/ projet
+        # ou un PROJECT_SAMPLES_DIR explicite (§5). La banque racine `<racine>/samples` n'est plus
+        # verrouillée comme projet : Scénario A interroge d'abord `samples.db`.
         proj_samples = None
+        user_locked = False
         for cand in (os.path.join(proj, "Samples"), os.path.join(proj, "samples")):
             if os.path.isdir(cand):
                 proj_samples = cand
+                user_locked = True
                 break
         if proj_samples is None:
-            # Dossier de samples utilisateur configuré dans l'environnement (.env :
-            # AI_STUDIO_SAMPLES_DIR / PROJECT_SAMPLES_DIR) puis banque racine
-            # `<racine>/samples` (DEFAULT_SAMPLES_DIR) — ne jamais laisser
-            # project_samples_dir à null si un répertoire valide existe.
-            try:
-                from env_loader import load_dotenv
-                load_dotenv()
-            except Exception:
-                pass
-            for env_dir in (os.environ.get("PROJECT_SAMPLES_DIR"), os.environ.get("AI_STUDIO_SAMPLES_DIR")):
-                if env_dir and os.path.isdir(os.path.expanduser(env_dir)):
-                    proj_samples = os.path.expanduser(env_dir)
-                    break
-        if proj_samples is None:
-            root_samples = os.path.join(ROOT, "samples")
-            if os.path.isdir(root_samples):
-                proj_samples = root_samples
-        res = propose_palettes(
+            env_proj = os.environ.get("PROJECT_SAMPLES_DIR")
+            if env_proj and os.path.isdir(os.path.expanduser(env_proj)):
+                proj_samples = os.path.expanduser(env_proj)
+                user_locked = True
+
+        # F3 : calculer les plages de notes réelles depuis score_ir.json (avec cache léger §5)
+        cached = cached_note_ranges_and_catalog(proj, bp=bp, slot_for=_SLOT_FOR)
+        notes_by_track = cached["notes_by_track"]
+        note_ranges = cached["note_ranges"]
+
+        common_kw = dict(
             mix_profile=str(bp.get("mix_profile") or "trap_rap"),
             emotion_vector=bp.get("emotion_vector") or {},
             target_key=f"{bp.get('key', 'C')} {bp.get('harmonic_core', {}).get('mode', 'minor')}",
-            project_samples_dir=proj_samples,
             db_path=DEFAULT_DB_PATH,
             bpm=float(bp.get("bpm") or 0) or None,
+            note_ranges=note_ranges or None,
+            include_pool=True,
         )
+        if proj_samples is not None:
+            res = propose_palettes(project_samples_dir=proj_samples, user_samples_locked=user_locked, **common_kw)
+        else:
+            res = propose_palettes(project_samples_dir=None, user_samples_locked=False, **common_kw)
+            # Repli automatique vers AI_STUDIO_SAMPLES_DIR / <racine>/samples si samples.db est vide/absent
+            has_db_samples = any(
+                s.get("source_type") in ("sample", "project_sample") and s.get("filepath")
+                for p in (res.get("palettes") or [])
+                for s in (p.get("slots") or [])
+            )
+            if not has_db_samples:
+                fallback_dir = None
+                env_sdir = os.environ.get("AI_STUDIO_SAMPLES_DIR")
+                if env_sdir and os.path.isdir(os.path.expanduser(env_sdir)):
+                    fallback_dir = os.path.expanduser(env_sdir)
+                elif os.path.isdir(os.path.join(ROOT, "samples")):
+                    fallback_dir = os.path.join(ROOT, "samples")
+                if fallback_dir:
+                    proj_samples = fallback_dir
+                    res = propose_palettes(project_samples_dir=fallback_dir, user_samples_locked=False, **common_kw)
+
         pals = res.get("palettes") or []
         if not pals:
             out["reason"] = "no_palette"
@@ -436,87 +496,214 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
             chosen = max(pals, key=_rank)
         slots = chosen.get("slots") or []
         role_to_slot = {str(s.get("role")): s for s in slots}
+        candidate_pool: dict[str, list[dict[str, Any]]] = res.get("candidate_pool") or {}
         valence = float((bp.get("emotion_vector") or {}).get("valence", 0.0))
         prof = str(bp.get("mix_profile") or "trap_rap")
+
         # Hauteurs notées des pistes (score_ir.json) : pour les PERCUSSIONS, root_note = hauteur
         # notée du kit (kick=36, snare=38, hihat=42...) et PAS le pitch détecté du one-shot
-        # (ex. rimshot détecté à 84 -> pitch-shift de -40 st = son inaudible)
         notated: dict[str, int] = {}
-        sir_path = os.path.join(proj, "score_ir.json")
-        if os.path.isfile(sir_path):
-            try:
-                with open(sir_path, encoding="utf-8") as fh:
-                    sir = json.load(fh)
-                for tname, t in (sir.get("tracks") or {}).items():
-                    ps = [int(n.get("pitch")) for n in (t.get("notes") or [])
-                          if isinstance(n.get("pitch"), (int, float)) and not isinstance(n.get("pitch"), bool)]
-                    if ps:
-                        notated[str(tname).lower()] = max(set(ps), key=ps.count)
-            except Exception:
-                notated = {}
+        for tname, ps in notes_by_track.items():
+            if ps:
+                notated[str(tname).lower()] = max(set(ps), key=ps.count)
+
         GM_DRUM = {"kick": 36, "snare": 38, "clap": 39, "hihat": 42, "hat": 42, "perc": 39, "rim": 39}
         PERC_SLOT_ROLES = {"kick", "snare_clap", "hihat_perc"}
-        n_samples = 0
+
+        used_paths: set[str] = set()
+
+        def _pick_unique_from_pool(slot_role: str, track_key: str) -> dict[str, Any] | None:
+            pool_cands = list(candidate_pool.get(slot_role) or [])
+            if track_key in ("perc", "rim"):
+                pool_cands.sort(
+                    key=lambda c: (
+                        0 if infer_sample_category(c.get("category"), c.get("filepath")) == "perc" else 1,
+                        -(float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4),
+                    )
+                )
+            elif track_key in ("hihat", "hat", "open_hat"):
+                pool_cands.sort(
+                    key=lambda c: (
+                        0 if infer_sample_category(c.get("category"), c.get("filepath")) in ("hat", "open_hat") else 1,
+                        -(float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4),
+                    )
+                )
+            for c in pool_cands:
+                if c.get("source_type") not in ("sample", "project_sample"):
+                    continue
+                rp = reroute_sample_path(c.get("filepath"))
+                if not rp:
+                    continue
+                norm = os.path.normpath(os.path.abspath(rp)).lower()
+                if norm in used_paths:
+                    continue
+                if pleasantness_gate({
+                    "r_harsh": c.get("r_harsh"), "roughness": c.get("roughness"),
+                    "peak_harsh_db": c.get("peak_harsh_db"), "comfort_score": c.get("comfort_score"),
+                    "centroid_hz": c.get("centroid_hz"), "crest_factor_db": c.get("crest_factor_db"),
+                    "sample_nature": c.get("sample_nature"), "category": c.get("category"),
+                    "inharmonicity": c.get("inharmonicity"), "filepath": rp,
+                }, slot_role)["verdict"] == "SWAP":
+                    continue
+                copied = dict(c)
+                copied["filepath"] = rp
+                return copied
+            return None
+
         for tr in bp.get("tracks", []):
             role = str(tr.get("role") or "")
             if role == "vocals":
                 continue
             key = str(tr.get("name") or role).lower()
-            slot = role_to_slot.get(_SLOT_FOR.get(key, role))
-            rpath = reroute_sample_path(slot.get("filepath")) if slot else None
-            if (slot and slot.get("source_type") in ("sample", "project_sample") and rpath
-                    and pleasantness_gate({
-                        "r_harsh": slot.get("r_harsh"), "roughness": slot.get("roughness"),
-                        "peak_harsh_db": slot.get("peak_harsh_db"), "comfort_score": slot.get("comfort_score"),
-                        "centroid_hz": slot.get("centroid_hz"), "crest_factor_db": slot.get("crest_factor_db"),
-                    }, str(slot.get("role") or role))["verdict"] != "SWAP"):
-                if role == "drums" or key in GM_DRUM or str(slot.get("role")) in PERC_SLOT_ROLES:
-                    rn = notated.get(key) or GM_DRUM.get(key) or slot.get("midi_root")
+            slot_role = _SLOT_FOR.get(key, role)
+            slot = role_to_slot.get(slot_role)
+            chosen_slot = slot
+
+            # F6 : éviter le partage de fichier (ex. perc == hihat) et préférer `hat/` pour hihat, `perc/` pour perc
+            if key in ("perc", "rim", "hihat", "hat", "open_hat") and candidate_pool.get(slot_role):
+                alt_drum = _pick_unique_from_pool(slot_role, key)
+                if alt_drum is not None:
+                    chosen_slot = alt_drum
+
+            rpath = reroute_sample_path(chosen_slot.get("filepath")) if chosen_slot else None
+            if rpath and os.path.normpath(os.path.abspath(rpath)).lower() in used_paths:
+                alt = _pick_unique_from_pool(slot_role, key)
+                if alt is not None:
+                    chosen_slot = alt
+                    rpath = alt["filepath"]
                 else:
-                    rn = slot.get("midi_root")
+                    chosen_slot = None
+                    rpath = None
+
+            if (chosen_slot and chosen_slot.get("source_type") in ("sample", "project_sample") and rpath
+                    and pleasantness_gate({
+                        "r_harsh": chosen_slot.get("r_harsh"), "roughness": chosen_slot.get("roughness"),
+                        "peak_harsh_db": chosen_slot.get("peak_harsh_db"), "comfort_score": chosen_slot.get("comfort_score"),
+                        "centroid_hz": chosen_slot.get("centroid_hz"), "crest_factor_db": chosen_slot.get("crest_factor_db"),
+                        "sample_nature": chosen_slot.get("sample_nature"), "category": chosen_slot.get("category"),
+                        "inharmonicity": chosen_slot.get("inharmonicity"), "filepath": rpath,
+                    }, str(chosen_slot.get("role") or slot_role))["verdict"] != "SWAP"):
+                if role == "drums" or key in GM_DRUM or str(chosen_slot.get("role")) in PERC_SLOT_ROLES:
+                    rn = notated.get(key) or GM_DRUM.get(key) or chosen_slot.get("midi_root")
+                else:
+                    rn = chosen_slot.get("midi_root")
                 if rn is None:
-                    # pas de root_note fiable pour un rôle tonal -> synthé (schéma valide garanti)
+                    pg = pick_gl_plugin(key, prof, valence)
                     tr["source_type"] = "gridline_native"
-                    tr["plugin"] = pick_gl_plugin(key, prof, valence)["plugin"]
+                    tr["plugin"] = pg["plugin"]
+                    if pg.get("params"):
+                        tr["plugin_params"] = pg["params"]
+                    for stale_k in ("sample_path", "root_note", "fine_tune_ct"):
+                        tr.pop(stale_k, None)
                     continue
                 tr["source_type"] = "sample"
                 tr["sample_path"] = rpath
                 tr["plugin"] = "gl.sampler"
                 tr["root_note"] = int(max(0, min(127, int(rn))))
-                if slot.get("recommended_fine_tune_ct"):
-                    tr["fine_tune_ct"] = int(slot["recommended_fine_tune_ct"])
-                n_samples += 1
+                if chosen_slot.get("recommended_fine_tune_ct"):
+                    tr["fine_tune_ct"] = int(chosen_slot["recommended_fine_tune_ct"])
+                else:
+                    tr.pop("fine_tune_ct", None)
+                used_paths.add(os.path.normpath(os.path.abspath(rpath)).lower())
             else:
                 pg = pick_gl_plugin(key, prof, valence)
                 tr["source_type"] = "gridline_native"
                 tr["plugin"] = pg["plugin"]
                 if pg.get("params"):
                     tr["plugin_params"] = pg["params"]  # cutoff/ADSR bornés, appliqués au rendu
-        # Garde-fou anti-fallback-silencieux (chantier P0) : gate vérifiable, jamais un
-        # statut vert silencieux quand la majorité des pistes retombe sur gridline_native.
-        from audit_project_sources import sample_fallback_gate
+                for stale_k in ("sample_path", "root_note", "fine_tune_ct"):
+                    tr.pop(stale_k, None)
+
+        # Garde finale (F3/F4/F5/F6) : vérifie cohérence complète du blueprint, substitue sinon gl.*
+        cat_path = resolve_catalog_path(proj, bp={"palette": {"project_samples_dir": proj_samples}})
+        guard_rep = enforce_blueprint_sample_fit(
+            bp,
+            notes_by_track=notes_by_track,
+            catalog_path=cat_path,
+            pool_by_role=candidate_pool,
+            valence=valence,
+            mix_profile=prof,
+            slot_for=_SLOT_FOR,
+            write_diag_dir=proj,
+        )
+
+        n_samples = sum(
+            1 for tr in (bp.get("tracks") or [])
+            if isinstance(tr, dict) and tr.get("source_type") in ("sample", "loop") and tr.get("sample_path")
+        )
+        safety_rep = summarize_musical_safety(
+            bp, catalog_path=cat_path, notes_by_track=notes_by_track or None, project_dir=proj
+        )
+        s_max_violations = sum(
+            1 for iss in (safety_rep.get("issues") or [])
+            if iss.get("code") == "max_semitone_shift_exceeded"
+        )
+
+        # Garde-fou anti-fallback-silencieux (P0 + F8)
         allow_fallback = str(os.environ.get("ALLOW_SYNTH_FALLBACK", "")).lower() in ("1", "true", "yes")
-        gate_res = sample_fallback_gate(bp, {"slots": chosen.get("slots") or []}, slot_for=_SLOT_FOR,
-                                        min_ratio=0.7, allow_override=allow_fallback)
-        gate_res["n_samples"] = n_samples  # comptage réel appliqué au blueprint
-        gate_res["sample_coverage_ratio"] = round((n_samples / gate_res["n_tracks_with_available_samples"])
-                                                  if gate_res["n_tracks_with_available_samples"] else 1.0, 3)
-        gate_res["passed"] = bool(gate_res["passed"] or allow_fallback or gate_res["n_tracks_with_available_samples"] == 0)
+        gate_res = sample_fallback_gate(
+            bp,
+            {"slots": chosen.get("slots") or []},
+            slot_for=_SLOT_FOR,
+            min_ratio=0.7,
+            allow_override=allow_fallback,
+            s_max_violations=s_max_violations,
+        )
+        gate_res["n_samples"] = n_samples
+        gate_res["sample_coverage_ratio"] = round(
+            (n_samples / gate_res["n_tracks_with_available_samples"])
+            if gate_res["n_tracks_with_available_samples"] else 1.0,
+            3,
+        )
+        ratio_pass = bool(gate_res["passed"] or allow_fallback or gate_res["n_tracks_with_available_samples"] == 0)
+        gate_res["passed"] = bool(ratio_pass and s_max_violations <= 1)
         gate_res["gate"] = "PASS" if gate_res["passed"] else "FAIL"
         fallback_tracks = gate_res["fallback_tracks"]
-        bp["palette"] = {"palette_id": chosen.get("palette_id"), "score": chosen.get("score"),
-                         "theme": chosen.get("theme"), "n_samples": n_samples,
-                         "n_tracks_with_available_samples": gate_res["n_tracks_with_available_samples"],
-                         "sample_coverage_ratio": gate_res["sample_coverage_ratio"],
-                         "fallback_gate": gate_res["gate"],
-                         "fallback_tracks": fallback_tracks,
-                         "selection_trace": res.get("selection_trace"),
-                         "timbre_coherence": chosen.get("timbre_coherence"),
-                         "project_samples_dir": proj_samples}
-        out.update({"resolved": True, "palette_id": chosen.get("palette_id"),
-                    "n_samples": n_samples, "n_tracks_with_available_samples": gate_res["n_tracks_with_available_samples"],
-                    "sample_coverage_ratio": gate_res["sample_coverage_ratio"], "fallback_gate": gate_res["gate"],
-                    "fallback_tracks": fallback_tracks, "theme": chosen.get("theme")})
+        sel_trace = res.get("selection_trace") or {}
+        n_excluded = int(sel_trace.get("total_excluded") or 0)
+        ms_compact = {
+            "ok": safety_rep.get("ok"),
+            "errors": safety_rep.get("errors", 0),
+            "warnings": safety_rep.get("warnings", 0),
+            "catalog": safety_rep.get("catalog"),
+            "catalog_missing": safety_rep.get("catalog_missing", False),
+        }
+        sg_compact = {
+            "status": guard_rep["status"],
+            "n_fixed": guard_rep["n_fixed"],
+            "summary_line": guard_rep["summary_line"],
+        }
+        bp["palette"] = {
+            "palette_id": chosen.get("palette_id"),
+            "score": chosen.get("score"),
+            "quality_score": chosen.get("quality_score", chosen.get("score")),
+            "sample_ratio": chosen.get("sample_ratio"),
+            "theme": chosen.get("theme"),
+            "n_samples": n_samples,
+            "n_tracks_with_available_samples": gate_res["n_tracks_with_available_samples"],
+            "sample_coverage_ratio": gate_res["sample_coverage_ratio"],
+            "fallback_gate": gate_res["gate"],
+            "fallback_tracks": fallback_tracks,
+            "selection_trace": sel_trace,
+            "timbre_coherence": chosen.get("timbre_coherence"),
+            "project_samples_dir": proj_samples,
+            "user_samples_locked": user_locked,
+            "sound_guard": sg_compact,
+            "musical_safety": ms_compact,
+        }
+        out.update({
+            "resolved": True,
+            "palette_id": chosen.get("palette_id"),
+            "n_samples": n_samples,
+            "n_tracks_with_available_samples": gate_res["n_tracks_with_available_samples"],
+            "sample_coverage_ratio": gate_res["sample_coverage_ratio"],
+            "fallback_gate": gate_res["gate"],
+            "fallback_tracks": fallback_tracks,
+            "theme": chosen.get("theme"),
+            "n_excluded": n_excluded,
+            "sound_guard": sg_compact,
+            "musical_safety": ms_compact,
+        })
     except Exception as exc:
         out["error"] = str(exc)[:200]
     return out
@@ -556,6 +743,11 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
     # v4.1 : résolution de palette SYSTÉMATIQUE — branche les vrais samples de l'index
     # (samples.db + Samples/ projet) sur les pistes, quel que soit palette_id ("auto" = meilleure)
     report["palette"] = _resolve_palette(proj, bp, palette_id)
+    if isinstance(report["palette"], dict):
+        if report["palette"].get("sound_guard"):
+            report["sound_guard"] = report["palette"]["sound_guard"]
+        if report["palette"].get("musical_safety"):
+            report["musical_safety"] = report["palette"]["musical_safety"]
     import jsonschema
     with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
         jsonschema.validate(bp, json.load(fh))
@@ -590,6 +782,26 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
                                    capture_output=True, text=True, timeout=1800)
             master = os.path.join(proj, "renders", "master.wav") if rproc.returncode == 0 else None
             report["render"] = {"ok": rproc.returncode == 0}
+
+    # F10 : si aucun rendu frais n'a eu lieu, purger les anciens renders/master.wav* périmés
+    # pour éviter d'écouter un faux master d'une session ou source précédente.
+    if master is None:
+        renders_dir = os.path.join(proj, "renders")
+        stale_candidates = [
+            os.path.join(renders_dir, "master.wav"),
+            os.path.join(renders_dir, "master.wav.origin.json"),
+            os.path.join(renders_dir, "master.mp3"),
+        ]
+        stale_left = False
+        for sp in stale_candidates:
+            if os.path.isfile(sp):
+                try:
+                    os.remove(sp)
+                except OSError:
+                    stale_left = True
+        if stale_left or os.path.isfile(os.path.join(renders_dir, "master.wav")):
+            report["master_stale"] = True
+
     report["master"] = master
     report["handoff"] = write_handoff(proj, report)
     return report
@@ -599,10 +811,11 @@ def refine_project(project_dir: str, delta_json: dict | None = None, strudel_pat
                    semantic_patch: dict | None = None, export_mp3: bool = True) -> dict[str, Any]:
     """Tour 3b quasi gratuit : delta_json (mix), strudel_patch (2-4 lignes Strudel),
     ou v4.1 semantic_patch micro-tokens sur le ScoreIR ({"lead": {"oct": -1, "rests": "+15%"}},
-    {"section": "chorus", "ops": {"energy": "+2dB"}}), puis handoff.txt."""
+    {"section": "chorus", "ops": {"energy": "+2dB"}}), puis revalidation sonore (F11) + handoff.txt."""
     proj = os.path.abspath(os.path.expanduser(project_dir))
     report: dict[str, Any] = {"ok": True, "project_dir": proj}
     strudel_path = os.path.join(proj, "composition.strudel")
+    notes_changed = False
     if strudel_patch:
         if not os.path.isfile(strudel_path):
             return {"ok": False, "stage": "no_strudel", "error": strudel_path}
@@ -611,6 +824,7 @@ def refine_project(project_dir: str, delta_json: dict | None = None, strudel_pat
         try:
             rep = _run_bridge(proj)
             report.update({k: rep.get(k) for k in ("ok", "n_tracks", "n_notes", "guards", "evaluate", "compile", "full_coverage", "sections", "seed")})
+            notes_changed = True
         except RuntimeError as exc:
             return {"ok": False, "stage": "lint", "error": str(exc)[-240:]}
     if semantic_patch:
@@ -619,6 +833,53 @@ def refine_project(project_dir: str, delta_json: dict | None = None, strudel_pat
         report["semantic_patch"] = patch_result
         if not patch_result.get("ok"):
             return report
+        notes_changed = True
+
+    # F11 : après tout patch modifiant les notes/registres, revalider le blueprint avec
+    # enforce_blueprint_sample_fit (évite un S_max hors cap après `lead oct +1` par ex.)
+    bp_path = os.path.join(proj, "song_blueprint.json")
+    if notes_changed and os.path.isfile(bp_path):
+        try:
+            from blueprint_safety import summarize_musical_safety
+            from sample_fit_guard import (
+                enforce_blueprint_sample_fit,
+                notes_by_track_from_score_ir,
+                resolve_catalog_path,
+            )
+            with open(bp_path, encoding="utf-8") as fh:
+                bp = json.load(fh)
+            notes_by_track = notes_by_track_from_score_ir(proj)
+            cat_path = resolve_catalog_path(proj, bp=bp)
+            guard_rep = enforce_blueprint_sample_fit(
+                bp,
+                notes_by_track=notes_by_track,
+                catalog_path=cat_path,
+                slot_for=_SLOT_FOR,
+                write_diag_dir=proj,
+            )
+            safety_rep = summarize_musical_safety(
+                bp, catalog_path=cat_path, notes_by_track=notes_by_track or None, project_dir=proj
+            )
+            report["sound_guard"] = {
+                "status": guard_rep["status"],
+                "n_fixed": guard_rep["n_fixed"],
+                "summary_line": guard_rep["summary_line"],
+            }
+            report["musical_safety"] = {
+                "ok": safety_rep.get("ok"),
+                "errors": safety_rep.get("errors", 0),
+                "warnings": safety_rep.get("warnings", 0),
+                "catalog": safety_rep.get("catalog"),
+            }
+            if guard_rep["n_fixed"] > 0:
+                if isinstance(bp.get("palette"), dict):
+                    bp["palette"]["sound_guard"] = report["sound_guard"]
+                    bp["palette"]["musical_safety"] = report["musical_safety"]
+                with open(bp_path, "w", encoding="utf-8") as fh:
+                    json.dump(bp, fh, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            report["sound_guard_error"] = str(exc)[:120]
+
     if delta_json:
         with open(os.path.join(proj, "refine_delta.json"), "w", encoding="utf-8") as fh:
             json.dump(delta_json, fh, ensure_ascii=False, indent=2)
@@ -641,14 +902,22 @@ def _summarize(report: dict[str, Any], limit: int = 400) -> str:
     parts = [
         f"OK tracks={report.get('n_tracks', '?')} notes={report.get('n_notes', '?')}",
         f"seed={report.get('seed', '?')}",
-        f"guards={json.dumps(report.get('guards', {}), separators=(',', ':'))[:120]}",
+        f"guards={json.dumps(report.get('guards', {}), separators=(',', ':'))[:100]}",
         f"eval={ (report.get('evaluate') or {}).get('passed') } fc={(report.get('full_coverage') or {}).get('passed')}",
     ]
     pf = report.get("preflight") or {}
     if pf.get("checks"):
         parts.append(f"gate={'PASS' if pf.get('passed') else 'FAIL'} gf={pf['checks'].get('gap_fill', {}).get('value')} sw={pf['checks'].get('stepwise_ratio', {}).get('value')} rest={pf['checks'].get('rest_ratio', {}).get('value')}")
+    ms = report.get("musical_safety") or (report.get("palette") or {}).get("musical_safety")
+    if isinstance(ms, dict) and "errors" in ms:
+        parts.append(f"safety={ms.get('errors', 0)}err/{ms.get('warnings', 0)}warn")
+    sg = report.get("sound_guard") or (report.get("palette") or {}).get("sound_guard")
+    if isinstance(sg, dict) and sg.get("status"):
+        parts.append(f"guard={sg['status']}" + (f"({sg.get('n_fixed', 0)})" if sg.get("n_fixed") else ""))
     if report.get("master"):
         parts.append("master=renders/master.wav")
+    elif report.get("master_stale"):
+        parts.append("master=STALE")
     if report.get("patched"):
         parts.append(f"patched=${report['patched']}")
     if report.get("delta_json"):

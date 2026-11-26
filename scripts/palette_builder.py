@@ -445,17 +445,24 @@ def _load_project_candidates(
                 continue
             if _trace is not None:
                 _trace["per_role"][role]["n_in"] += 1
+            from sample_fit_guard import infer_sample_category
             by_role[role].append({
                 "id": s["filepath"],
                 "role": role,
                 "source_type": "project_sample",
                 "filepath": s["filepath"],
+                "category": infer_sample_category(s.get("category"), s["filepath"]),
+                "sample_nature": s.get("sample_nature"),
                 "plugin": "gl.sampler",
                 "theme": "organic",
                 "role_score": round(r_sc, 4),
                 "comfort_score": float(s.get("comfort_score", 0.8)),
                 "centroid_hz": float(s.get("centroid_hz") or 1000.0),
                 "attack_ms": float(s.get("attack_ms") or 15.0),
+                "r_harsh": s.get("r_harsh"),
+                "roughness": s.get("roughness"),
+                "peak_harsh_db": s.get("peak_harsh_db"),
+                "crest_factor_db": s.get("crest_factor_db"),
                 "detected_note": s.get("detected_note"),
                 "midi_root": s.get("midi_root"),
                 "recommended_fine_tune_ct": int(s.get("recommended_gl_fine_tune_ct") or 0),
@@ -497,7 +504,7 @@ def _load_sqlite_candidates(
     db_path: str,
     roles: list[str],
     target_key: str,
-    per_role_limit: int = 8,
+    per_role_limit: int = 24,
     bpm: float | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Ultra-fast (< 25 ms) indexed SQLite candidate fetch across all roles (0 PyTorch)."""
@@ -543,6 +550,9 @@ def _load_sqlite_candidates(
             base_clauses.append("COALESCE(d.phase_corr, 1.0) >= 0.70")
         order_expr = role_order_expr.get(role, "-COALESCE(d.r_harsh, 0)")
 
+        # Ne pas couper par un petit LIMIT SQL avant reroute_sample_path : si samples.db
+        # contient d'anciennes entrées mortes (packs déplacés), un LIMIT avant filtrage
+        # affame les rôles réels sur disque. On filtre par existence puis on borne à per_role_limit.
         rows: list[Any] = []
         if cats:
             ph = ",".join("?" for _ in cats)
@@ -561,9 +571,8 @@ def _load_sqlite_candidates(
                 {q2_join}
                 WHERE {' AND '.join(clauses)}
                 ORDER BY ({order_expr}) DESC
-                LIMIT {int(per_role_limit + 4)}
             """
-            rows = conn.execute(sql, list(cats)).fetchall()
+            rows = [r for r in conn.execute(sql, list(cats)).fetchall() if reroute_sample_path(r[1]) is not None]
 
         if len(rows) < 2:
             sql_fb = f"""
@@ -580,9 +589,9 @@ def _load_sqlite_candidates(
                 {q2_join}
                 WHERE {' AND '.join(base_clauses)}
                 ORDER BY ({order_expr}) DESC
-                LIMIT {int(per_role_limit + 4)}
             """
-            rows = conn.execute(sql_fb).fetchall()
+            rows = [r for r in conn.execute(sql_fb).fetchall() if reroute_sample_path(r[1]) is not None]
+        rows = rows[: max(int(per_role_limit) * 3, 60)]
         raw_by_role[role] = rows
         all_ids.extend(int(r[0]) for r in rows)
 
@@ -596,12 +605,35 @@ def _load_sqlite_candidates(
 
     conn.close()
 
+    import hashlib as _hashlib
+    from sample_fit_guard import infer_sample_category
+
+    def _content_fp(fp: str) -> str:
+        try:
+            h = _hashlib.sha256()
+            h.update(str(os.path.getsize(fp)).encode("ascii"))
+            with open(fp, "rb") as _fh:
+                h.update(_fh.read(65536))
+            return h.hexdigest()[:20]
+        except Exception:
+            return os.path.realpath(fp)
+
     for role in roles:
         cands: list[dict[str, Any]] = []
+        seen_real: set[str] = set()
+        seen_fp: set[str] = set()
         for r in raw_by_role[role]:
             rpath = reroute_sample_path(r[1])
             if rpath is None:
                 continue  # fichier absent (ancienne racine / pack supprimé) : jamais sélectionné
+            real_p = os.path.realpath(rpath)
+            if real_p in seen_real:
+                continue
+            cfp = _content_fp(real_p)
+            if cfp in seen_fp:
+                continue  # F9 : dédoublonnage contenu (ex. foo.wav vs foo-2.wav)
+            seen_real.add(real_p)
+            seen_fp.add(cfp)
             r = (r[0], rpath) + tuple(r[2:])
             (
                 sid, path, cat, dur, s_cent,
@@ -688,6 +720,9 @@ def _load_sqlite_candidates(
                 "role": role,
                 "source_type": "sample",
                 "filepath": path,
+                "category": infer_sample_category(cat, path),
+                "sample_nature": nat,
+                "inharmonicity": 0.25 if str(nat or "") == "inharmonic_bell_or_fx" else 0.0,
                 "plugin": "gl.sampler",
                 "theme": theme,
                 "role_score": round(s_role, 4),
@@ -726,7 +761,8 @@ def _build_gl_synth_pool(roles: list[str], valence: float, mix_profile: str = "t
         arch_map[role] = resolve_archetype(mix_profile, role_map.get(role, role), valence=valence)
     for role in roles:
         arch_entry = arch_map.get(role)
-        if arch_entry and arch_entry["plugin"] in SYNTH_REGISTRY:
+        # Jamais injecter gl.sampler (sans fichier) dans le pool de synthés natifs
+        if arch_entry and arch_entry["plugin"] in SYNTH_REGISTRY and arch_entry["plugin"] != "gl.sampler":
             gl_role = {"bass": "bass", "chords": "chords", "lead": "lead"}.get(role_map.get(role, role), "lead")
             ap = arch_entry["params"]
             voice = synth_voice(
@@ -906,11 +942,20 @@ def propose_palettes(
     anchors_path: str = DEFAULT_ANCHORS_NPZ,
     bpm: float | None = None,
     bpm_tolerance: float = 6.0,
+    note_ranges: dict[str, Any] | None = None,
+    include_pool: bool = False,
+    user_samples_locked: bool | None = None,
 ) -> dict[str, Any]:
     """
     Build `num_palettes` (default 3) complementary, conflict-free sound palettes.
     Strictly obeys the project sample exclusivity invariant when `project_samples_dir` is set.
+    v4.2: enforces F3 (`note_ranges` S_max cap), F4 (role category/nature policy),
+    F5 (non-vacuous pleasantness gate + `gate_unmeasured`), F6 (`include_pool` top-8),
+    and F8 (bounded score <= 1.0, hard coherence threshold >= 0.6, conditioned sample-first).
     """
+    from sample_fit_guard import candidate_policy, register_fit
+    from timbre_pleasantness import palette_timbre_coherence, pleasantness_gate
+
     ev = emotion_vector or {"valence": -0.3, "tension": 0.4, "energy": 0.7, "depth": 0.5}
     valence = float(ev.get("valence", 0.0))
 
@@ -924,9 +969,18 @@ def propose_palettes(
         if not eff_roles:
             eff_roles = ["kick", "snare_clap", "hihat_perc", "bass_sub", "chord_keys", "lead_melody"]
 
-    user_locked = bool(project_samples_dir and str(project_samples_dir).strip())
-    selection_trace: dict[str, Any] = {"mode": "project" if user_locked else "db", "roles": {}}
-    if user_locked:
+    has_proj_dir = bool(project_samples_dir and str(project_samples_dir).strip())
+    user_locked = bool(user_samples_locked) if user_samples_locked is not None else has_proj_dir
+    selection_trace: dict[str, Any] = {
+        "mode": "project" if has_proj_dir else "db",
+        "user_samples_locked": user_locked,
+        "roles": {},
+        "policy_excluded": {r: 0 for r in eff_roles},
+        "range_excluded": {r: 0 for r in eff_roles},
+        "pleasantness_excluded": {r: 0 for r in eff_roles},
+        "gate_unmeasured": {r: 0 for r in eff_roles},
+    }
+    if has_proj_dir:
         sample_pool = _load_project_candidates(str(project_samples_dir), eff_roles, target_key=target_key, bpm=bpm,
                                                 trace_out=selection_trace["roles"])
         # Passe 2 (relaxée) : un rôle sans aucun candidat strict récupère les candidats
@@ -939,7 +993,61 @@ def propose_palettes(
                 selection_trace.setdefault("relaxed_roles", []).append(role)
     else:
         sample_pool = _load_sqlite_candidates(db_path, eff_roles, target_key=target_key, bpm=bpm)
+
+    # F3 + F4 + F5 : filtrage politique catégorie/nature, registre joué (S_max), et gate d'agréabilité
+    filtered_sample_pool: dict[str, list[dict[str, Any]]] = {}
+    for role in eff_roles:
+        kept: list[dict[str, Any]] = []
+        rng = (note_ranges or {}).get(role)
+        for cand in sample_pool.get(role, []):
+            pol = candidate_policy(role, cand, valence=valence)
+            if not pol["allowed"]:
+                selection_trace["policy_excluded"][role] += 1
+                continue
+            range_ok = True
+            if role in MELODIC_ROLES and rng:
+                rf = register_fit(cand.get("midi_root"), rng, cand, role=role)
+                if not rf["ok"]:
+                    selection_trace["range_excluded"][role] += 1
+                    continue
+                range_ok = True
+            g = pleasantness_gate({
+                "r_harsh": cand.get("r_harsh"),
+                "roughness": cand.get("roughness"),
+                "peak_harsh_db": cand.get("peak_harsh_db"),
+                "comfort_score": cand.get("comfort_score"),
+                "centroid_hz": cand.get("centroid_hz"),
+                "crest_factor_db": cand.get("crest_factor_db"),
+                "sample_nature": cand.get("sample_nature"),
+                "category": pol["category"],
+                "inharmonicity": cand.get("inharmonicity"),
+                "filepath": cand.get("filepath"),
+            }, role)
+            if g.get("unmeasured"):
+                selection_trace["gate_unmeasured"][role] += 1
+            if g["verdict"] == "SWAP":
+                selection_trace["pleasantness_excluded"][role] += 1
+                continue
+            cand["_policy_tier"] = pol["tier"]
+            cand["_policy_bonus"] = pol["bonus"]
+            cand["_range_ok"] = range_ok
+            cand["_gate_verdict"] = g["verdict"]
+            cand["category"] = pol["category"]
+            kept.append(cand)
+        kept.sort(
+            key=lambda x: (
+                0.55 * x["role_score"] + 0.30 * x["comfort_score"] + float(x.get("_policy_bonus", 0.0))
+            ),
+            reverse=True,
+        )
+        filtered_sample_pool[role] = kept
+    sample_pool = filtered_sample_pool
     selection_trace["n_sample_candidates"] = {r: len(sample_pool.get(r, [])) for r in eff_roles}
+    selection_trace["total_excluded"] = (
+        sum(selection_trace["policy_excluded"].values())
+        + sum(selection_trace["range_excluded"].values())
+        + sum(selection_trace["pleasantness_excluded"].values())
+    )
 
     synth_pool = _build_gl_synth_pool(eff_roles, valence=valence, mix_profile=str(mix_profile or "trap_rap")) if allow_gl_synths else {r: [] for r in eff_roles}
 
@@ -965,6 +1073,66 @@ def propose_palettes(
     palettes_out: list[dict[str, Any]] = []
     used_ids_per_role: dict[str, set[str]] = {r: set() for r in eff_roles}
     n_pal = max(1, min(int(num_palettes), 5))
+    ordered_roles = sorted(
+        eff_roles,
+        key=lambda r: ["kick", "bass_sub", "chord_keys", "pad_atmosphere", "lead_melody", "snare_clap", "hihat_perc"].index(r)
+        if r in ["kick", "bass_sub", "chord_keys", "pad_atmosphere", "lead_melody", "snare_clap", "hihat_perc"]
+        else 99,
+    )
+    target_bpm = float(bpm) if bpm else None
+
+    def _greedy_select(pref_theme: str, lam_overlap_eff: float) -> tuple[list[dict[str, Any]], list[str]]:
+        chosen_l: list[dict[str, Any]] = []
+        missing_l: list[str] = []
+        for role in ordered_roles:
+            cands = combined_pool.get(role, [])
+            if not cands:
+                missing_l.append(role)
+                continue
+            best_cand = None
+            best_val = -1e9
+            for cand in cands:
+                is_used = cand["id"] in used_ids_per_role[role]
+                is_sample = cand["source_type"] in ("sample", "project_sample")
+                policy_tier = str(cand.get("_policy_tier") or "neutral")
+                policy_bonus = float(cand.get("_policy_bonus") or 0.0) if is_sample else 0.0
+                sample_healthy = is_sample and policy_tier in ("preferred", "neutral") and bool(cand.get("_range_ok", True))
+
+                # Diversity bonus across palettes (jamais de pénalité contre un vrai sample sain verrouillé)
+                div_pen = 0.22 if (is_used and len(cands) > 1 and not (user_locked and sample_healthy)) else 0.0
+                theme_bonus = 0.08 if cand.get("theme") == pref_theme else 0.0
+                if pref_theme == "synthetic" and cand["source_type"] == "gridline_native" and role in MELODIC_ROLES:
+                    theme_bonus += 0.03
+                # F8: le bonus sample-first ne s'applique qu'aux candidats sains (policy preferred/neutral + F3 valide)
+                if pref_theme == "organic" and sample_healthy:
+                    theme_bonus += 0.09
+                if user_locked and sample_healthy:
+                    theme_bonus += 0.25
+
+                mood_pen = 0.0
+                if valence <= 0.1 and role in ("bass_sub", "lead_melody") and is_sample:
+                    hay = f"{cand.get('timbre_card') or ''} {cand.get('filepath') or ''}".lower()
+                    if any(k in hay for k in ("reese", "aggressive", "distorted", "acid", "saw", "metallic", "harsh")):
+                        mood_pen = 0.35
+                # §5 pénalités dureté : centroid > 4 kHz sur accords, crest > 13 dB sur tonaux
+                if is_sample and role == "chord_keys" and float(cand.get("centroid_hz") or 0.0) > 4000.0:
+                    mood_pen += 0.15
+                if is_sample and role in MELODIC_ROLES and cand.get("crest_factor_db") is not None:
+                    if float(cand["crest_factor_db"]) > 13.0:
+                        mood_pen += 0.15
+
+                trial_items = chosen_l + [cand]
+                trial_score, _ = _score_palette(trial_items, ev, mood_vec, lam_overlap=lam_overlap_eff)
+                val = (
+                    trial_score + theme_bonus + policy_bonus - div_pen
+                    - loop_bpm_penalty(cand, target_bpm, bpm_tolerance) - mood_pen
+                )
+                if val > best_val:
+                    best_val = val
+                    best_cand = cand
+            if best_cand is not None:
+                chosen_l.append(best_cand)
+        return chosen_l, missing_l
 
     for p_idx in range(n_pal):
         if p_idx < len(_PALETTE_THEMES):
@@ -972,91 +1140,38 @@ def propose_palettes(
         else:
             pid, label, pref_theme = f"palette_{chr(65 + p_idx)}", f"Palette {chr(65 + p_idx)}", "hybrid"
 
-        chosen: list[dict[str, Any]] = []
-        missing_roles: list[str] = []
-
-        # Greedy complementarity construction: pick anchor roles first (kick -> bass_sub -> chords -> lead -> rest)
-        ordered_roles = sorted(
-            eff_roles,
-            key=lambda r: ["kick", "bass_sub", "chord_keys", "pad_atmosphere", "lead_melody", "snare_clap", "hihat_perc"].index(r)
-            if r in ["kick", "bass_sub", "chord_keys", "pad_atmosphere", "lead_melody", "snare_clap", "hihat_perc"]
-            else 99,
-        )
-        for role in ordered_roles:
-            cands = combined_pool.get(role, [])
-            if not cands:
-                missing_roles.append(role)
-                continue
-            # v4.1 gate d'agréabilité : un son hors plafonds durs (SWAP) n'est jamais choisi,
-            # sauf si le pool entier est SWAP (repli au lieu de rôle manquant)
-            try:
-                from timbre_pleasantness import pleasantness_gate
-                gated = [c for c in cands if pleasantness_gate({
-                    "r_harsh": c.get("r_harsh"), "roughness": c.get("roughness"),
-                    "peak_harsh_db": c.get("peak_harsh_db"), "comfort_score": c.get("comfort_score"),
-                    "centroid_hz": c.get("centroid_hz"), "crest_factor_db": c.get("crest_factor_db"),
-                }, role)["verdict"] != "SWAP"]
-                if gated:
-                    cands = gated
-            except Exception:
-                pass
-
-            target_bpm = float(bpm) if bpm else None
-            best_cand = None
-            best_val = -1e9
-            for cand in cands:
-                is_used = cand["id"] in used_ids_per_role[role]
-                # Diversity bonus across palettes (still allow reuse if pool is tiny, e.g. user Samples/).
-                # Jamais de pénalité de diversité contre un vrai sample quand la banque projet est verrouillée.
-                is_sample = cand["source_type"] in ("sample", "project_sample")
-                div_pen = 0.22 if (is_used and len(cands) > 1 and not (user_locked and is_sample)) else 0.0
-                theme_bonus = 0.08 if cand.get("theme") == pref_theme else 0.0
-                # For Palette B (synthetic) prefer native gl.* on melodic roles if allowed
-                if pref_theme == "synthetic" and cand["source_type"] == "gridline_native" and role in MELODIC_ROLES:
-                    theme_bonus += 0.03  # subtle only: real samples sound more natural than gl.* synths
-                # For Palette A (organic) prefer real samples if available
-                if pref_theme == "organic" and cand["source_type"] in ("sample", "project_sample"):
-                    theme_bonus += 0.09
-                # Politique « Sample-First » : quand la banque projet est verrouillée
-                # (user_samples_locked), un vrai sample utilisateur prime toujours sur un
-                # synthé gl.* de secours pour le même rôle.
-                if user_locked and cand["source_type"] in ("sample", "project_sample"):
-                    theme_bonus += 0.25
-
-                # Cohérence mood/timbre : en contexte calme/organique/mystérieux, pénaliser
-                # fortement les samples agressifs (reese/distorted/acid/saw/metallic) sur
-                # bass et lead au profit de sub/808 propres ou basses chaudes.
-                mood_pen = 0.0
-                if valence <= 0.1 and role in ("bass_sub", "lead_melody") and cand["source_type"] in ("sample", "project_sample"):
-                    hay = f"{cand.get('timbre_card') or ''} {cand.get('filepath') or ''}".lower()
-                    if any(k in hay for k in ("reese", "aggressive", "distorted", "acid", "saw", "metallic", "harsh")):
-                        mood_pen = 0.35
-
-                trial_items = chosen + [cand]
-                trial_score, _ = _score_palette(trial_items, ev, mood_vec)
-                val = trial_score + theme_bonus - div_pen - loop_bpm_penalty(cand, target_bpm, bpm_tolerance) - mood_pen
-                if val > best_val:
-                    best_val = val
-                    best_cand = cand
-
-            if best_cand is not None:
-                chosen.append(best_cand)
-                used_ids_per_role[role].add(best_cand["id"])
-
-        pal_score, breakdown = _score_palette(chosen, ev, mood_vec)
-        # Sample-First : en banque verrouillée, le score de palette est pondéré par le
-        # nombre de vrais samples embarqués (la meilleure palette = celle qui utilise
-        # le plus les sons fournis, pas celle qui retombe sur gl.*).
-        if user_locked:
-            n_real = sum(1 for it in chosen if it["source_type"] in ("sample", "project_sample") and it.get("filepath"))
-            pal_score += 0.05 * n_real
+        chosen, missing_roles = _greedy_select(pref_theme, lam_overlap_eff=0.28)
         timbre_coh = {"score": 1.0, "max_bark_collision": None, "pair_roughness": 0.0, "notes": []}
         try:
-            from timbre_pleasantness import palette_timbre_coherence
             timbre_coh = palette_timbre_coherence(chosen)
-            pal_score = pal_score - (1.0 - timbre_coh["score"]) * 0.2
+            # F8 + §5 : seuil dur cohérence >= 0.60 (ou collision > 0.35) -> 2e passe pénalité collision x2
+            if timbre_coh["score"] < 0.60 or (
+                timbre_coh.get("max_bark_collision") is not None and float(timbre_coh["max_bark_collision"]) > 0.35
+            ):
+                chosen2, missing2 = _greedy_select(pref_theme, lam_overlap_eff=0.56)
+                coh2 = palette_timbre_coherence(chosen2)
+                if coh2["score"] > timbre_coh["score"]:
+                    chosen, missing_roles, timbre_coh = chosen2, missing2, coh2
         except Exception:
             pass
+
+        for it in chosen:
+            used_ids_per_role[it["role"]].add(it["id"])
+
+        quality_score, breakdown = _score_palette(chosen, ev, mood_vec)
+        quality_score = round(max(0.0, min(1.0, quality_score - (1.0 - timbre_coh["score"]) * 0.25)), 4)
+        n_real = sum(1 for it in chosen if it["source_type"] in ("sample", "project_sample") and it.get("filepath"))
+        n_healthy_real = sum(
+            1 for it in chosen
+            if it["source_type"] in ("sample", "project_sample") and it.get("filepath")
+            and str(it.get("_policy_tier") or "neutral") in ("preferred", "neutral")
+            and bool(it.get("_range_ok", True))
+        )
+        sample_ratio = round(n_real / max(1, len(chosen)), 3)
+        # F8: score borné strictement dans [0, 1] ; qualité et sample_ratio publiés séparément
+        bonus_sample = (0.08 * (n_healthy_real / max(1, len(chosen)))) if user_locked else 0.0
+        pal_score = round(max(0.0, min(1.0, quality_score + bonus_sample)), 4)
+
         reason_parts = [
             f"Chevauchement Bark24 faible ({breakdown['overlap_mean']:.2f})"
             if breakdown["overlap_mean"] < 0.45
@@ -1070,6 +1185,14 @@ def propose_palettes(
                 "source_type": it["source_type"],
                 "plugin": it["plugin"],
                 "filepath": it.get("filepath"),
+                "category": it.get("category"),
+                "sample_nature": it.get("sample_nature"),
+                "inharmonicity": float(it.get("inharmonicity") or 0.0),
+                "policy_tier": it.get("_policy_tier"),
+                "r_harsh": it.get("r_harsh"),
+                "roughness": it.get("roughness"),
+                "peak_harsh_db": it.get("peak_harsh_db"),
+                "crest_factor_db": it.get("crest_factor_db"),
                 "fallback_reason": (
                     "no_usable_sample_in_index_for_role"
                     if it["source_type"] == "gridline_native" and sample_pool.get(it["role"])
@@ -1097,6 +1220,8 @@ def propose_palettes(
             "fallback_synth_reason": dict(fallback_synth_reason) if fallback_synth_reason else None,
             "theme": pref_theme,
             "score": pal_score,
+            "quality_score": quality_score,
+            "sample_ratio": sample_ratio,
             "score_breakdown": breakdown,
             "complementarity_reason": " ; ".join(reason_parts),
             "timbre_coherence": timbre_coh,
@@ -1118,7 +1243,7 @@ def propose_palettes(
     if user_locked:
         diag.append("Verrou d'exclusivité actif : 0 sample externe importé (uniquement Samples/ projet + gl.* autorisés).")
 
-    return {
+    out_payload: dict[str, Any] = {
         "verdict": verdict,
         "score": best_score,
         "user_samples_locked": user_locked,
@@ -1136,6 +1261,15 @@ def propose_palettes(
         },
         "palettes": palettes_out,
     }
+    if include_pool:
+        out_payload["candidate_pool"] = {
+            role: [
+                {k: v for k, v in c.items() if not k.startswith("_") and k != "bark_24"}
+                for c in sample_pool.get(role, [])[:8]
+            ]
+            for role in eff_roles
+        }
+    return out_payload
 
 
 def main() -> None:

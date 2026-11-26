@@ -359,12 +359,13 @@ def sample_fallback_gate(
     slot_for: dict[str, str] | None = None,
     min_ratio: float = 0.7,
     allow_override: bool = False,
+    s_max_violations: int = 0,
 ) -> dict[str, Any]:
-    """Quality gate anti-fallback-silencieux (chantier P0) : si l'index/palette dispose de
+    """Quality gate anti-fallback-silencieux (chantier P0 + v4.2 F8) : si l'index/palette dispose de
     samples valides pour les rôles demandés mais que des pistes retombent sur
     `gridline_native`, lever un avertissement explicite — et échouer si
     `samples_used / tracks_with_available_samples < min_ratio` (sauf override explicite
-    `--allow-synth-fallback` / ALLOW_SYNTH_FALLBACK=1)."""
+    `--allow-synth-fallback` / ALLOW_SYNTH_FALLBACK=1) OU si > 1 piste a un `S_max` hors cap."""
     slot_for = slot_for or {
         "kick": "kick", "snare": "snare_clap", "clap": "snare_clap", "hihat": "hihat_perc",
         "hat": "hihat_perc", "perc": "hihat_perc", "bass": "bass_sub", "808": "bass_sub",
@@ -394,14 +395,18 @@ def sample_fallback_gate(
                                         "reason": "sample_available_but_not_selected"})
     n_avail = len(avail_tracks)
     ratio = (n_samples / n_avail) if n_avail else 1.0
-    passed = (not fallback_tracks) or ratio >= min_ratio or allow_override or n_avail == 0
+    ratio_ok = (not fallback_tracks) or ratio >= min_ratio or allow_override or n_avail == 0
+    # F8: > 1 piste avec S_max hors cap fait échouer le gate quel que soit le ratio de samples
+    shift_ok = int(s_max_violations or 0) <= 1
+    passed = bool(ratio_ok and shift_ok)
     return {
-        "passed": bool(passed),
+        "passed": passed,
         "gate": "PASS" if passed else "FAIL",
         "n_samples": n_samples,
         "n_tracks_with_available_samples": n_avail,
         "sample_coverage_ratio": round(ratio, 3),
         "min_ratio": min_ratio,
+        "s_max_violations": int(s_max_violations or 0),
         "fallback_tracks": fallback_tracks,
         "allow_override": bool(allow_override),
     }

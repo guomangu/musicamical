@@ -1,0 +1,10 @@
+HANDOFF v4 rap-serene-rythme
+strudel=composition.strudel#3e7f2ce7a2 seed=?
+bridge_ok=True tracks=? notes=?
+sections=
+eval_passed=None compile_passed=None fc_passed=None
+guards={}
+preflight=n/a
+score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json
+master=renders/master.wav
+next: studio_refine(delta_json=...) ou strudel_patch={{"replace_track":"lead","code":"..."}}

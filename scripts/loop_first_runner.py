@@ -340,8 +340,16 @@ class LoopFirstStateMachine:
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(bp, fh, indent=2, ensure_ascii=False)
         os.replace(tmp, bp_path)
-        cat_path = os.path.join(os.path.dirname(bp_path), "samples_catalog.json")
-        safety = summarize_musical_safety(bp, catalog_path=cat_path if os.path.isfile(cat_path) else None)
+        proj_d = os.path.dirname(bp_path)
+        try:
+            from sample_fit_guard import notes_by_track_from_score_ir, resolve_catalog_path
+            cat_path = resolve_catalog_path(proj_d, bp=bp)
+            notes_by_track = notes_by_track_from_score_ir(proj_d) or None
+        except Exception:
+            _c0 = os.path.join(proj_d, "samples_catalog.json")
+            cat_path = _c0 if os.path.isfile(_c0) else None
+            notes_by_track = None
+        safety = summarize_musical_safety(bp, catalog_path=cat_path, notes_by_track=notes_by_track, project_dir=proj_d)
         self.state["palette_blueprint_written"] = True
         self.state["palette_blueprint_tracks"] = merged
         self.state["musical_safety"] = safety

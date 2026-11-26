@@ -147,8 +147,18 @@ def load_blueprint(blueprint_path: str, validate: bool = True) -> tuple[dict[str
         "theme": str(bp.get("theme") or ""),
         "total_bars": sum(int(s["bars"]) for s in bp["structure"]),
     }
-    _cat = os.path.join(os.path.dirname(os.path.abspath(blueprint_path)), "samples_catalog.json")
-    meta["musical_safety"] = summarize_musical_safety(bp, catalog_path=_cat if os.path.isfile(_cat) else None)
+    proj_dir = os.path.dirname(os.path.abspath(blueprint_path))
+    try:
+        from sample_fit_guard import notes_by_track_from_score_ir, resolve_catalog_path
+        _cat = resolve_catalog_path(proj_dir, bp=bp)
+        _notes = notes_by_track_from_score_ir(proj_dir) or None
+    except Exception:
+        _c0 = os.path.join(proj_dir, "samples_catalog.json")
+        _cat = _c0 if os.path.isfile(_c0) else None
+        _notes = None
+    meta["musical_safety"] = summarize_musical_safety(
+        bp, catalog_path=_cat, notes_by_track=_notes, project_dir=proj_dir
+    )
     return bp, meta
 
 
@@ -1504,9 +1514,9 @@ def _default_channels_for_plan(
         elif any(k in rl for k in ("chord", "keys")):
             spec = ChannelSpec("Chords", role, idx, "music", plugin="gl.keys", role="chords", valence=valence, volume=0.50, fx_send=0.14, hall_send=0.14)
         elif "counter" in rl:
-            spec = ChannelSpec("Counter Harmony", role, idx, "music", plugin="gl.fm", role="bell", valence=valence, volume=0.52, pan=-0.25, fx_send=0.12, delay_send=0.10, hall_send=0.16)
+            spec = ChannelSpec("Counter Harmony", role, idx, "music", plugin="gl.pluck", role="lead", valence=valence, volume=0.52, pan=-0.25, fx_send=0.12, delay_send=0.10, hall_send=0.16)
         elif "fx" in rl:
-            spec = ChannelSpec("FX", role, idx, "music", plugin="gl.fm", role="bell", valence=valence, volume=0.44, pan=0.35, fx_send=0.20, delay_send=0.12, hall_send=0.25, single_shot_clips=True)
+            spec = ChannelSpec("FX", role, idx, "music", plugin="gl.wavetable", role="bell", valence=valence, volume=0.44, pan=0.35, fx_send=0.20, delay_send=0.12, hall_send=0.25, single_shot_clips=True)
         elif any(k in rl for k in ("vocal", "vox")):
             spec = ChannelSpec("Vocals", role, idx, "music", plugin="gl.warmsynth", role="lead", valence=valence, volume=0.74, delay_send=0.12, hall_send=0.18)
         else:
@@ -1516,6 +1526,12 @@ def _default_channels_for_plan(
             if bp_tr.get("source_type") == "sample" and bp_tr.get("sample_path"):
                 spec.plugin = "gl.sampler"
                 spec.sample_file = str(bp_tr["sample_path"])
+                # Chaîne douce systématique sur pistes tonales sample (§5) si aucun LPF spécifié
+                if spec.lpf_hz is None and spec.cutoff_hz is None and not (bp_tr.get("plugin_params") or {}).get("cutoff_hz"):
+                    if any(k in rl for k in ("chord", "keys", "pad", "string")):
+                        spec.lpf_hz = 6500.0
+                    elif any(k in rl for k in ("lead", "melody", "counter")):
+                        spec.lpf_hz = 9000.0
             elif bp_tr.get("plugin") and str(bp_tr["plugin"]).startswith("gl."):
                 spec.plugin = str(bp_tr["plugin"])
             pp = bp_tr.get("plugin_params") or {}
@@ -1549,9 +1565,13 @@ def apply_wetness_sends(
     """v3.2 TimbralCohesion — pondère `fx_send`/`hall_send` par `(1 - dry_gain * wetness)` :
     un sample déjà réverbéré (wetness haut, lu dans `samples_catalog.json`) reçoit quasi 0
     send FX Hall, un synthé sec reçoit l'ambiance nécessaire pour s'unifier dans le même espace."""
-    cat_path = os.path.join(proj_dir, "samples_catalog.json")
+    try:
+        from sample_fit_guard import resolve_catalog_path
+        cat_path = resolve_catalog_path(proj_dir)
+    except Exception:
+        cat_path = os.path.join(proj_dir, "samples_catalog.json")
     wet_by_base: dict[str, float] = {}
-    if os.path.isfile(cat_path):
+    if cat_path and os.path.isfile(cat_path):
         try:
             with open(cat_path, encoding="utf-8") as fh:
                 cat = json.load(fh)
@@ -1560,7 +1580,7 @@ def apply_wetness_sends(
                 entries = list(entries.values())
             for e in entries or []:
                 if isinstance(e, dict):
-                    p = str(e.get("path") or e.get("file") or e.get("sample_path") or "")
+                    p = str(e.get("filepath") or e.get("path") or e.get("file") or e.get("sample_path") or "")
                     if p:
                         wet_by_base[os.path.basename(p)] = float(e.get("wetness_score", 0.5) or 0.5)
         except Exception:
@@ -1597,8 +1617,12 @@ def _timbre_features_for_channel(ch: Any, proj_dir: str) -> dict[str, Any]:
         feats.update(inharmonicity=0.2, spectral_centroid_hz=2800.0, family="bell")
     sf = str(getattr(ch, "sample_file", "") or "")
     if sf:
-        cat_path = os.path.join(proj_dir, "samples_catalog.json")
-        if os.path.isfile(cat_path):
+        try:
+            from sample_fit_guard import resolve_catalog_path
+            cat_path = resolve_catalog_path(proj_dir)
+        except Exception:
+            cat_path = os.path.join(proj_dir, "samples_catalog.json")
+        if cat_path and os.path.isfile(cat_path):
             try:
                 with open(cat_path, encoding="utf-8") as fh:
                     cat = json.load(fh)
@@ -1609,11 +1633,11 @@ def _timbre_features_for_channel(ch: Any, proj_dir: str) -> dict[str, Any]:
                 for e in entries or []:
                     if not isinstance(e, dict):
                         continue
-                    p = str(e.get("path") or e.get("file") or e.get("sample_path") or "")
+                    p = str(e.get("filepath") or e.get("path") or e.get("file") or e.get("sample_path") or "")
                     if p and (p.endswith(sf) or os.path.basename(p) == base):
                         feats.update({
                             "inharmonicity": float(e.get("inharmonicity", 0.0) or 0.0),
-                            "spectral_centroid_hz": float(e.get("spectral_centroid_hz", 0.0) or 0.0),
+                            "spectral_centroid_hz": float(e.get("centroid_hz") or e.get("spectral_centroid_hz") or 0.0),
                             "family": str(e.get("timbre_card") or feats.get("family", "")),
                         })
                         break

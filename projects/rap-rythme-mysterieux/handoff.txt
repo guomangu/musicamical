@@ -1,0 +1,10 @@
+HANDOFF v4 rap-rythme-mysterieux
+strudel=composition.strudel#c912c8d4a0 seed=7331
+bridge_ok=True tracks=7 notes=354
+sections=intro,verse,chorus,verse,chorus,bridge,chorus,outro
+eval_passed=True compile_passed=True fc_passed=True
+guards={"bass_register_clamped":0,"lead_apex_clamped":0,"chords_revoiced":13,"mono_onset_dedup":0,"chord_symbols_expanded":32}
+preflight=PASS gf=1.0 sw=0.922 rest=0.21 bad_leaps=0 (0 rendu: scripts/preflight_strudel_gate.py <projet>)
+score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json
+master=n/a (gridline absent ou auto_master off)
+next: studio_refine(delta_json=...) ou strudel_patch={{"replace_track":"lead","code":"..."}}

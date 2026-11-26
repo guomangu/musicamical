@@ -1,0 +1,245 @@
+{
+  "title": "rap-detente-mysterieux-v2",
+  "genre": "trap_rap",
+  "mix_profile": "trap_rap",
+  "has_drums": true,
+  "seed": 4242,
+  "emotion_vector": {
+    "valence": 0.0,
+    "tension": 0.5,
+    "energy": 0.7,
+    "depth": 0.5
+  },
+  "bpm": 124.0,
+  "time_signature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "key": "C",
+  "harmonic_core": {
+    "key": "C",
+    "mode": "minor",
+    "progression_bars": 1,
+    "chord_progression": [
+      {
+        "bar": 1,
+        "symbol": "Cm7",
+        "bass_midi": 36,
+        "voicing_midi": [
+          60,
+          63,
+          67
+        ]
+      },
+      {
+        "bar": 2,
+        "symbol": "Abmaj7",
+        "bass_midi": 44,
+        "voicing_midi": [
+          68,
+          71,
+          75
+        ]
+      },
+      {
+        "bar": 3,
+        "symbol": "Fm7",
+        "bass_midi": 41,
+        "voicing_midi": [
+          65,
+          68,
+          72
+        ]
+      },
+      {
+        "bar": 4,
+        "symbol": "G7",
+        "bass_midi": 43,
+        "voicing_midi": [
+          67,
+          70,
+          74
+        ]
+      }
+    ],
+    "motif_cell": {
+      "intervals_from_tonic": [
+        0,
+        3,
+        7
+      ],
+      "rhythm_beats": [
+        0,
+        2
+      ],
+      "apex_midi": 72
+    },
+    "phrase_plan": "A-A'-A''-B",
+    "section_progressions": {
+      "verse": [
+        "Cm7",
+        "Abmaj7",
+        "Fm7",
+        "G7"
+      ],
+      "pre_chorus": [
+        "Cm7",
+        "Abmaj7",
+        "Fm7",
+        "V"
+      ],
+      "chorus": [
+        "Cm7",
+        "Abmaj7",
+        "Fm7",
+        "G7"
+      ],
+      "bridge": [
+        "IV",
+        "V",
+        "iii",
+        "vi"
+      ],
+      "outro": [
+        "V7",
+        "i"
+      ]
+    }
+  },
+  "structure": [
+    {
+      "section": "intro",
+      "start_bar": 1,
+      "bars": 4,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 2,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "pre_chorus",
+      "start_bar": 3,
+      "bars": 4,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 4,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 5,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "pre_chorus",
+      "start_bar": 6,
+      "bars": 4,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 7,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "bridge",
+      "start_bar": 8,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 9,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "outro",
+      "start_bar": 10,
+      "bars": 4,
+      "energy": 0.7
+    }
+  ],
+  "tracks": [
+    {
+      "name": "chords",
+      "role": "chords",
+      "source_type": "gridline_native",
+      "plugin": "gl.keys",
+      "mixer_track": 1,
+      "archetype": "trap_rap:chords"
+    },
+    {
+      "name": "pad",
+      "role": "chords",
+      "source_type": "gridline_native",
+      "plugin": "gl.keys",
+      "mixer_track": 2,
+      "archetype": "trap_rap:chords"
+    },
+    {
+      "name": "bass",
+      "role": "bass",
+      "source_type": "gridline_native",
+      "plugin": "gl.fingerbass",
+      "mixer_track": 3,
+      "archetype": "trap_rap:bass"
+    },
+    {
+      "name": "lead",
+      "role": "lead",
+      "source_type": "gridline_native",
+      "plugin": "gl.warmsynth",
+      "mixer_track": 4,
+      "archetype": "trap_rap:lead"
+    },
+    {
+      "name": "kick",
+      "role": "drums",
+      "source_type": "gridline_native",
+      "plugin": "gl.kick",
+      "mixer_track": 5
+    },
+    {
+      "name": "snare",
+      "role": "drums",
+      "source_type": "gridline_native",
+      "plugin": "gl.snare",
+      "mixer_track": 6
+    },
+    {
+      "name": "hihat",
+      "role": "drums",
+      "source_type": "gridline_native",
+      "plugin": "gl.hat",
+      "mixer_track": 7
+    },
+    {
+      "name": "perc",
+      "role": "drums",
+      "source_type": "gridline_native",
+      "plugin": "gl.hat",
+      "mixer_track": 8
+    }
+  ],
+  "auto_prepared": true,
+  "phrase_length_bars": 8,
+  "expression_defaults": {
+    "bass_808": {
+      "articulation": "glide_to_next",
+      "glide_ms": 60,
+      "climax_bars": [
+        4,
+        8
+      ]
+    }
+  }
+}

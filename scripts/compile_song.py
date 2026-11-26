@@ -77,7 +77,10 @@ def compile_song(project_dir: str, core_only: bool = False, out_gridline: str = 
         return report
     _bp, meta = load_blueprint(bp_path, validate=True)
     safety = meta.get("musical_safety") or {}
-    report["musical_safety"] = {k: safety.get(k) for k in ("checked", "key", "errors", "warnings", "ok", "issues")}
+    report["musical_safety"] = {
+        k: safety.get(k)
+        for k in ("checked", "key", "catalog", "catalog_missing", "notes_checked", "errors", "warnings", "ok", "issues")
+    }
     if safety.get("errors"):
         report.update({"ok": False, "stage": "blueprint_safety",
                        "error": f"{safety['errors']} erreur(s) bloquante(s) — voir musical_safety.issues"})

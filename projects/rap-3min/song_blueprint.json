@@ -1,0 +1,342 @@
+{
+  "title": "rap-3min",
+  "genre": "trap_rap",
+  "mix_profile": "trap_rap",
+  "has_drums": true,
+  "seed": 2026,
+  "emotion_vector": {
+    "valence": 0.0,
+    "tension": 0.5,
+    "energy": 0.7,
+    "depth": 0.5
+  },
+  "bpm": 128.0,
+  "time_signature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "key": "C",
+  "harmonic_core": {
+    "key": "C",
+    "mode": "minor",
+    "progression_bars": 1,
+    "chord_progression": [
+      {
+        "bar": 1,
+        "symbol": "Cm7",
+        "bass_midi": 36,
+        "voicing_midi": [
+          60,
+          63,
+          67
+        ]
+      },
+      {
+        "bar": 2,
+        "symbol": "Abmaj7",
+        "bass_midi": 44,
+        "voicing_midi": [
+          68,
+          71,
+          75
+        ]
+      },
+      {
+        "bar": 3,
+        "symbol": "Fm7",
+        "bass_midi": 41,
+        "voicing_midi": [
+          65,
+          68,
+          72
+        ]
+      },
+      {
+        "bar": 4,
+        "symbol": "G7",
+        "bass_midi": 43,
+        "voicing_midi": [
+          67,
+          70,
+          74
+        ]
+      }
+    ],
+    "motif_cell": {
+      "intervals_from_tonic": [
+        0,
+        3,
+        7
+      ],
+      "rhythm_beats": [
+        0,
+        2
+      ],
+      "apex_midi": 72
+    },
+    "phrase_plan": "A-A'-A''-B",
+    "section_progressions": {
+      "verse": [
+        "Cm7",
+        "Abmaj7",
+        "Fm7",
+        "G7"
+      ],
+      "pre_chorus": [
+        "Cm7",
+        "Abmaj7",
+        "Fm7",
+        "V"
+      ],
+      "chorus": [
+        "Cm7",
+        "Abmaj7",
+        "Fm7",
+        "G7"
+      ],
+      "bridge": [
+        "IV",
+        "V",
+        "iii",
+        "vi"
+      ],
+      "outro": [
+        "V7",
+        "i"
+      ]
+    }
+  },
+  "structure": [
+    {
+      "section": "intro",
+      "start_bar": 1,
+      "bars": 4,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 5,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 21,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 37,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 53,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "bridge",
+      "start_bar": 69,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 77,
+      "bars": 12,
+      "energy": 0.7
+    },
+    {
+      "section": "outro",
+      "start_bar": 89,
+      "bars": 8,
+      "energy": 0.7
+    }
+  ],
+  "tracks": [
+    {
+      "name": "chords",
+      "role": "chords",
+      "source_type": "gridline_native",
+      "plugin": "gl.warmsynth",
+      "plugin_params": {
+        "cutoff_hz": 6500.0,
+        "attack_ms": 8.0,
+        "release_ms": 180.0
+      },
+      "mixer_track": 1,
+      "archetype": "trap_rap:chords"
+    },
+    {
+      "name": "bass",
+      "role": "bass",
+      "source_type": "gridline_native",
+      "plugin": "gl.fingerbass",
+      "plugin_params": {
+        "attack_ms": 2.0,
+        "release_ms": 120.0,
+        "glide_ms": 60,
+        "cutoff_hz": 9000.0
+      },
+      "mixer_track": 2,
+      "archetype": "trap_rap:bass"
+    },
+    {
+      "name": "lead",
+      "role": "lead",
+      "source_type": "gridline_native",
+      "plugin": "gl.warmsynth",
+      "plugin_params": {
+        "cutoff_hz": 3200.0,
+        "attack_ms": 12.0,
+        "release_ms": 200.0,
+        "vibrato_delay_ms": 250
+      },
+      "mixer_track": 3,
+      "archetype": "trap_rap:lead"
+    },
+    {
+      "name": "kick",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "plugin_params": {},
+      "mixer_track": 4,
+      "archetype": "trap_rap:kick",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/kick/glorkglunk_-_kick_3_clean.wav",
+      "root_note": 36,
+      "fine_tune_ct": -3
+    },
+    {
+      "name": "snare",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "plugin_params": {},
+      "mixer_track": 5,
+      "archetype": "trap_rap:snare",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/clap/clap_dark_alt.wav",
+      "root_note": 38,
+      "fine_tune_ct": 37
+    },
+    {
+      "name": "hihat",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "plugin_params": {},
+      "mixer_track": 6,
+      "archetype": "trap_rap:hihat",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/perc/dnb_perc_ghost.wav",
+      "root_note": 42,
+      "fine_tune_ct": -28
+    },
+    {
+      "name": "perc",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "plugin_params": {},
+      "mixer_track": 7,
+      "archetype": "trap_rap:perc",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/perc/MZ Perc [Urban Vox].wav",
+      "root_note": 39,
+      "fine_tune_ct": -49
+    }
+  ],
+  "palette": {
+    "palette_id": "palette_B",
+    "score": 0.5212,
+    "quality_score": 0.5212,
+    "sample_ratio": 0.5,
+    "theme": "synthetic",
+    "n_samples": 4,
+    "n_tracks_with_available_samples": 4,
+    "sample_coverage_ratio": 1.0,
+    "fallback_gate": "PASS",
+    "fallback_tracks": [],
+    "selection_trace": {
+      "mode": "db",
+      "user_samples_locked": false,
+      "roles": {},
+      "policy_excluded": {
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0,
+        "bass_sub": 1,
+        "chord_keys": 2,
+        "lead_melody": 0
+      },
+      "range_excluded": {
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0,
+        "bass_sub": 9,
+        "chord_keys": 7,
+        "lead_melody": 7
+      },
+      "pleasantness_excluded": {
+        "kick": 4,
+        "snare_clap": 1,
+        "hihat_perc": 6,
+        "bass_sub": 1,
+        "chord_keys": 0,
+        "lead_melody": 2
+      },
+      "gate_unmeasured": {
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0,
+        "bass_sub": 0,
+        "chord_keys": 0,
+        "lead_melody": 0
+      },
+      "n_sample_candidates": {
+        "kick": 8,
+        "snare_clap": 1,
+        "hihat_perc": 3,
+        "bass_sub": 1,
+        "chord_keys": 0,
+        "lead_melody": 0
+      },
+      "total_excluded": 40
+    },
+    "timbre_coherence": {
+      "score": 0.35,
+      "max_bark_collision": 0.932759,
+      "pair_roughness": 0.0,
+      "notes": [
+        "lead_melody~snare_clap centroids 2150/1860 Hz (bande critique 302 Hz)"
+      ]
+    },
+    "project_samples_dir": null,
+    "user_samples_locked": false,
+    "sound_guard": {
+      "status": "OK",
+      "n_fixed": 0,
+      "summary_line": "sound_guard=OK"
+    },
+    "musical_safety": {
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "catalog": "/home/gamo/Bureau/musicamical/samples_catalog.json",
+      "catalog_missing": false
+    }
+  },
+  "auto_prepared": true,
+  "phrase_length_bars": 8,
+  "expression_defaults": {
+    "bass_808": {
+      "articulation": "glide_to_next",
+      "glide_ms": 60,
+      "climax_bars": [
+        4,
+        8
+      ]
+    }
+  }
+}
