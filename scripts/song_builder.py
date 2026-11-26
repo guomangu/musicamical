@@ -590,18 +590,15 @@ def build_gridline_project(
             ]
             mcp.batch(add_extras)
 
-        # Pre-compute synth voices so LPF makeup gain can trim the channel fader deterministically
+        # Pre-compute synth voices so LPF makeup gain can trim the channel fader deterministically.
+        # Les `plugin_params` génériques du blueprint (cutoff_hz, attack_ms, release_ms, glide_ms)
+        # sont traduits ICI dans la voix (unités natives du plugin) — jamais écrits tels quels
+        # sur le canal (Gridline rejette "cutoff_hz" : no parameter "cutoff_hz" here).
         voice_by_idx: dict[int, SynthVoiceConfig] = {}
         for idx, ch in enumerate(channels, start=1):
-            if ch.voice is not None:
-                voice_by_idx[idx] = ch.voice
-            elif ch.plugin != "gl.sampler" and ch.role and ch.plugin in SYNTH_REGISTRY:
-                voice_by_idx[idx] = synth_voice(
-                    ch.plugin,
-                    ch.role,  # type: ignore[arg-type]
-                    valence=ch.valence if ch.valence != 0.0 else valence,
-                    cutoff_hz=ch.lpf_hz if ch.lpf_hz is not None else ch.cutoff_hz,
-                )
+            v = synth_voice_from_channel(ch, valence)
+            if v is not None:
+                voice_by_idx[idx] = v
         eff_volumes: dict[int, float] = {}
         for idx, ch in enumerate(channels, start=1):
             v = float(ch.volume)
@@ -648,8 +645,12 @@ def build_gridline_project(
                 if voice_cfg.needs_insert_lpf:
                     auto_insert_eq_mixers.append(ch.mixer)
                     auto_insert_lpf_params.extend(voice_cfg.to_insert_eq_tuples(ch.mixer, slot=1))
+                # N'écrire que des noms de paramètres valides pour ce plugin (présents dans la
+                # voix) : les clés génériques (cutoff_hz/attack_ms/...) sont déjà traduites.
+                valid_params = set(voice_cfg.channel_params.keys())
                 for pname, pval in ch.plugin_params.items():
-                    param_changes.append((f"channel/{idx}/{pname}", pval))
+                    if str(pname) in valid_params:
+                        param_changes.append((f"channel/{idx}/{pname}", pval))
 
         if patches:
             mcp.call("patch", {"patches": patches})
@@ -1373,6 +1374,30 @@ def _sampler_param_changes(idx: int, ch: Any, samples_dir: str, manifest_data: d
         else:
             param_changes.append((f"channel/{idx}/{gl_name}", pval))
     return patches, param_changes
+
+
+def synth_voice_from_channel(ch: Any, valence: float) -> SynthVoiceConfig | None:
+    """Construit la voix `gl.*` d'un canal synthé en traduisant les `plugin_params`
+    génériques du blueprint (cutoff_hz, attack_ms, release_ms, glide_ms) dans les unités
+    natives du plugin — jamais écrits tels quels sur le canal Gridline."""
+    if ch.voice is not None:
+        return ch.voice
+    if ch.plugin == "gl.sampler" or not ch.role or ch.plugin not in SYNTH_REGISTRY:
+        return None
+    pp = ch.plugin_params or {}
+    cut = ch.lpf_hz if ch.lpf_hz is not None else ch.cutoff_hz
+    if pp.get("cutoff_hz") is not None:
+        c = float(pp["cutoff_hz"])
+        cut = min(cut, c) if cut is not None else c
+    return synth_voice(
+        ch.plugin,
+        ch.role,  # type: ignore[arg-type]
+        valence=ch.valence if ch.valence != 0.0 else valence,
+        cutoff_hz=cut,
+        attack_ms=float(pp["attack_ms"]) if pp.get("attack_ms") is not None else None,
+        release_ms=float(pp["release_ms"]) if pp.get("release_ms") is not None else None,
+        glide_ms=float(pp["glide_ms"]) if pp.get("glide_ms") is not None else None,
+    )
 
 
 def _apply_trim_db_to_volume(base_vol: float, trim_db: float) -> float:

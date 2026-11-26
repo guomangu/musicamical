@@ -536,7 +536,10 @@ def _load_sqlite_candidates(
         base_clauses = ["s.ext NOT IN ('.mid', '.midi')", "COALESCE(d.hard_reject, 0) = 0", q2_clause]
         if role in MELODIC_ROLES:
             base_clauses.append("d.playable_chromatically = 1")
-        if role in ("kick", "bass_sub"):
+        if role == "bass_sub":
+            # Alignement de phase Kick/808 exigé sur la basse uniquement : les one-shots
+            # percussifs (kick/snare/hat/perc) ne doivent JAMAIS être pénalisés sur des
+            # métriques de phase/pitch (faux négatifs massifs sinon).
             base_clauses.append("COALESCE(d.phase_corr, 1.0) >= 0.70")
         order_expr = role_order_expr.get(role, "-COALESCE(d.r_harsh, 0)")
 

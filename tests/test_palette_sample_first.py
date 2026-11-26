@@ -402,6 +402,75 @@ class TestStructureStartBar(unittest.TestCase):
         self.assertEqual([s["bars"] for s in st], [4, 16, 8, 16, 8, 8, 8])
 
 
+class TestBlueprintUpgrade(unittest.TestCase):
+    """Blueprints existants (créés avant les correctifs) : upgrade non destructif."""
+
+    def _stale_bp(self):
+        return {
+            "title": "rap-determine-rythme-planant", "mix_profile": "trap_rap", "bpm": 152.0,
+            "key": "C", "has_drums": True,
+            "emotion_vector": {"valence": 0.0, "tension": 0.5, "energy": 0.7, "depth": 0.5},
+            "structure": [
+                {"section": "intro", "start_bar": 1, "bars": 8},
+                {"section": "verse", "start_bar": 2, "bars": 16},
+                {"section": "chorus", "start_bar": 3, "bars": 8},
+            ],
+            "tracks": [
+                {"name": "chords", "role": "chords", "source_type": "gridline_native", "plugin": "gl.warmsynth", "plugin_params": {}, "mixer_track": 1},
+                {"name": "bass", "role": "bass", "source_type": "sample", "plugin": "gl.sampler", "sample_path": "/x/reese_a1_clean.wav", "root_note": 33, "mixer_track": 2},
+                {"name": "lead", "role": "lead", "source_type": "gridline_native", "plugin": "gl.fm", "plugin_params": {"cutoff_hz": 8200}, "mixer_track": 3},
+                {"name": "kick", "role": "drums", "source_type": "gridline_native", "plugin": "gl.kick", "mixer_track": 4},
+                {"name": "perc", "role": "drums", "source_type": "gridline_native", "plugin": "gl.hat", "mixer_track": 7},
+            ],
+        }
+
+    def test_stale_blueprint_upgraded(self):
+        import prod_server
+        bp = prod_server.upgrade_blueprint_tracks(self._stale_bp())
+        by_name = {t["name"]: t for t in bp["tracks"]}
+        # lead ne reste jamais sur gl.fm métallique
+        self.assertNotEqual(by_name["lead"]["plugin"], "gl.fm")
+        self.assertEqual(by_name["lead"].get("archetype"), "trap_rap:lead")
+        # perc n'est plus cloné sur gl.hat
+        self.assertEqual(by_name["perc"]["plugin"], "gl.clap")
+        self.assertEqual(by_name["perc"].get("archetype"), "trap_rap:perc")
+        self.assertEqual(by_name["kick"].get("archetype"), "trap_rap:kick")
+        # piste sample utilisateur intacte
+        self.assertEqual(by_name["bass"]["source_type"], "sample")
+        self.assertEqual(by_name["bass"]["sample_path"], "/x/reese_a1_clean.wav")
+        # start_bar cumulatifs
+        self.assertEqual([s["start_bar"] for s in bp["structure"]], [1, 9, 25])
+
+    def test_structure_section_key_and_cumulative(self):
+        import prod_server
+        st = prod_server.blueprint_structure([{"section": "I", "bars": 4}, {"section": "V", "bars": 16}])
+        self.assertEqual([s["start_bar"] for s in st], [1, 5])
+        self.assertEqual([s["section"] for s in st], ["I", "V"])
+        self.assertTrue(prod_server._structure_is_cumulative(st))
+        self.assertFalse(prod_server._structure_is_cumulative(
+            [{"section": "a", "start_bar": 1, "bars": 8}, {"section": "b", "start_bar": 2, "bars": 16}]))
+
+
+class TestSynthVoiceParamTranslation(unittest.TestCase):
+    """plugin_params génériques traduits dans la voix, jamais écrits bruts sur le canal."""
+
+    def test_voice_from_channel_translates_params(self):
+        import song_builder
+        ch = song_builder.ChannelSpec("Lead", "lead", 3, "music", plugin="gl.warmsynth", role="lead", valence=-0.4)
+        ch.plugin_params.update({"cutoff_hz": 3200.0, "attack_ms": 12.0, "release_ms": 200.0, "cutoff_hz_raw_bug": 1})
+        voice = song_builder.synth_voice_from_channel(ch, valence=-0.4)
+        self.assertIsNotNone(voice)
+        self.assertEqual(voice.cutoff_hz, 3200.0)
+        self.assertIn("Attack", voice.channel_params)
+        self.assertNotIn("cutoff_hz", voice.channel_params)
+        self.assertNotIn("attack_ms", voice.channel_params)
+
+    def test_sampler_channel_has_no_synth_voice(self):
+        import song_builder
+        ch = song_builder.ChannelSpec("Bass", "bass", 2, "bass", plugin="gl.sampler", sample_file="x.wav")
+        self.assertIsNone(song_builder.synth_voice_from_channel(ch, 0.0))
+
+
 class TestSampleFallbackGate(unittest.TestCase):
     """DoD 7.1.1 (gate) — ratio samples_used / tracks_with_available_samples >= 0.7."""
 
