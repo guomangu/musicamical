@@ -641,8 +641,8 @@ configure_workspace_and_mcps() {
     cp "$STUDIO_DIR/.env.example" "$STUDIO_DIR/.env"
   fi
 
-  if [[ ! -e "$HOME/Music/AI-Studio" ]]; then
-    ln -s "$STUDIO_DIR" "$HOME/Music/AI-Studio"
+  if [[ ! -e "$HOME/Music/AI-Studio" || -L "$HOME/Music/AI-Studio" ]]; then
+    ln -sfn "$STUDIO_DIR" "$HOME/Music/AI-Studio"
   fi
 
   for lua_f in "$STUDIO_DIR/projects/active/scripts/"*.lua; do

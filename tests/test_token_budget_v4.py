@@ -64,7 +64,7 @@ class TestTokenBudgetV4(unittest.TestCase):
                 doc = ast.get_docstring(node) or ""
                 sig = ast.unparse(node.args)
                 schema_chars += len(node.name) + len(sig) + len(doc) + 40
-        with open(os.path.join(ROOT, "docs", "AGENT_RUNBOOK_V4.md"), encoding="utf-8") as fh:
+        with open(os.path.join(ROOT, "DOCUMENTATION_IA", "README.md"), encoding="utf-8") as fh:
             runbook = fh.read()
         prep = prod_server.format_prepare_compact({
             "mix_profile": "trap_rap", "bpm": 142, "key": "C minor", "valence": -0.7,

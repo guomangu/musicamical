@@ -78,7 +78,7 @@ class TestMaxSemitoneShift(unittest.TestCase):
         self.assertIn("max_semitone_shift_exceeded", codes)
         iss = next(i for i in issues if i["code"] == "max_semitone_shift_exceeded")
         self.assertEqual(iss["s_max_st"], 24)
-        self.assertEqual(iss["category"], "synth")  # no catalog entry -> default synth cap
+        self.assertEqual(iss["category"], "acoustic")  # piano.wav reconnu acoustique même sans catalogue
 
 
 class TestLoopSafety(unittest.TestCase):

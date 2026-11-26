@@ -22,7 +22,7 @@ Studio complet de production musicale assistée par IA sur **Fedora / Ultramarin
    - `audio-analyzer` (`pyloudnorm` LUFS BS.1770, True Peak 4x, spectre 5 bandes, phase, masquage Kick/808)
    - `vocaloid` (syllabation FR/EN, génération `.ustx`, guides vocaux `.wav`, OpenUTAU `0.1.576` dans `tools/OpenUtau/`)
    - `reverse-engineer` (split 6 stems + **Spotify Basic Pitch ONNX** Audio→MIDI + détection d'accords/BPM/tonalité pour flips Rap)
-   - `ai-studio-prod` (v4.0 façade unique en production : exactement 3 outils `studio_prepare` / `studio_compose` / `studio_refine`, schémas ~600 tokens, runbook [`docs/AGENT_RUNBOOK_V4.md`](docs/AGENT_RUNBOOK_V4.md))
+   - `ai-studio-prod` (v4.2 façade unique en production : exactement 3 outils `studio_prepare` / `studio_compose` / `studio_refine`, schémas ~600 tokens, runbook [`DOCUMENTATION_IA/README.md`](DOCUMENTATION_IA/README.md), 100 % vrais samples `samples/`, boucle ascendante 4 niveaux `bottom_up_analyzer.py`)
 3. **Plugins Linux natifs installés (729 classes scannées, 0 échec)** :
    - **TDR Nova** (`2.2.3` VST3), **ZL Equalizer 2** (`1.4.2` VST3), **Surge XT** (`1.3.4` CLAP/VST3), **CHOW Tape Model** (`2.11.4` CLAP/VST3/LV2), **Dragonfly Reverb** (`3.2.10` Hall/Room/Plate/ER VST3/LV2), **LSP Plugins** (`1.2.37` CLAP/VST3 : Spectrum Analyzer, Oscilloscope, Crossover, Compressors, Limiter).
 
@@ -43,7 +43,7 @@ seul profil MCP (`ai-studio-prod`, enregistré par `install.sh` dans Antigravity
 `studio_refine(project_dir, delta_json, strudel_patch)` stateless via `handoff.txt` ≤ 350 tokens). Le prélude
 `scripts/strudel_prelude.mjs` (`grid()`, `track()`, `deg()`, `glide()`, `arrange()`) et le lint
 `scripts/strudel_lint.mjs` (≤ 2 lignes `ERR L..:..`) escaladent localement à **0 token** avant tout appel LLM ;
-le runbook [`docs/AGENT_RUNBOOK_V4.md`](docs/AGENT_RUNBOOK_V4.md) (≤ 750 tokens, préfixe 100 % statique pour le
+le runbook [`DOCUMENTATION_IA/README.md`](DOCUMENTATION_IA/README.md) (≤ 750 tokens, préfixe 100 % statique pour le
 prompt caching) tient en 2 appels LLM avec budget schemas+runbook+retour < 1 800 tokens
 (`tests/test_token_budget_v4.py`). Côté mix, `scripts/math_mix_solver.py` calcule gains/EQ/pan/width/FX sends/
 sidechain/limiteur en **< 0,8 s et 0 token** depuis le 1er rendu stems (0 boucle LLM, 0 rendu supplémentaire),

@@ -64,8 +64,8 @@ class TestCanonicalExamples(unittest.TestCase):
             self.assertTrue(pf.get("passed"), f"{label}: pre-flight FAIL {json.dumps(pf.get('checks'), default=str)} bad_leaps={pf.get('bad_leaps', [])[:3]}")
 
     def test_runbook_v4_example_block(self):
-        src = extract_js_block(os.path.join(ROOT, "docs", "AGENT_RUNBOOK_V4.md"))
-        self._check_source(src, "AGENT_RUNBOOK_V4.md")
+        src = extract_js_block(os.path.join(ROOT, "DOCUMENTATION_IA", "README.md"))
+        self._check_source(src, "DOCUMENTATION_IA/README.md")
 
     def test_trap_asset_example(self):
         with open(os.path.join(ROOT, "assets", "composition_trap_example.strudel"), encoding="utf-8") as fh:

@@ -299,24 +299,20 @@ ne le contourne pas.
 
 Tout est câblé en 0 token : l'agent n'a qu'à **vérifier les lignes de retour** et suivre les règles.
 
-### A. Choisir les sons (timbre agréable, pas de sons « électroniques criards »)
-- Laisser `palette_id="auto"` (défaut) : la façade cherche **tous seule** dans `samples.db` + `<projet>/Samples/`
-  et branche les vrais samples sur les pistes (`source_type="sample"`, `sample_path`, `gl.sampler`, `root_note`).
-  Vérifier `palette=… samples=N` dans le retour/`handoff.txt` : **N > 0 attendu**.
-- Le **gate d'agréabilité** (`scripts/timbre_pleasantness.py`) filtre les sons durs : verdict **SWAP** = jamais
-  utilisé (plafonds par rôle : r_harsh, rugosité Plomp-Levelt, peak_harsh_db, confort ; centroïde/crest max tonaux).
-  `propose_palettes` et `select_sample` excluent les SWAP ; la cohérence de palette (collision Bark24 + paires)
-  pénalise les chevauchements de timbres.
-- Les samples **REJECTED** par le quality gate v2 (clipping TP×4, faux WAV upsamplé, SNR, DC) sont exclus
-  dès la proposition de palettes ; les fichiers absents/chemins stale sont re-rootés ou exclus
-  (`indexer.reroute_sample_path`).
-- Côté synthés `gl.*` : archetype calibré par (profil, valence) via `pick_gl_plugin`, avec garde-fous **forcés**
-  attaque ≥ 2 ms, release ≥ 60 ms, cutoff ≤ 9 kHz sur les rôles tonaux ; percussions → `gl.kick`/`gl.snare`/`gl.hat`.
-  Les `plugin_params` sont stockés dans le blueprint et appliqués au rendu.
-- `root_note` des percussions = **hauteur notée du kit** (kick=36, snare=38, hihat=42), jamais le pitch détecté
-  d'un one-shot (qui produirait un pitch-shift de −40 st = inaudible).
-- Ranger sa bibliothèque : `install.sh` le fait automatiquement (`organize_samples.py --move` avant indexation,
-  `AI_STUDIO_ORGANIZE_SAMPLES=0` pour désactiver) ; manuellement : `python scripts/organize_samples.py --move` puis réindexer.
+### A. Choisir les sons (100 % vrais samples de `samples/`, pas de sons synthétiques artificiels)
+- Laisser `palette_id="auto"` (défaut) : la façade privilégie **systématiquement les vrais samples enregistrés** de `samples/` (`headroom_piano_c4.wav`, `rhodes_mk1_d4.wav`, `glass_pad_c5`, guitares/plucks, 808, batterie réelle) avec centrage d'octave polyphase `±12 st` automatique dans `<projet>/derived_samples/`. Les synthés `gl.*` ne servent qu'en dernier recours si aucun sample sain n'existe. Vérifier `palette=… samples=N/N` dans `handoff.txt` (**N/N attendu**).
+- Le **gate d'agréabilité** (`scripts/timbre_pleasantness.py`) + **`scripts/sample_fit_guard.py`** filtrent les sons durs (`SWAP`), les stabs métalliques sur les accords, les cris vocaux dans la batterie et les reverse/swells sur `lead`/`arp`, sans faux positifs sur les instruments acoustiques chauds (`peak_harsh_db` évalué uniquement si `r_harsh >= 0.06`).
+- Les samples **REJECTED** par le quality gate v2 (clipping TP×4, faux WAV upsamplé, SNR, DC) sont exclus dès la proposition de palettes ; les fichiers absents/chemins stale sont re-rootés (`indexer.reroute_sample_path`).
+- Enveloppes `gl.sampler` calibrées par rôle (`song_builder.py` : `voices=8` sur `chords`/`pad`, `voices=1` mono sur `808/bass`, `one_shot=1` batterie, LPF doux 6–9 kHz).
+- `root_note` des percussions = **hauteur notée du kit** (`kick=36`, `snare=38`, `hihat=42`, `perc=39`), jamais le pitch détecté d'un one-shot ; `fine_tune_ct=0` sur percussions non-kick.
+- Ranger sa bibliothèque : `install.sh` le fait automatiquement (`organize_samples.py --move` avant indexation).
+
+### A-bis. Boucle d'analyse ascendante 4 niveaux (« du plus petit au plus grand », 0 token)
+Exécutée automatiquement dans `studio_compose` (`scripts/bottom_up_analyzer.py`, rapport `<projet>/renders/diagnostics/bottom_up_report.json`, résumé `BU=PASS(4/4)` dans `handoff.txt`) :
+1. **Niveau 1 — Sons** : vérifie chaque sample choisi de `samples/` par rapport aux accords/notes joués (pureté, politique catégorie/nature, justesse, `S_max`, `pleasantness_gate`) ; dérive `±12 st` ou remplace au besoin.
+2. **Niveau 2 — Accords** : audite chaque accord de la grille (Low Interval Limit, zéro cluster `b2`, douceur du voice-leading Viterbi, alignement fondamentale basse, centrage sur la `root_note` du sample) et ré-optimise tout accord fautif.
+3. **Niveau 3 — Pistes** : audite chaque piste par rapport à la grille et au morceau (anti-`b2` Lead/accord, apex `<= 74`, registre basse `[31..48]`, silences de respiration, suppression des overlaps 10 ms).
+4. **Niveau 4 — Morceau** : audite la cohérence globale (sections non vides, plafond cognitif `<= 8` pistes simultanées, cohérence timbrale Bark24 inter-pistes, puis audio final `master.wav` : peak, RMS, corrélation stéréo, dureté 2–5 kHz).
 
 ### B. Harmonie & rythme (passer les gates du premier coup)
 - Toujours `// @meta …` 1 ligne + `form=` + présence par section (`.in()/.only()/.muteIn()`), `V=0.0`.
@@ -335,9 +331,8 @@ Tout est câblé en 0 token : l'agent n'a qu'à **vérifier les lignes de retour
   `scalar_master_fix` autorisée ; ne jamais toucher aux faders à la main.
 
 ### D. Fiabilité opérationnelle
-- **Après chaque `git pull` / `install.sh` : redémarrer la session agent** (les serveurs MCP chargent le code
-  au démarrage). Signes d'un serveur périmé : `palette: null`, pistes 100 % `gl.*`, ou alerte
-  `RESTART session agent` dans le retour/`handoff.txt`.
+- **Toujours ranger les projets dans `projects/<nom>`** : `prod_server._resolve_project_dir()` verrouille automatiquement tout nom court ou chemin relatif/externe vers `$AI_STUDIO_DIR/projects/<nom>`, et `install.sh` synchronise `~/Music/AI-Studio` vers le dépôt actif.
+- **Après chaque `git pull` / `install.sh` : redémarrer la session agent** (les serveurs MCP chargent le code au démarrage). Signes d'un serveur périmé : `palette: null`, pistes 100 % `gl.*`, ou alerte `RESTART session agent` dans le retour/`handoff.txt`.
 - `install.sh` fait `git pull --ff-only`, organise les samples, réindexe (backfill q2) : `AI_STUDIO_GIT_PULL=0`
   pour désactiver ; tous les paramètres sont dans `.env` (voir `.env.example`).
 - Retouches économes : `studio_refine(semantic_patch={"lead": {"oct": -1, "rests": "+15%"}})` (~20–40 tokens)

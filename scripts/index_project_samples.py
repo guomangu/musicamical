@@ -228,7 +228,7 @@ def _scan_project_audio(project_dir: str) -> tuple[list[tuple[str, str, str]], l
         if not os.path.isdir(sub_dir):
             continue
         for root, dirnames, fns in os.walk(sub_dir, followlinks=True):
-            dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d != "__MACOSX")
+            dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d not in ("__MACOSX", "sfz"))
             for fn in sorted(fns):
                 if fn.startswith("."):
                     skipped.append({"path": os.path.join(root, fn), "reason": "dotfile"})

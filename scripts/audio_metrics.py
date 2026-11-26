@@ -392,19 +392,28 @@ def _refine_f0_harmonic(sig: np.ndarray, sr: int, f0_init: float) -> float:
             best_f, best_s = c, sc
     # Anti-partial lock: if YIN locked onto an inharmonic partial (bell/FM), its pitch class
     # differs from the LOWEST strong spectral peak (the true fundamental, even if weak).
-    # Wrong-pc root => dissonant sample; octave errors keep the same pc and stay harmless.
+    # NEVER override when `best_f` ITSELF is already the dominant spectral peak (>= 65% of max),
+    # otherwise a faint low-end rumble or reverb tail at 20% height hijacks clean single-note pads!
     try:
-        mask = (np.fft.rfftfreq(n_fft, 1.0 / sr) >= 30.0) & (np.fft.rfftfreq(n_fft, 1.0 / sr) <= 1200.0)
+        freqs_all = np.fft.rfftfreq(n_fft, 1.0 / sr)
+        mask = (freqs_all >= 30.0) & (freqs_all <= 1200.0)
         sp_lo = sp[mask]
-        fr_lo = np.fft.rfftfreq(n_fft, 1.0 / sr)[mask]
+        fr_lo = freqs_all[mask]
         if len(sp_lo) > 10 and float(np.max(sp_lo)) > 0:
-            p_idx, _ = signal.find_peaks(sp_lo, height=float(np.max(sp_lo)) * 0.20, distance=20)
+            max_lo = float(np.max(sp_lo))
+            bm = (freqs_all >= best_f * 0.94) & (freqs_all <= best_f * 1.06)
+            best_amp = float(np.max(sp[bm])) if np.any(bm) else 0.0
+            p_idx, _ = signal.find_peaks(sp_lo, height=max_lo * 0.25, distance=20)
             if len(p_idx):
                 lowest = float(fr_lo[p_idx[0]])
-                pc_yin = round(69.0 + 12.0 * math.log2(max(best_f, 1e-6) / 440.0)) % 12
-                pc_low = round(69.0 + 12.0 * math.log2(max(lowest, 1e-6) / 440.0)) % 12
-                if pc_yin != pc_low and 30.0 <= lowest <= min(2400.0, sr * 0.45):
-                    return lowest
+                # Déclencher uniquement si best_f n'est pas déjà dominant (< 65 %) OU si best_f est un
+                # partiel inharmonique aigu de cloche/FM (> 700 Hz et >= 1.5x le pic grave fondamental).
+                is_high_partial = (best_f > 700.0 and (best_f / max(lowest, 1e-6)) >= 1.5)
+                if best_amp < max_lo * 0.65 or is_high_partial:
+                    pc_yin = round(69.0 + 12.0 * math.log2(max(best_f, 1e-6) / 440.0)) % 12
+                    pc_low = round(69.0 + 12.0 * math.log2(max(lowest, 1e-6) / 440.0)) % 12
+                    if pc_yin != pc_low and lowest < best_f * 0.92 and 30.0 <= lowest <= min(2400.0, sr * 0.45):
+                        return lowest
     except Exception:
         pass
     return float(best_f)
@@ -496,7 +505,12 @@ def analyze_pitch_and_purity(
             med_f0 = float(np.median(body_f0))
             med_f0 = _refine_f0_harmonic(sig, sr, med_f0)  # avoid inharmonic-partial lock (bells/FM)
             midi_vals = 69.0 + 12.0 * np.log2(np.maximum(body_f0, 1e-6) / 440.0)
-            f0_std_st = round(float(np.std(midi_vals)), 3)
+            # Robust pitch stability: fold YIN octave-tracking jumps (+-12 st in quiet decay tails)
+            # and use MAD (1.4826 * median|dev|) so single real plucks/pads/vocals aren't falsely
+            # flagged as melodic_sequence, while true multi-pitch melodies still show large MAD.
+            med_midi_body = float(np.median(midi_vals))
+            folded_devs = ((midi_vals - med_midi_body + 6.0) % 12.0) - 6.0
+            f0_std_st = round(float(1.4826 * np.median(np.abs(folded_devs))), 3)
             # Snap exact FFT peak around med_f0 for sub-cent precision
             n_fft_hi = 65536
             s_body = min(len(sig) - 2048, int(skip_s * sr)) if dur_s > 0.30 else 0
@@ -634,14 +648,15 @@ def analyze_pitch_and_purity(
     # 6. Classify sample_nature & playable_chromatically
     # Notice: if f0_std_st is super stable (<= 0.25 st) and polyphony_ratio < 0.42, extra onsets from slow reverb/tremolo are NOT a melodic sequence
     is_melodic_seq = (f0_std_st > 0.75 and not is_low) or (onset_count >= 3 and f0_std_st > 0.35)
-    is_chord = chord_peak_count >= 2 or (med_f0 is None and chroma_strong >= 3)
-    if is_perc_heavy or (not is_low and r_harm < 0.30 and (hnr_db is None or hnr_db < 4.5)):
+    is_chord = (chord_peak_count >= 2 and (polyphony_ratio >= 0.42 or chroma_strong >= 3)) or (med_f0 is None and chroma_strong >= 3)
+    is_sustained_harmonic = bool(med_f0 is not None and dur_s >= 0.35 and r_harm >= 0.70 and (hnr_db is None or hnr_db >= 8.0))
+    if is_perc_heavy or (not is_low and not is_sustained_harmonic and r_harm < 0.30 and (hnr_db is None or hnr_db < 4.5)):
         sample_nature = "percussion"
         playable = False
     elif is_melodic_seq:
         sample_nature = "melodic_sequence"
         playable = False
-    elif is_chord or (polyphony_ratio >= 0.45 and chord_peak_count >= 1):
+    elif is_chord or (polyphony_ratio >= 0.45 and chord_peak_count >= 1 and chroma_strong >= 3):
         sample_nature = "poly_chord_or_dyad"
         playable = False
     elif inharmonic_warnings and not is_low:
@@ -649,10 +664,10 @@ def analyze_pitch_and_purity(
         # is stable -> still chromatically playable via the sampler (root = true fundamental).
         sample_nature = "inharmonic_bell_or_fx"
         playable = bool(med_f0 is not None and f0_std_st <= 0.65)
-    elif dur_s >= 5.0 and f0_std_st > 0.40:
+    elif dur_s >= 5.5 and f0_std_st > 0.40:
         sample_nature = "ambient_bed"
         playable = False
-    elif med_f0 is not None and (f0_std_st <= 0.65 or is_low) and polyphony_ratio < 0.45:
+    elif med_f0 is not None and (f0_std_st <= 0.65 or is_low) and (polyphony_ratio < 0.45 or (is_sustained_harmonic and chroma_strong <= 2)):
         sample_nature = "mono_oneshot"
         playable = True
     else:

@@ -119,7 +119,7 @@ Lorsqu'un utilisateur demande une piste chantée avec paroles :
 > `midi_autofix`, clamp frontière 20 ms, `FullCoverageCoreValidator`) : on garde 100 % de la sécurité
 > harmonique/acoustique de la v3.x avec ~85 % d'économie de tokens.
 >
-> Archive détaillée et comparatif : [REFERENCE_ARCHIVE.md](REFERENCE_ARCHIVE.md) (section v4.0).
+> Détails et inventaire complet des modules v4.0–v4.2 : voir §7 en fin de ce document.
 > Index général : [00_SOMMAIRE.md](00_SOMMAIRE.md) (Phase 9). Règles normatives : [../.rules](../.rules) (addendum v4.0).
 
 ---
@@ -239,7 +239,7 @@ En production v4.0, un **seul** serveur MCP est exposé à l'agent : `mcp-server
   `arrange()` ; 4 paliers d'escalade incl. `AUTO_SWAP_SAMPLE` quand le solveur de mix détecte une source défectueuse.
 - **Stateless via `handoff.txt`** (<= 350 tokens) : `studio_refine` relit le contexte sans recharger le projet.
 - **Prompt caching** : préfixe 100 % statique (system + 3 schémas d'outils + runbook) — runbook dédié
-  [AGENT_RUNBOOK_V4.md](AGENT_RUNBOOK_V4.md) (<= 750 tokens, exemple canonique 22 lignes, flux en 2 appels).
+  [`DOCUMENTATION_IA/README.md`](../DOCUMENTATION_IA/README.md) (<= 750 tokens, exemple canonique, flux en 1–2 appels).
 - **Budget vérifié en CI** : `tests/test_token_budget_v4.py` exige schemas + runbook + retour `studio_prepare`
   < **1 800 tokens** combinés.
 
@@ -362,7 +362,7 @@ inter-sections comptent dans `gap_fill`. Règles pour `gap_fill = 1.0` :
    (`(d * next < 0) and (1 <= abs(next) <= 3)`).
 3. Pattern éprouvé (16 pas, `.slow(2)`, 2 rests) : `0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~` →
    diffs +5, −2, −1, −1, +3, −2… le +5 est suivi de −2 ✓ (pre-flight : gf=1.0, sw=0.93, rest=0.42).
-   C'est le lead de l'exemple canonique du [runbook V4](AGENT_RUNBOOK_V4.md).
+   C'est le lead de l'exemple canonique de [`DOCUMENTATION_IA/README.md`](../DOCUMENTATION_IA/README.md).
 4. `rest_ratio` ∈ [0.20, 0.50] : ~2 `~` sur 16 éléments avec durées < step → ~0.23–0.42.
    Ne pas mettre de `.legato()` (allonge les notes, `rest_ratio` peut tomber sous 0.20).
 
@@ -478,3 +478,32 @@ supprimés incluse. CLI : `python3 scripts/sample_quality_v2.py <fichier.wav>` e
 `tests/test_sample_quality_v2.py` : jalons 1-4 synthétiques (4 fixtures qualité, 808, collision,
 phase) + câblage indexeur/sélection (REJECTED exclu). Budget gate < 50 ms/fichier en CI
 (cible spec : 15 ms).
+
+---
+
+## 7. Synthèse Architecture v4.0–v4.2 : Politique 100 % Vrais Samples (`samples/`) & Inventaire Modules
+
+### 7.1 Décisions d'architecture Strudel headless (v4.0)
+| Choix | Décision retenue |
+| :--- | :--- |
+| Évaluation Strudel | Node.js **headless pur** (`scripts/strudel_eval.mjs`, `@strudel/core` `queryArc`, `seed` déterministe, < 100 ms) — 0 Chromium, 0 VirMIDI, 0 temps réel |
+| Couche musicale | `ScoreIR` + garde-fous **100 % locaux (0 token)** : registre 808 `[31,48]`, apex Lead `<= 74`, voice leading Viterbi + LIL, `autofix_score_ir` + `fix_lead_b2_clashes`, clamp 20 ms, `sanitize_note_overlaps`, `FullCoverageCoreValidator`, boucle ascendante `bottom_up_analyzer.py` |
+| Double frontend | `composition.strudel` (v4.x) et `arrangement_plan.json` (v3.x) → **même `ScoreIR`** via `scripts/strudel_to_score_ir.py`, puis `compile_song.py` |
+| Façade MCP production | `ai-studio-prod` (`mcp-servers/ai-studio-prod/prod_server.py`) : exactement 3 outils `studio_prepare` / `studio_compose` / `studio_refine` (~600 tokens de schémas), retour prepare ≤ 450 cars, `handoff.txt` ≤ 350 tokens, runbook [`DOCUMENTATION_IA/README.md`](../DOCUMENTATION_IA/README.md) ≤ 750 tokens, budget total < 1 800 tokens (`tests/test_token_budget_v4.py`) |
+| Mix 0 token | `scripts/math_mix_solver.py` : `solve_mix_parameters(...)` (< 0,8 s, 0 token, 0 rendu, PSD 512 + Bark 24 + RBJ analytique, `AUTO_SWAP_SAMPLE`) |
+
+### 7.2 Priorité absolue aux vrais samples enregistrés (`samples/`, v4.2)
+Les synthés natifs `gl.*` restent un **repli de sécurité uniquement** lorsqu'aucun sample réel sain n'existe ; toute piste tonale ou percussive privilégie les vrais samples de `$AI_STUDIO_DIR/samples/` :
+* **Analyse pitch & pureté robuste (`scripts/audio_metrics.py`)** : stabilité de hauteur par **MAD replié à l'octave** (`1.4826 * median(|((midi - med + 6) % 12) - 6|)`) pour ne plus rejeter les vraies guitares/pianos/voix/pads dont la queue de résonance subit un saut d'octave YIN ; verrou `_refine_f0_harmonic` protégé (ne remplace jamais le pic dominant `>= 65 %` du spectre par un grondement faible).
+* **Gate d'agréabilité sans faux positifs tonaux (`scripts/timbre_pleasantness.py`, `scripts/select_sample.py`)** : `peak_harsh_db` n'est évalué que si `r_harsh >= 0.06` (énergie audible réelle dans 2–5 kHz — un piano/Rhodes/guitare chaud avec `r_harsh = 0.000` n'est plus rejeté `SWAP` pour un harmonique discret au-dessus du plancher numérique) ; `CREST_MAX_DB_TONAL` recalibré pour les vrais pianos/plucks (`19.5 dB` accords/lead, `14.5 dB` pad).
+* **Quality gate v2 percussif (`scripts/sample_quality_v2.py`)** : `NOISY_FLOOR` exige aussi une plage dynamique temporelle `< 15 dB` afin de ne plus rejeter les vrais hi-hats/snares/claps à spectre large et décroissance rapide.
+* **Centrage d'octave polyphase universel (`scripts/sample_fit_guard.py`)** : `prepare_octave_shifted_sample(src, proj, root, shift_octaves=±1)` génère sans artefacts dans `<projet>/derived_samples/` les dérivés `±12 st` pour tout sample tonal (`808`, `piano`, `synth`, `pad`, `guitar`, `vocal`) ; `max_semitone_shift_st_by_role` (`chord_keys: 10, pad_atmosphere: 10, lead_melody: 9, bass_sub: 9`) ; exclusion stricte des stabs métalliques sur `chord_keys`/`pad_atmosphere`, des cris vocaux (`_VOCAL_NAME_RE`) sur percussions, et des reverse/swells sur `lead`/`arp` ; les `mono_oneshot` soutenus ne sont jamais filtrés comme des boucles BPM.
+* **Instruments studio extraits de `samples/sfz/`** : `samples/piano/rhodes_mk1_d4.wav` (Fender Rhodes Mk1, `root=62`) et `samples/piano/headroom_piano_c4.wav` (Intimate Acoustic Piano, `root=60`) dérivés directement des banques SFZ déjà présentes dans `samples/sfz/` ; `index_project_samples.py` exclut `sfz/` comme `indexer.py`.
+* **Enveloppes & polyphonie musicales `gl.sampler` (`scripts/song_builder.py`)** : `pad` (`voices=8, attack=0.08s, release=0.45s, LPF=6 kHz`), `chords` (`voices=8, attack=0.008s, release=0.28s, LPF=6.5 kHz`), `lead/arp` (`voices=6, attack=0.005s, release=0.22s, LPF=9 kHz`), `bass/808` (`voices=1` mono, `attack=0.003s, release=0.10s`), batterie (`one_shot=1, voices=4`) ; réinitialisation `spec.preset = ""` et filtrage des paramètres synthé (`vibrato_delay_ms`, etc.) sur `gl.sampler`.
+
+### 7.3 Inventaire synthétique des modules clés (v3.0–v4.2)
+* `scripts/blueprint_safety.py` : audit projet-wide (`root_note`, `MAX_SEMITONE_SHIFT`, boucles CQT + BPM `[0.88;1.14]`, confinement cloches `{1,5,8}`).
+* `scripts/sample_fit_guard.py` : politique F4, `register_fit`, dérivation polyphase `±12 st`, garde finale `enforce_blueprint_sample_fit`.
+* `scripts/bottom_up_analyzer.py` : boucle hiérarchique ascendante 4 niveaux (`1_sounds -> 2_chords -> 3_tracks -> 4_song`).
+* `scripts/mix_config.py` + `config/mix_profiles.json` : source unique des constantes de mixage.
+* `scripts/stem_matrix_evaluator.py`, `scripts/compile_song.py`, `scripts/gain_staging_lib.py`, `scripts/sample_prep_lib.py`, `scripts/groove_lib.py`, `scripts/transitions_lib.py`, `scripts/midi_autofix.py`, `mcp-servers/audio-analyzer/musicality_metrics.py`.

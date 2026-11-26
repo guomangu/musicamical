@@ -644,8 +644,8 @@ def _load_sqlite_candidates(
                 b_sub, b_bass, b_lowmid, b_mid, b_harsh, b_air,
                 bark_js, bpm_f, loop_int,
             ) = r
-            # v3.0 BPM lock for loops from the SQLite bank
-            if loop_int and bpm is not None and bpm_f is not None:
+            # v3.0 BPM lock for loops from the SQLite bank (jamais sur un mono_oneshot soutenu !)
+            if loop_int and str(nat or "") != "mono_oneshot" and bpm is not None and bpm_f is not None:
                 if not bpm_compatibility(float(bpm), float(bpm_f))["ok"]:
                     continue
             clap_v16, t_card = cards_by_id.get(int(sid), (None, None))
@@ -1101,13 +1101,12 @@ def propose_palettes(
                 # Diversity bonus across palettes (jamais de pénalité contre un vrai sample sain verrouillé)
                 div_pen = 0.22 if (is_used and len(cands) > 1 and not (user_locked and sample_healthy)) else 0.0
                 theme_bonus = 0.08 if cand.get("theme") == pref_theme else 0.0
-                if pref_theme == "synthetic" and cand["source_type"] == "gridline_native" and role in MELODIC_ROLES:
-                    theme_bonus += 0.03
-                # F8: le bonus sample-first ne s'applique qu'aux candidats sains (policy preferred/neutral + F3 valide)
-                if pref_theme == "organic" and sample_healthy:
-                    theme_bonus += 0.09
-                if user_locked and sample_healthy:
-                    theme_bonus += 0.25
+                # F8 + priorité absolue aux vrais samples enregistrés (`samples/`):
+                # un vrai sample sain (policy preferred/neutral + F3 valide + pleasantness PASS/FIX)
+                # prime TOUJOURS sur un synthé gl.* artificiel. Les gl.* restent le repli propre
+                # uniquement lorsqu'aucun vrai sample sain n'existe pour ce rôle.
+                if sample_healthy:
+                    theme_bonus += 0.28 if (user_locked or pref_theme == "organic") else 0.22
 
                 mood_pen = 0.0
                 if valence <= 0.1 and role in ("bass_sub", "lead_melody") and is_sample:
@@ -1169,7 +1168,7 @@ def propose_palettes(
         )
         sample_ratio = round(n_real / max(1, len(chosen)), 3)
         # F8: score borné strictement dans [0, 1] ; qualité et sample_ratio publiés séparément
-        bonus_sample = (0.08 * (n_healthy_real / max(1, len(chosen)))) if user_locked else 0.0
+        bonus_sample = (0.08 if user_locked else 0.06) * (n_healthy_real / max(1, len(chosen)))
         pal_score = round(max(0.0, min(1.0, quality_score + bonus_sample)), 4)
 
         reason_parts = [
@@ -1265,7 +1264,7 @@ def propose_palettes(
         out_payload["candidate_pool"] = {
             role: [
                 {k: v for k, v in c.items() if not k.startswith("_") and k != "bark_24"}
-                for c in sample_pool.get(role, [])[:8]
+                for c in sample_pool.get(role, [])[:16]
             ]
             for role in eff_roles
         }

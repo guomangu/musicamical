@@ -5,7 +5,7 @@
 > - **Moteur & DSL** : Gridline `0.7.7` (Live `--attach` port `47390` ou Headless `.gridline`). Privilégier les plugins natifs `gl.*` et **importer `scripts/gl_dsl.py`** (`eq_band`, `eq_params`, `reverb_room`, `limiter_master`, `sidechain_send`, `db_to_auto`, `synth_voice`) : zéro calcul manuel de `Band N width`, `k128`, décisecondes ou `Dry (full)`.
 > - **Mémoire sonore unifiée** : `audio-index:search_samples` et `scripts/select_sample.py` interrogent la base SQLite **`samples.db`** (`samples` + `sample_dsp_metrics`, **`< 25 ms`**, zéro CLAP synchrone ; si vecteurs CLAP absents, fallback DSP automatique + `"warning"`).
 > - **Unités** : Composer uniquement en **beats 0-indexed** dans Python (`song_builder.py` / `groove_lib.py` / `transitions_lib.py` gèrent `pretty_midi`, MCP et automations).
-> - **Économie Tokens & CPU** : 1 script `compile_song.py` via `song_builder.run_song_cli` (`build_song.py` = **LEGACY v2.1**, archivé dans `REFERENCE_ARCHIVE.md`) · `--range <b1>-<b2> --no-neural --auto-fix --max-passes 2` en itération · 1 rendu final `--mp3 --sections`.
+> - **Économie Tokens & CPU** : 1 script `compile_song.py` via `song_builder.run_song_cli` (`build_song.py` = **LEGACY v2.1**, cf. [`docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md`](04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md)) · `--range <b1>-<b2> --no-neural --auto-fix --max-passes 2` en itération · 1 rendu final `--mp3 --sections`.
 
 ---
 
@@ -138,3 +138,21 @@ cd $AI_STUDIO_DIR && OMP_NUM_THREADS=1 .venv/bin/python scripts/index_samples.py
 # 3. Suite CI complète multi-genres (7/7 headless)
 cd $AI_STUDIO_DIR && .venv/bin/python tests/regression_multi_genre.py -v
 ```
+
+---
+
+## Chapitre 6 — Runbooks Opérationnels (v3.3 3 Macro-Tours & v4.2 Façade Production)
+
+### 6.1 Runbook Production v4.2 (Façade `ai-studio-prod` — 3 outils, < 1 800 tokens)
+Le profil de production (`DOCUMENTATION_IA/README.md`, ≤ 750 tokens, préfixe 100 % statique pour le prompt caching) n'expose que **`ai-studio-prod`** (`studio_prepare`, `studio_compose`, `studio_refine`) :
+* **Verrouillage de dossier projet** : `_resolve_project_dir()` range automatiquement tout nom court (`rap_2min`), chemin relatif ou chemin externe `.../projects/<nom>` dans `$AI_STUDIO_DIR/projects/<nom>` (hors `/tmp/` et `/var/` pour les tests). `install.sh` force également `ln -sfn "$STUDIO_DIR" "$HOME/Music/AI-Studio"` afin qu'aucun symlink périmé ne dévie les projets.
+* **Priorité absolue aux vrais samples de `samples/`** : `palette_id="auto"` sélectionne prioritairement les vrais samples enregistrés de `$AI_STUDIO_DIR/samples/` (et dérivés polyphase `±12 st` dans `<projet>/derived_samples/`) pour **toutes** les pistes (tonales et percussives), en n'utilisant `gl.*` qu'en dernier recours si aucun sample sain n'existe.
+* **Boucle ascendante 4 niveaux (`scripts/bottom_up_analyzer.py`)** : exécutée automatiquement à 0 token dans `compose_project` (**Sons → Accords → Pistes → Morceau**), consignée dans `<projet>/renders/diagnostics/bottom_up_report.json` et résumée (`BU=PASS(4/4,fix=N)`) dans `handoff.txt` (≤ 350 tokens).
+
+### 6.2 Runbook v3.3 — Création musicale en 3 macro-tours (entrée JSON `arrangement_plan.json`)
+* **Tour 1** — `audio-analyzer:studio_prepare_session(project_dir, style_intent, reference_paths, remix_source_path=None, lyrics_spec=None)` : indexe `Samples/` (`user_samples_locked`, 0 téléchargement), propose 3 palettes cohérentes en espace DRR (`root_note`, BPM, boucles filtrées, `wetness_score`, archétypes `config/timbre_archetypes.json`). Scénario C (`remix_source_path`) : BPM/clé/grille ; Scénario D (`lyrics_spec`) : syllabes/pauses. Retour JSON ≤ 1 500 cars.
+* **Tour 2** — Écrire `song_blueprint.json` (`seed`, `mix_profile`, `emotion_vector`, `harmonic_core` avec `section_progressions` + `bass_mode`) + `arrangement_plan.json` (`compact_notes`, phrasé 8 mesures, `comping_style`, `articulation` `glide_to_next`/`legato`/`swell`, suspensions `4->3`/`9->8`, `groove_style` via `midi_groove_bank`), puis `audio-analyzer:studio_build_and_validate_core(project_dir, palette_id)` :
+  * `blueprint_enricher.py` complète les champs créatifs omis sans écraser les choix explicites ; `blueprint_safety` bloque les erreurs fatales (`root_note`, `S_max`, boucles, cloches).
+  * `compile_song.py <proj> --probe` exécute : `NarrativeHarmony` + `OrchestrationEngine` → `midi gate` contour-preserving + tournoi `MelodicAppealIndex` → `ScoreIR` (`groove` en `expression`, clamp 20 ms, `sanitize_note_overlaps`) → `FullCoverageCoreValidator` → sonde stems composite 12 mesures (`stem_matrix_evaluator`, `FIX_TRACK_ROOT_NOTE`).
+* **Tour 3** — `audio-analyzer:studio_render_final_master(project_dir, export_mp3)` : `compile_song` complet (`outro_ritardando`) + 1 seul rendu master + `preview_highlights.wav` (24 s) + quality gate (`config/mix_profiles.json` : Ceiling `-1.2 dBTP`, Gain ≤ 5.5 dB, `gl.dist` ≤ 0.04, planchers LPF sources 6.5 kHz / 9 kHz) + `autofix_transaction.py`. Retouche post-écoute : `audio-analyzer:studio_refine_track(project_dir, delta_intent)`.
+* **Budget v3.3** : 3 tours LLM, ≤ 8 000 tokens, 0 ligne `build_song.py`, ≤ 2 rendus Gridline, audit NumPy < 1,5 s.

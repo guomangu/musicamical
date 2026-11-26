@@ -9,12 +9,25 @@ ROOT = os.environ.get("AI_STUDIO_DIR") or os.path.dirname(os.path.dirname(os.pat
 
 
 class TestDocsHygiene(unittest.TestCase):
-    def test_agent_runbook_under_6000_chars(self):
-        path = os.path.join(ROOT, "docs", "AGENT_RUNBOOK.md")
-        self.assertTrue(os.path.isfile(path))
-        with open(path, encoding="utf-8") as fh:
+    def test_exact_five_dev_docs_and_compact_production_runbook(self):
+        docs_dir = os.path.join(ROOT, "docs")
+        md_files = sorted(fn for fn in os.listdir(docs_dir) if fn.endswith(".md"))
+        self.assertEqual(
+            md_files,
+            [
+                "00_SOMMAIRE.md",
+                "01_SYSTEME_STACK_ET_GUIDE.md",
+                "02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md",
+                "03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md",
+                "04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md",
+            ],
+            f"docs/ doit contenir exactement 5 documentations numérotées, trouvé: {md_files}",
+        )
+        runbook_path = os.path.join(ROOT, "DOCUMENTATION_IA", "README.md")
+        self.assertTrue(os.path.isfile(runbook_path))
+        with open(runbook_path, encoding="utf-8") as fh:
             content = fh.read()
-        self.assertLessEqual(len(content), 6000, f"AGENT_RUNBOOK.md = {len(content)} cars > 6000")
+        self.assertLessEqual(len(content), 3000, f"DOCUMENTATION_IA/README.md = {len(content)} cars > 3000")
 
     def test_no_hardcoded_home_paths(self):
         bad = []
@@ -34,8 +47,11 @@ class TestDocsHygiene(unittest.TestCase):
                         continue
         self.assertEqual(bad, [], f"chemins /home/gamo encore présents: {bad}")
 
-    def test_reference_archive_exists(self):
-        self.assertTrue(os.path.isfile(os.path.join(ROOT, "docs", "REFERENCE_ARCHIVE.md")))
+    def test_playbook_and_retex_preserved_in_doc04(self):
+        with open(os.path.join(ROOT, "docs", "04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md"), encoding="utf-8") as fh:
+            txt = fh.read()
+        self.assertIn("Playbook des pièges", txt)
+        self.assertIn("RETEX", txt)
 
 
 if __name__ == "__main__":
@@ -101,9 +117,8 @@ class TestDocsCoherenceCI(unittest.TestCase):
             return text.replace(",", ".").lower()
 
         normative_files = [
-            os.path.join(ROOT, "docs", "AGENT_RUNBOOK.md"),
-            os.path.join(ROOT, "docs", "04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md"),
             os.path.join(ROOT, "docs", "01_SYSTEME_STACK_ET_GUIDE.md"),
+            os.path.join(ROOT, "docs", "04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md"),
             os.path.join(ROOT, "docs", "02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md"),
             os.path.join(ROOT, "docs", "03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md"),
         ]
@@ -163,16 +178,16 @@ class TestDocsCoherenceCIv33(unittest.TestCase):
         self.assertEqual(bad, [], f"valeurs divergentes dans les tableaux docs/04_* : {bad}")
 
     def test_runbook_synced_with_v33(self):
-        p = os.path.join(ROOT, "docs", "AGENT_RUNBOOK.md")
+        p = os.path.join(ROOT, "docs", "01_SYSTEME_STACK_ET_GUIDE.md")
         with open(p, encoding="utf-8") as fh:
             t = fh.read()
-        self.assertIn("# AGENT RUNBOOK v3.3", t, "en-tête du runbook doit être v3.3")
+        self.assertIn("Runbook v3.3", t, "docs/01 doit contenir la section Runbook v3.3")
         for tok in ("--probe", "ScoreIR", "section_progressions", "NarrativeHarmony", "OrchestrationEngine",
                     "glide_to_next", "config/timbre_archetypes.json", "midi_groove_bank",
                     "MelodicAppealIndex", "FullCoverageCoreValidator", "blueprint_enricher",
-                    "studio_refine_track", "preview_highlights.wav", "seed", "4->3"):
-            self.assertIn(tok, t, f"runbook v3.3 ne mentionne pas {tok!r}")
-        self.assertLessEqual(len(t), 6000, f"runbook = {len(t)} cars > 6000")
+                    "studio_refine_track", "preview_highlights.wav", "seed", "4->3",
+                    "bottom_up_analyzer.py"):
+            self.assertIn(tok, t, f"docs/01 ne mentionne pas {tok!r}")
 
     def test_no_duplicated_numbering_or_misaligned_tables(self):
         import re as _re

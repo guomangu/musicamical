@@ -70,6 +70,31 @@ PREPARE_LIMIT = 450
 HANDOFF_LIMIT = 1400
 
 
+def _resolve_project_dir(project_dir: str) -> str:
+    """Garantit que tout nouveau projet créé par nom court ou chemin relatif (ex. `rap_2min`,
+    `./rap_2min`) est rangé dans `<ROOT>/projects/<nom>` et jamais dans un autre dossier.
+    Laisse intacts les chemins temporaires (`/tmp/...`, `/var/...`) utilisés par les tests."""
+    raw = str(project_dir or "").strip()
+    if not raw:
+        return os.path.join(ROOT, "projects", "active")
+    expanded = os.path.expanduser(raw)
+    if os.path.isabs(expanded):
+        real = os.path.realpath(expanded)
+        # Rediriger un ancien chemin `.../projects/<name>` hors ROOT (sauf /tmp ou /var)
+        if not real.startswith(("/tmp/", "/var/")) and not real.startswith(os.path.realpath(ROOT)):
+            parts = os.path.normpath(real).split(os.sep)
+            if "projects" in parts:
+                idx = len(parts) - 1 - parts[::-1].index("projects")
+                tail = parts[idx + 1 :]
+                if tail:
+                    return os.path.join(ROOT, "projects", *tail)
+        return os.path.abspath(expanded)
+    norm_rel = os.path.normpath(expanded)
+    if norm_rel == "projects" or norm_rel.startswith("projects" + os.sep):
+        return os.path.abspath(os.path.join(ROOT, norm_rel))
+    return os.path.abspath(os.path.join(ROOT, "projects", os.path.basename(norm_rel)))
+
+
 def _short_id(name: str, n: int = 6) -> str:
     base = os.path.splitext(os.path.basename(str(name)))[0]
     return base[:n]
@@ -179,6 +204,7 @@ def write_handoff(project_dir: str, report: dict[str, Any]) -> str:
         pf_line,
         _palette_line(report) + (f" {ms_line}" if ms_line else ""),
         *([sg_line] if sg_line else []),
+        *([str((report.get("bottom_up") or {}).get("summary_line"))] if (report.get("bottom_up") or {}).get("summary_line") else []),
         *(["!! RESTART session agent : prod_server.py a changé depuis le démarrage du serveur MCP -> fermer/rouvrir la session (Zed/Antigravity)"] if report.get("stale_server") else []),
         "score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json",
         master_line,
@@ -439,10 +465,11 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
         from indexer import DEFAULT_DB_PATH, reroute_sample_path
         from palette_builder import propose_palettes
         from sample_fit_guard import (
+            TONAL_SLOTS,
             cached_note_ranges_and_catalog,
             enforce_blueprint_sample_fit,
             infer_sample_category,
-            prepare_octave_up_808,
+            prepare_octave_shifted_sample,
             register_fit,
             resolve_catalog_path,
         )
@@ -475,10 +502,21 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
         notes_by_track = cached["notes_by_track"]
         note_ranges = cached["note_ranges"]
 
+        needed_roles: list[str] = []
+        for tr in bp.get("tracks", []):
+            r_tr = str(tr.get("role") or "")
+            if r_tr == "vocals":
+                continue
+            k_tr = str(tr.get("name") or r_tr).lower()
+            sr_tr = _SLOT_FOR.get(k_tr, r_tr)
+            if sr_tr in ("kick", "snare_clap", "hihat_perc", "bass_sub", "chord_keys", "pad_atmosphere", "lead_melody") and sr_tr not in needed_roles:
+                needed_roles.append(sr_tr)
+
         common_kw = dict(
             mix_profile=str(bp.get("mix_profile") or "trap_rap"),
             emotion_vector=bp.get("emotion_vector") or {},
             target_key=f"{bp.get('key', 'C')} {bp.get('harmonic_core', {}).get('mode', 'minor')}",
+            roles=needed_roles or None,
             db_path=DEFAULT_DB_PATH,
             bpm=float(bp.get("bpm") or 0) or None,
             note_ranges=note_ranges or None,
@@ -542,12 +580,16 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
         def _pick_unique_from_pool(slot_role: str, track_key: str) -> dict[str, Any] | None:
             pool_cands = list(candidate_pool.get(slot_role) or [])
             if track_key in ("perc", "rim"):
-                pool_cands.sort(
-                    key=lambda c: (
-                        0 if infer_sample_category(c.get("category"), c.get("filepath")) == "perc" else 1,
-                        -(float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4),
-                    )
-                )
+                def _perc_rank(c: dict[str, Any]) -> tuple[int, int, float]:
+                    fp_l = os.path.basename(str(c.get("filepath") or "")).lower()
+                    cat_c = infer_sample_category(c.get("category"), c.get("filepath"))
+                    # Éviter les crash/cymbales longues sur un rôle perc/rim rythmique
+                    is_crash = 1 if any(w in fp_l for w in ("crash", "cymbal", "swell", "rev")) else 0
+                    cat_ok = 0 if cat_c == "perc" else 1
+                    sc = float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4
+                    return (is_crash, cat_ok, -sc)
+
+                pool_cands.sort(key=_perc_rank)
             elif track_key in ("hihat", "hat", "open_hat"):
                 # Un hi-hat doit venir de hat/ ou open_hat/ (jamais un tom grave perc/ comme dnb_perc_ghost !)
                 hat_only = [
@@ -560,6 +602,62 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                         -(float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4),
                     )
                 )
+            elif slot_role in TONAL_SLOTS:
+                # Préférer un vrai clavier/piano/rhodes pour `chords`, un pad soutenu pour `pad`,
+                # et un instrument à attaque nette (guitare/pluck/piano) pour `lead`/`arp`
+                # (jamais un swell/reverse sur un lead ou un arpège rythmique !).
+                def _tonal_rank(c: dict[str, Any]) -> tuple[int, float]:
+                    fp_l = os.path.basename(str(c.get("filepath") or "")).lower()
+                    cat_c = infer_sample_category(c.get("category"), c.get("filepath"))
+                    att = float(c.get("attack_ms") or 20.0)
+                    is_swell_rev = any(w in fp_l for w in ("swell", "_rev", "reverse"))
+                    is_loop_name = (
+                        "8bar" in fp_l
+                        or "loop" in fp_l
+                        or (bool(c.get("is_loop")) and str(c.get("sample_nature") or "") != "mono_oneshot")
+                    )
+                    pref = 2
+                    if "pad" in track_key or "string" in track_key:
+                        if is_loop_name:
+                            pref = 4
+                        elif ("pad" in fp_l or "cloud" in fp_l or "sustain" in fp_l or cat_c == "pad") and not is_swell_rev:
+                            pref = 0
+                        elif cat_c in ("piano", "vocal") and not is_swell_rev:
+                            pref = 1
+                        elif "pluck" in fp_l or "bell" in fp_l:
+                            pref = 3
+                    elif "chord" in track_key or "key" in track_key or "piano" in track_key:
+                        if is_swell_rev or is_loop_name:
+                            pref = 4
+                        elif "rhodes" in fp_l:
+                            pref = 0
+                        elif "piano" in fp_l and "pizz" not in fp_l:
+                            pref = 1
+                        elif cat_c in ("piano", "guitar"):
+                            pref = 2
+                        elif "pad" in fp_l:
+                            pref = 3
+                    elif any(k in track_key for k in ("lead", "arp", "counter", "melody")):
+                        if is_swell_rev or is_loop_name:
+                            pref = 4
+                        elif cat_c == "guitar" or "pizz" in fp_l:
+                            pref = 0
+                            # Séparation spectrale : préférer un lead légèrement plus clair (centroid >= 550 Hz)
+                            # pour ne pas chevaucher la bande critique des accords (320-520 Hz)
+                            sc = float(c.get("centroid_hz") or 500.0) / 2000.0 + float(c.get("comfort_score", 0.5)) * 0.5
+                            return (pref, -sc)
+                        elif cat_c == "piano" and "pad" not in fp_l and att <= 80.0:
+                            pref = 1
+                        elif ("pluck" in fp_l or cat_c == "synth") and "pad" not in fp_l and att <= 80.0:
+                            pref = 2
+                        elif cat_c == "vocal" and not is_swell_rev:
+                            pref = 3
+                    sc = float(c.get("role_score", 0.5)) * 0.55 + float(c.get("comfort_score", 0.5)) * 0.45
+                    return (pref, -sc)
+
+                pool_cands.sort(key=_tonal_rank)
+
+            trk_notes = notes_by_track.get(track_key)
             for c in pool_cands:
                 if c.get("source_type") not in ("sample", "project_sample"):
                     continue
@@ -569,6 +667,11 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                 norm = os.path.normpath(os.path.abspath(rp)).lower()
                 if norm in used_paths:
                     continue
+                if slot_role in TONAL_SLOTS:
+                    if c.get("midi_root") is None:
+                        continue
+                    if trk_notes and not register_fit(c.get("midi_root"), trk_notes, c, role=slot_role)["ok"]:
+                        continue
                 if pleasantness_gate({
                     "r_harsh": c.get("r_harsh"), "roughness": c.get("roughness"),
                     "peak_harsh_db": c.get("peak_harsh_db"), "comfort_score": c.get("comfort_score"),
@@ -596,6 +699,25 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                 alt_drum = _pick_unique_from_pool(slot_role, key)
                 if alt_drum is not None:
                     chosen_slot = alt_drum
+
+            # Priorité absolue aux vrais samples du dossier `samples/` sur les pistes tonales :
+            # utiliser le classement musical dédié du pool (piano/rhodes pour chords, pad soutenu pour pad,
+            # guitare/pluck/piano à attaque nette pour lead/arp — jamais un swell/reverse sur lead/arp).
+            if slot_role in ("chord_keys", "pad_atmosphere", "lead_melody") and candidate_pool.get(slot_role):
+                alt_ranked = _pick_unique_from_pool(slot_role, key)
+                if alt_ranked is not None:
+                    chosen_slot = alt_ranked
+
+            need_real_pick = not chosen_slot or chosen_slot.get("source_type") not in ("sample", "project_sample")
+            if (not need_real_pick) and slot_role in TONAL_SLOTS and notes_by_track.get(key):
+                if chosen_slot.get("midi_root") is None or not register_fit(
+                    chosen_slot.get("midi_root"), notes_by_track.get(key), chosen_slot, role=slot_role
+                )["ok"]:
+                    need_real_pick = True
+            if need_real_pick and candidate_pool.get(slot_role):
+                alt_real = _pick_unique_from_pool(slot_role, key)
+                if alt_real is not None:
+                    chosen_slot = alt_real
 
             rpath = reroute_sample_path(chosen_slot.get("filepath")) if chosen_slot else None
             if rpath and os.path.normpath(os.path.abspath(rpath)).lower() in used_paths:
@@ -633,19 +755,22 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                     for stale_k in ("sample_path", "root_note", "fine_tune_ct"):
                         tr.pop(stale_k, None)
                     continue
-                # Auto-dérivation +12 st sans artefacts phase-vocoder pour 808 grave (C1 -> C2, root=36)
+                # Auto-dérivation polyphase ±12 st sans artefacts phase-vocoder pour TOUT sample tonal
+                # de `samples/` décalé d'une octave (808 C1 -> C2, synth/pad/vocal C5 -> C4, etc.)
                 eff_path = rpath
                 eff_rn = int(max(0, min(127, int(rn))))
-                if not is_perc_track and slot_role == "bass_sub" and eff_rn <= 28:
-                    rf_b = register_fit(eff_rn, notes_by_track.get(key), chosen_slot, role="bass_sub")
-                    if rf_b.get("octave_up_needed"):
-                        derived = prepare_octave_up_808(rpath, proj, eff_rn)
+                if not is_perc_track and slot_role in TONAL_SLOTS:
+                    rf_t = register_fit(eff_rn, notes_by_track.get(key), chosen_slot, role=slot_role)
+                    shift_st = int(rf_t.get("octave_shift_st") or 0)
+                    if shift_st in (-12, 12):
+                        derived = prepare_octave_shifted_sample(rpath, proj, eff_rn, shift_st // 12)
                         if derived is not None:
                             eff_path, eff_rn = derived
                 tr["source_type"] = "sample"
                 tr["sample_path"] = eff_path
                 tr["plugin"] = "gl.sampler"
                 tr.pop("preset", None)
+                tr.pop("plugin_params", None)
                 tr["root_note"] = eff_rn
                 # Ne JAMAIS appliquer fine_tune_ct mélodique sur les percussions non-kick (snare/clap/hihat/perc)
                 if is_perc_track and key != "kick":
@@ -770,7 +895,7 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
     (ScoreIR + garde-fous 0 token), puis enchaîne compile_song + master si auto_master.
     v4.1 : `auto_prepare=True` (Scénario A sans Samples/) résout localement (0 token) un blueprint
     valide ; `remix_source_path` (Scénario C) / `lyrics_spec` (Scénario D) sont consignés dans le blueprint."""
-    proj = os.path.abspath(os.path.expanduser(project_dir))
+    proj = _resolve_project_dir(project_dir)
     os.makedirs(proj, exist_ok=True)
     strudel_path = os.path.join(proj, "composition.strudel")
     with open(strudel_path, "w", encoding="utf-8") as fh:
@@ -820,6 +945,19 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
         with open(os.path.join(proj, "song_blueprint.json"), "w", encoding="utf-8") as fh:
             json.dump(bp, fh, ensure_ascii=False, indent=2)
 
+    # Boucle d'analyse hiérarchique ascendante (du plus petit au plus grand : Sons -> Accords -> Pistes -> Morceau)
+    try:
+        from bottom_up_analyzer import run_bottom_up_loop
+        bu_pre = run_bottom_up_loop(proj, auto_fix=True, max_iterations=2, write_report=True)
+        report["bottom_up"] = {
+            "passed": bu_pre.get("passed"),
+            "levels_passed": bu_pre.get("levels_passed"),
+            "total_fixes": bu_pre.get("total_fixes"),
+            "summary_line": bu_pre.get("summary_line"),
+        }
+    except Exception:
+        pass
+
     master = None
     if auto_master and report.get("ok"):
         compile_song = os.path.join(SCRIPTS, "compile_song.py")
@@ -836,6 +974,18 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
                                    capture_output=True, text=True, timeout=1800)
             master = os.path.join(proj, "renders", "master.wav") if rproc.returncode == 0 else None
             report["render"] = {"ok": rproc.returncode == 0}
+            if master:
+                try:
+                    from bottom_up_analyzer import run_bottom_up_loop
+                    bu_post = run_bottom_up_loop(proj, auto_fix=False, max_iterations=1, write_report=True)
+                    report["bottom_up"] = {
+                        "passed": bu_post.get("passed"),
+                        "levels_passed": bu_post.get("levels_passed"),
+                        "total_fixes": bu_post.get("total_fixes"),
+                        "summary_line": bu_post.get("summary_line"),
+                    }
+                except Exception:
+                    pass
 
     # F10 : si aucun rendu frais n'a eu lieu, purger les anciens renders/master.wav* périmés
     # pour éviter d'écouter un faux master d'une session ou source précédente.
@@ -866,7 +1016,7 @@ def refine_project(project_dir: str, delta_json: dict | None = None, strudel_pat
     """Tour 3b quasi gratuit : delta_json (mix), strudel_patch (2-4 lignes Strudel),
     ou v4.1 semantic_patch micro-tokens sur le ScoreIR ({"lead": {"oct": -1, "rests": "+15%"}},
     {"section": "chorus", "ops": {"energy": "+2dB"}}), puis revalidation sonore (F11) + handoff.txt."""
-    proj = os.path.abspath(os.path.expanduser(project_dir))
+    proj = _resolve_project_dir(project_dir)
     report: dict[str, Any] = {"ok": True, "project_dir": proj}
     strudel_path = os.path.join(proj, "composition.strudel")
     notes_changed = False
@@ -990,7 +1140,8 @@ def studio_prepare(project_dir: str, intent: str = "", refs: list[str] | None = 
                    remix: str | None = None, lyrics: dict | None = None) -> str:
     """Tour 1 : contexte + 3 palettes (format tabulaire <=450 cars)."""
     from audio_analyzer_server import studio_prepare_session
-    raw = studio_prepare_session(project_dir, intent, reference_paths=refs,
+    proj = _resolve_project_dir(project_dir)
+    raw = studio_prepare_session(proj, intent, reference_paths=refs,
                                  remix_source_path=remix, lyrics_spec=lyrics)
     try:
         prep = json.loads(raw)

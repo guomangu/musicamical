@@ -231,3 +231,37 @@ headless (`scripts/strudel_eval.mjs`) puis compilé par `scripts/strudel_to_scor
 voice leading + LIL, b2, clamp frontière 20 ms, `FullCoverageCoreValidator`). Le rendu final passe ensuite
 par **ce même quality gate** (`render_and_audit.py --auto-fix`, matrice stems, corridors spectraux) : aucune
 règle de mix n'est affaiblie par le pont Strudel. Doc : [03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md](03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md).
+
+---
+
+## Phase 10 — Playbook des Pièges Vérifiés, Journal PQ & RETEX Sessions (v3.0–v4.2)
+
+### 10.1 Playbook des pièges DSP & mixage vérifiés
+* **Erreur d'octave `root_note`** = varispeed ±12 st → chipmunk/smudge : verrouiller `root_note == midi_root` (`blueprint_safety.py`).
+* **Cloche à partiels inharmoniques (2,76×)** → YIN verrouille le partiel : HPS + anti-partial-lock protégé (`audio_metrics.py`).
+* **Accord/dyade joué chromatiquement** → `poly_chord_or_dyad` non jouable (`playable_chromatically == False`).
+* **LPF brique < 6.5 kHz à la source + shelf batterie** → « mix en U » : planchers `6.5 kHz` (harmonie) / `9 kHz` (lead) + high-shelf doux (`config/mix_profiles.json`, Ceiling `-1.2 dBTP`).
+* **Notches EQ empilés / creusage fondamentale** : `resonances_surgical_eq` (`render_and_audit.py`) limité à `freq_hz >= 800 Hz`, profondeur plafonnée à `-4.0 dB` (évite de creuser la fondamentale à `315 Hz` et de transformer un lead en bourdonnement électrique) ; `low_mids_clean` plafonné à `-1.5 dB` ; budget `2/piste`, `3` total puis `SWAP_SAMPLE`.
+* **Stéréo `BUS Music` hors phase** : `gl.stereo` calibré à `Width=1.15, Side=1.5` (`studio_lib.py` ; l'ancien `Width=2.0 / Side=+12 dB` provoquait une anti-phase `-0.34`).
+* **Boucle 140 BPM dans projet 142 BPM** → flam dès 2 mesures : verrou BPM `0.05` + stretch exact (`sample_prep_lib.py`).
+* **Vibrato ±12 ct lu comme désaccordé sur le master** → mesurer la justesse sur stems fondation `<= 6 ct`.
+* **Chemins personnels absolus en dur** → test `tests/test_docs_hygiene.py` bloquant (0 occurrence de tout chemin personnel).
+
+### 10.2 Journal des morceaux validés & benchmarks
+* **Références historiques PQ** : `rosh2` PQ `7.96`, `song1` PQ `8.05` ; régression `song3/4/5` PQ `7.28–7.47` corrigée en v3.0 (cible `PQ >= 7.8` sur les 7 profils de `tests/regression_multi_genre.py`).
+* **Benchmark v4.2 (`projects/rap_2min`, 68 mes., 136 BPM, 120.8 s)** : **8/8 pistes = 100 % vrais samples** de `samples/` (`headroom_piano_c4.wav`, `glass_pad_c5_oct60.wav`, `808_5_sat_alt_oct36.wav`, guitare/pluck, batterie réelle), `musical_safety = 0 erreur`, `timbre_coherence = 0.907`, `peak = -1.41 dBFS`, `corr = +0.682`, `harsh_2_5k < 3 %`.
+
+### 10.3 RETEX sessions réelles (bugs corrigés + tests de régression `tests/test_session_bugs.py`)
+| Fichier | Bug historique | Correctif & garde-fou CI |
+| :--- | :--- | :--- |
+| `scripts/compile_song.py` & `target_fingerprint.py` | `%` non échappé dans `help=` argparse (`ValueError` py3.14) | « 100 pourcent » ; test statique anti-`%` sur tous les `help=` |
+| `mcp-servers/audio-analyzer/deep_diagnostics.py` | `issues` / `L`,`R` indéfinis sur métrique hors seuil | Déclaration en tête de `run_deep_audit` ; test WAV PLR faible |
+| `scripts/render_and_audit.py` | `_tp_limit` absent dans `_apply_autofix_mutations` | Recalcul via `limiter_invariants()` + `get_invariant()` |
+| `scripts/strudel_to_score_ir.py` | `--seed 42` écrasait `seed` du `@meta` | `seed` = `meta.seed` ou SHA-256 du source |
+| `scripts/song_builder.py` & `prod_server.py` | `preset="Velvet Pad"` et `vibrato_delay_ms` transmis à `gl.sampler` | `spec.preset = ""`, purge `plugin_params` synthé lors du passage en sample |
+
+### 10.4 Formules & réglages opérationnels utiles
+* **Durée visée ~3 min** : `bars = round(180 * bpm / 240)` (90 BPM → 68 mes. ≈ 3 min 02 s ; 136 BPM → 68 mes. = 2 min 00 s).
+* **Modèles Audiobox/CLAP absents** : `render_and_audit.py --no-neural` (fallback auto).
+* **Prune WAV master** : `AI_STUDIO_PRUNE_MASTER_WAV=1` ne conserve que `master.mp3` + le rapport (un WAV 24-bit 3 min pèse ~48 Mo).
+* **Blueprint minimal valide** : généré automatiquement par `prod_server._ensure_blueprint` (valide contre `schemas/song_blueprint.schema.json` : `minItems: 1` sur `tracks`, `structure`, `chord_progression`, `motif_cell` complet).

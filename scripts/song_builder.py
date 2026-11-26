@@ -1376,8 +1376,14 @@ def _sampler_param_changes(idx: int, ch: Any, samples_dir: str, manifest_data: d
     if getattr(ch, "glide_ms", None):
         # v3.2 : portamento 808 vérifié (Glide en secondes, clamp [0.035, 0.090])
         param_changes.append((f"channel/{idx}/Glide", round(min(max(float(ch.glide_ms) / 1000.0, 0.035), 0.090), 4)))
+    _SAMPLER_IGNORED_SYNTH_KEYS = frozenset({
+        "vibrato_delay_ms", "vibrato_rate_hz", "vibrato_depth",
+        "unison", "detune", "polyphony", "preset", "waveform",
+    })
     pp = getattr(ch, "plugin_params", {}) or {}
     for pname, pval in pp.items():
+        if str(pname) in _SAMPLER_IGNORED_SYNTH_KEYS:
+            continue
         entry = SAMPLER_PARAM_MAP.get(str(pname))
         if entry is None:
             param_changes.append((f"channel/{idx}/{pname}", pval))
@@ -1534,12 +1540,43 @@ def _default_channels_for_plan(
         if bp_tr:
             if bp_tr.get("source_type") == "sample" and bp_tr.get("sample_path"):
                 spec.plugin = "gl.sampler"
+                spec.preset = ""  # gl.sampler ne prend jamais un preset synthé (ex. "Velvet Pad")
                 spec.sample_file = str(bp_tr["sample_path"])
+                # Enveloppes & polyphonie musicales par rôle sur gl.sampler (vrais samples) :
+                # évite le voice-stealing sur accords (8 voix), le chevauchement sub 808 (1 voix),
+                # les coups de batterie coupés (one_shot=1) et les attaques/fins brusques sur pads.
+                if any(k in rl for k in ("kick", "snare", "clap", "hat", "perc", "rim")):
+                    spec.one_shot = 1
+                    spec.voices = 4
+                    spec.attack = 0.001
+                    spec.release = 0.06
+                elif any(k in rl for k in ("bass", "808", "sub")):
+                    spec.one_shot = 0
+                    spec.voices = 1
+                    spec.attack = 0.003
+                    spec.release = 0.10
+                elif any(k in rl for k in ("pad", "string")):
+                    spec.one_shot = 0
+                    spec.voices = 8
+                    spec.attack = 0.08
+                    spec.release = 0.45
+                elif any(k in rl for k in ("chord", "keys")):
+                    spec.one_shot = 0
+                    spec.voices = 8
+                    spec.attack = 0.008
+                    spec.release = 0.28
+                elif any(k in rl for k in ("lead", "melody", "counter", "arp", "pluck")):
+                    spec.one_shot = 0
+                    spec.voices = 6
+                    spec.attack = 0.005
+                    spec.release = 0.22
                 # Chaîne douce systématique sur pistes tonales sample (§5) si aucun LPF spécifié
                 if spec.lpf_hz is None and spec.cutoff_hz is None and not (bp_tr.get("plugin_params") or {}).get("cutoff_hz"):
-                    if any(k in rl for k in ("chord", "keys", "pad", "string")):
+                    if any(k in rl for k in ("pad", "string")):
+                        spec.lpf_hz = 6000.0
+                    elif any(k in rl for k in ("chord", "keys")):
                         spec.lpf_hz = 6500.0
-                    elif any(k in rl for k in ("lead", "melody", "counter")):
+                    elif any(k in rl for k in ("lead", "melody", "counter", "arp", "pluck")):
                         spec.lpf_hz = 9000.0
             elif bp_tr.get("plugin") and str(bp_tr["plugin"]).startswith("gl."):
                 spec.plugin = str(bp_tr["plugin"])

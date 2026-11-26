@@ -183,7 +183,7 @@ Registres MIDI disjoints et instruments `gl.*` natifs compatibles GUI + headless
 # Facette 3 — Blueprint, Arrangement, Transitions, Gate / Autofix MIDI & `compile_song.py` (v3.2+, remplace `build_song.py` manuel)
 
 > **Cheatsheet IA (L'essentiel v2.0)**
-> - **Source unique & Isolation (`1 sonorité = 1 piste`)** : Écrire toutes les notes en **beats 0-indexed** dans `arrangement_plan.json` (v3.x) ou `composition.strudel` (v4.0) — `build_song.py` **LEGACY v2.1** (archive `REFERENCE_ARCHIVE.md`) — puis `compile_song.py` (`song_builder.py` + `gl_dsl.py` + `groove_lib.py` + `transitions_lib.py`) exporte `master_sketch.mid` (`Bass`, `Chords`, `Lead`), valider via `verify_midi_gate(..., auto_fix=True)`.
+> - **Source unique & Isolation (`1 sonorité = 1 piste`)** : Écrire toutes les notes en **beats 0-indexed** dans `arrangement_plan.json` (v3.x) ou `composition.strudel` (v4.0) — `build_song.py` **LEGACY v2.1** (cf. [`docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md`](04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md)) — puis `compile_song.py` (`song_builder.py` + `gl_dsl.py` + `groove_lib.py` + `transitions_lib.py`) exporte `master_sketch.mid` (`Bass`, `Chords`, `Lead`), valider via `verify_midi_gate(..., auto_fix=True)`.
 > - **Gate MIDI multi-signatures & Autofix** : Supporte `4/4`, `3/4`, `6/8`, `5/4`, `phrase_plan="free_ambient"` et morceaux sans basse (`contrary_or_oblique_ratio=None`). Si échec, **`scripts/midi_autofix.py`** corrige automatiquement avant tout appel Gridline.
 > - **Flux v3.2+ (canonique)** : plus de `build_song.py` manuel — `compile_song.py <projet> [--probe]` lit `song_blueprint.json` + `arrangement_plan.json`, applique `blueprint_enricher.py` (champs créatifs omis), `NarrativeHarmony` (`section_progressions`, phrasé 8 mesures, suspensions 4→3/9→8), `OrchestrationEngine` (comping, voice-leading conscient du Lead), `ExpressionArticulations` (`glide_to_next`, vibrato retardé), `FullCoverageCoreValidator` (pré-vol 100 % + sonde `--probe`), produit le `ScoreIR` (groove en `expression`, clamp frontière 20 ms) puis `master_sketch.mid`.
 > - **Piège `_infer_roles()` (§5.2)** : Nommer `Bass`/`808`, `Chords`/`Pad` (`poly_ratio >= 0.45` toléré même `< MIDI 48`), `Lead`/`Melody`, `Counter Harmony` (jamais `"Vocal"` sur contre-chant ni `"Piano"` seul sur arpège).
@@ -391,7 +391,7 @@ if __name__ == "__main__":
 
 | Priorité | Problème | Modules ciblés | Impact audible |
 | :---: | :--- | :--- | :--- |
-| **P1** | #5b — contradictions doc + CI | `docs/00..05`, `REFERENCE_ARCHIVE.md`, `tests/test_docs_hygiene.py` | Supprime les ordres contradictoires (LPF « mix en U », plafonds) |
+| **P1** | #5b — contradictions doc + CI | `docs/00..04`, `DOCUMENTATION_IA/`, `tests/test_docs_hygiene.py` | Supprime les ordres contradictoires (LPF « mix en U », plafonds) |
 | **P2** | #3 — angle mort Tour 2 → Tour 3 | `full_coverage_validator.py`, `compile_song.py --probe`, `stem_matrix_evaluator.py`, `audio_analyzer_server.py` | 100 % des pistes auditées en stems dès le Tour 2 (sonde 12 mesures) |
 | **P3** | #1 — narration statique (boucle 4 mesures) | `narrative_harmony.py`, schémas blueprint/plan, `song_builder.py`, `phrasing_engine.py`, `score_ir.py` | Vrais refrains/ponts contrastés, phrasé 8 mesures Q/R, suspensions 4→3/9→8 |
 | **P4** | #2 — expressivité mécanique | `score_ir.py` (articulations), `gl_dsl.py`, `song_builder.py`, `transitions_lib.py` | Glides 808, vibrato retardé ≥ 220 ms, vélocité→cutoff, `outro_ritardando` |
@@ -403,8 +403,33 @@ if __name__ == "__main__":
 2. **Expressivité mécanique** → `ExpressionArticulations` : `expression.articulation` (`glide_to_next`, `legato`, `swell`...), `glide_ms` 35–90 ms sur 808 (exemption ciblée du coupe-chevauchement), vibrato LFO retardé (0 sur les 220 premières ms, attaque ≤ 6 ct), couplage vélocité→Cutoff, `outro_ritardando` organique (4–8 % sur les 2 dernières mesures).
 3. **Angle mort Tour 2/Tour 3** → `FullCoverageCoreValidator` : pré-vol symbolique 100 % du morceau sur ScoreIR dès le Tour 2 (< 100 ms : clones 8 mesures, charge cognitive 1–8 pistes/mesure, arc d'énergie par section, intégrité transitions/outro) + **sonde stems composite 12 mesures** (8 noyau + 4 hors-noyau séparées par 1 mesure de silence) en 1 seul rendu.
 4. **Cohérence acoustique des palettes** → `TimbralCohesion` : `wetness_score`/`tail_duration_ms` dans `audio_metrics.py`, terme de cohérence d'espace DRR dans `palette_builder.py`, `fx_send`/`hall_send` pondérés par `(1 - wetness)` dans `song_builder.py`, archétypes `gl.*` calibrés par genre dans `config/timbre_archetypes.json`, banque de grooves extraits des `.mid` locaux via `scripts/midi_groove_bank.py` (jamais de mélodie copiée).
-5. **Loi de Goodhart + contradictions doc** → `MelodicAppealIndex` : `compute_melodic_appeal_index(score_ir)` déterministe (< 15 ms, 4 critères positifs : entropie motivique zone d'or, clarté de l'arc de contour, tension→résolution cadentielle mesures 3–4/7→8, complémentarité rythmique lead/basse/counter) + tournoi de 2–3 variantes d'ornementation en Tour 2 (0 rendu audio) ; CI documentaire dans `tests/test_docs_hygiene.py` (0 lien Markdown cassé, 100 % des `scripts/*.py` indexés dans `00_SOMMAIRE.md`, 0 valeur chiffrée divergente vs `config/mix_profiles.json` dans `AGENT_RUNBOOK.md`/`docs/05_*`).
+5. **Loi de Goodhart + contradictions doc** → `MelodicAppealIndex` : `compute_melodic_appeal_index(score_ir)` déterministe (< 15 ms, 4 critères positifs : entropie motivique zone d'or, clarté de l'arc de contour, tension→résolution cadentielle mesures 3–4/7→8, complémentarité rythmique lead/basse/counter) + tournoi de 2–3 variantes d'ornementation en Tour 2 (0 rendu audio) ; CI documentaire dans `tests/test_docs_hygiene.py` (exactement 5 docs dans `docs/`, 2 dans `DOCUMENTATION_IA/`, 0 lien Markdown cassé, 100 % des `scripts/*.py` indexés dans `00_SOMMAIRE.md`, 0 valeur chiffrée divergente vs `config/mix_profiles.json`).
 
 ## Règle LPF clarifiée (v3.1+, normative)
 
 Jamais de **LPF brique** (`gl.eq` 24 dB/oct) sous `6.5 kHz` (harmonie) / `9 kHz` (lead) — planchers `source_lpf_floors_hz` de `config/mix_profiles.json`. Pour assombrir un timbre : *high-shelf* doux (−3 dB) ou filtre de synthé musical (pente 6–12 dB/oct). Toute valeur chiffrée de mix/gate est gouvernée exclusivement par `config/mix_profiles.json` via `scripts/mix_config.py`.
+
+---
+
+## Boucle d'Analyse & Raffinement Hiérarchique Ascendante (v4.2 — « du plus petit au plus grand »)
+
+Implémentée dans [`scripts/bottom_up_analyzer.py`](../scripts/bottom_up_analyzer.py) et chaînée automatiquement à **0 token LLM** dans `prod_server.compose_project` (pré-compilation avec `auto_fix=True`, puis post-rendu sur `renders/master.wav`), cette boucle garantit la cohérence de la micro-échelle (chaque sample) jusqu'à la macro-échelle (le morceau complet) en maximum 2 itérations locales :
+
+```mermaid
+flowchart LR
+    N1["Niveau 1 : SONS\n(samples/ <-> rôle & registre)"] --> N2["Niveau 2 : ACCORDS\n(LIL, anti-b2, Viterbi, basse)"]
+    N2 --> N3["Niveau 3 : PISTES\n(mélodie/basse/drums vs grille)"]
+    N3 --> N4["Niveau 4 : MORCEAU\n(structure, timbres, audio master)"]
+    N4 -. "si défaut corrigible" .-> N1
+```
+
+| Niveau | Fonction (`bottom_up_analyzer.py`) | Ce qui est analysé | Améliorations locales auto (0 token) |
+| :---: | :--- | :--- | :--- |
+| **1 — Sons** | `analyze_sounds_level()` | Chaque sample de `samples/` assigné au blueprint : existence, politique catégorie/nature (`candidate_policy`), pureté chromatique, justesse `root_note`/`fine_tune_ct`, `pleasantness_gate`, `register_fit` (`S_max <= cap` vis-à-vis des accords/notes joués). | Dérivation polyphase `±12 st` (`derived_samples/`), substitution depuis le pool sain si `pool_by_role` fourni. |
+| **2 — Accords** | `analyze_chords_level()` | Chaque accord de `harmonic_grid` et des pistes `chords`/`pad` : Low Interval Limit (`2nde < 60`, `3ce < 52`, `4te < 48`, `5te < 43`), clusters internes `b2` (`< 2 st`), douceur du voice-leading (`<= 3.5 st`), alignement basse/fondamentale, centrage vs `root_note` du sample. | Ré-voicing optimal Viterbi (`strudel_to_score_ir.optimize_voicings_lil`) sans cluster `b2` ni violation LIL. |
+| **3 — Pistes** | `analyze_tracks_level()` | Chaque piste individuelle (`kick`, `snare`, `hihat`, `perc`, `bass`, `chords`, `pad`, `lead`, `arp`) : overlaps/note-stealing, registre basse `[31..48]`, apex Lead `<= 74`, frottements `b2` contre l'accord courant, silences de respiration et mouvement conjoint. | Sanitization des overlaps (garde 10 ms), repli d'octave basse/apex, résolution des `b2` vers la note d'accord la plus proche. |
+| **4 — Morceau** | `analyze_song_level()` | Cohérence globale : sections non vides, plafond cognitif `<= 8` pistes simultanées, unicité des fichiers samples, cohérence timbrale inter-pistes (`palette_timbre_coherence` Bark24), et audio final `master.wav` (peak, RMS, corrélation stéréo, dureté 2–5 kHz). | Écriture `<projet>/renders/diagnostics/bottom_up_report.json` + ligne compacte `BU=PASS(4/4,fix=N)` dans `handoff.txt`. |
+
+### Correctifs du pont Strudel (`strudel_to_score_ir.py` / `strudel_prelude.mjs`)
+* **Forme complète `@meta form=`** : `bars=0` laisse `strudel_eval.mjs` sommer toutes les sections du `@meta form=` (ex. 68 mesures) sans troncature à 16 mesures ; chaque répétition de section reçoit une clé de motif unique.
+* **Harmonie & voix propres** : `bassline(..., {mode: "root"})` verrouillé sur `seg["root_pc"]` ; voicings `optimize_voicings_lil` par programmation dynamique Viterbi (zéro cluster `b2`, pas moyen `< 1.0 st`) ; découpe `$pad` aux frontières d'accords (zéro polytonalité) ; `fix_lead_b2_clashes` préserve les notes d'accord ; `$arp`/`$arpeggio`/`$pluck` classés en rôle `counter` (jamais `drums`).

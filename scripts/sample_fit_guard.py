@@ -96,17 +96,17 @@ ROLE_CATEGORY_POLICY: dict[str, dict[str, frozenset[str]]] = {
         }),
     },
     "chord_keys": {
-        "preferred": frozenset({"piano", "guitar", "chord_keys"}),
-        "discouraged": frozenset({"vocal", "bass", "808", "bass_sub"}),
+        "preferred": frozenset({"piano", "guitar", "synth", "chord_keys"}),
+        "discouraged": frozenset({"vocal", "bass", "808", "bass_sub", "other"}),
         "forbidden": frozenset({"fx", "loop", "sfz"}) | _ALL_PERC_CATS,
     },
     "pad_atmosphere": {
-        "preferred": frozenset({"pad", "synth", "piano", "pad_atmosphere"}),
-        "discouraged": frozenset({"fx", "bass", "808", "bass_sub"}),
+        "preferred": frozenset({"pad", "synth", "vocal", "piano", "pad_atmosphere"}),
+        "discouraged": frozenset({"fx", "bass", "808", "bass_sub", "other"}),
         "forbidden": frozenset({"loop", "sfz"}) | _ALL_PERC_CATS,
     },
     "lead_melody": {
-        "preferred": frozenset({"piano", "guitar", "synth", "lead_melody"}),
+        "preferred": frozenset({"piano", "guitar", "synth", "vocal", "lead_melody"}),
         "discouraged": frozenset({"bass", "808", "bass_sub", "other"}),
         "forbidden": frozenset({"fx", "loop", "sfz"}) | _ALL_PERC_CATS,
     },
@@ -187,13 +187,22 @@ def infer_sample_category(category: str | None = None, filepath: str | None = No
                 return "synth"
             if parent in _KNOWN_FOLDER_CATS:
                 return parent
-            # Dérivés `<projet>/derived_samples/<stem>_oct36.wav` : déduire depuis le nom de fichier
+            # Dérivés `<projet>/derived_samples/<stem>_oct<N>.wav` : déduire depuis le nom de fichier
             if parent == "derived_samples":
                 bname = parts[-1]
                 if "808" in bname:
                     return "808"
                 if "bass" in bname or "sub" in bname:
                     return "bass"
+                if "piano" in bname or "rhodes" in bname or "keys" in bname:
+                    return "piano"
+                if "guitar" in bname:
+                    return "guitar"
+                if "vox" in bname or "vocal" in bname:
+                    return "vocal"
+                if "pad" in bname:
+                    return "pad"
+                return "synth"
     return cat or "other"
 
 
@@ -282,6 +291,11 @@ def candidate_policy(role: str, cand: dict[str, Any], valence: float = 0.0) -> d
 
     if elec_hits:
         reasons.append(f"electronic_name({','.join(elec_hits[:3])})")
+        if slot in ("chord_keys", "pad_atmosphere") and any(
+            h in ("stab", "metallic", "laser", "zap", "siren", "alarm", "glitch", "bitcrush") for h in elec_hits
+        ):
+            allowed = False
+            reasons.append(f"harsh_electronic_in_harmony({','.join(elec_hits[:2])})")
 
     # Pré-filtre « organique » par défaut pour valence >= -0.2 (§5)
     organic_bonus = 0.0
@@ -349,21 +363,29 @@ def effective_shift_cap(entry: dict[str, Any] | None = None, role: str | None = 
     cat = shift_category(entry)
     cap = caps.get(cat, caps["synth"])
     slot = normalize_slot_role(role or "")
-    # Un 808/sub tolère un peu plus de pitch-shift qu'un piano acoustique (§5)
-    if slot and slot in by_role and cat != "acoustic":
+    # Plafond par rôle (ex. chord_keys/pad_atmosphere = 10 st, lead_melody/bass_sub = 9 st)
+    # pour qu'un vrai piano/Rhodes/guitare/pad centré en C4/D4 puisse jouer des progressions
+    # standard ([53..70]) sans déclencher un repli synthé artificiel (tout en bloquant > 10 st).
+    if slot and slot in by_role:
         sample_cat = infer_sample_category((entry or {}).get("category"), (entry or {}).get("filepath") or (entry or {}).get("sample_path"))
-        if slot == "bass_sub" and sample_cat in ("808", "bass", "bass_sub"):
-            cap = int(by_role[slot])
-        elif slot != "bass_sub":
+        if slot == "bass_sub":
+            if cat != "acoustic" and sample_cat in ("808", "bass", "bass_sub"):
+                cap = int(by_role[slot])
+        else:
             cap = int(by_role[slot])
     return cat, cap
 
 
-def prepare_octave_up_808(src_path: str, project_dir: str, src_root: int) -> tuple[str, int] | None:
-    """Crée un dérivé 808 +12 st sans artefacts phase-vocoder (rééchantillonnage polyphase 2:1
-    anti-aliasing dans `<project>/derived_samples/`, jamais `<project>/samples/` pour ne pas
-    déclencher le verrou Scénario B). Conserve >= 0.6 s de sub propre à root = src_root + 12."""
-    if not src_path or not os.path.isfile(src_path):
+def prepare_octave_shifted_sample(
+    src_path: str,
+    project_dir: str,
+    src_root: int,
+    shift_octaves: int = 1,
+) -> tuple[str, int] | None:
+    """Crée un dérivé d'octave (+12 st ou -12 st) par rééchantillonnage polyphase exact
+    (2:1 ou 1:2, ZÉRO artefact phase-vocoder) dans `<project>/derived_samples/` (jamais
+    `<project>/samples/` pour ne pas déclencher le verrou Scénario B). Retourne `(out_path, new_root)`."""
+    if not src_path or not os.path.isfile(src_path) or shift_octaves not in (-1, 1):
         return None
     try:
         import numpy as np
@@ -373,20 +395,27 @@ def prepare_octave_up_808(src_path: str, project_dir: str, src_root: int) -> tup
         return None
     try:
         y, sr = sf.read(src_path, dtype="float64", always_2d=True)
-        if len(y) < int(1.0 * sr):
+        if shift_octaves == 1 and len(y) < int(1.0 * sr):
             return None
-        # Rééchantillonnage polyphase exact 1/2 = +12.000 st (zéro artefact phase-vocoder)
-        out_cols = [_sig.resample_poly(y[:, ch], 1, 2) for ch in range(y.shape[1])]
+        if shift_octaves == -1 and len(y) < int(0.15 * sr):
+            return None
+        up, down = (1, 2) if shift_octaves == 1 else (2, 1)
+        out_cols = [_sig.resample_poly(y[:, ch], up, down) for ch in range(y.shape[1])]
         y2 = np.column_stack(out_cols)
+        # Plafonner la durée des dérivés -12 st à 4.5 s propres
+        max_len = int(4.5 * sr)
+        if len(y2) > max_len:
+            y2 = y2[:max_len]
         y2 = y2 - np.mean(y2, axis=0, keepdims=True)
-        # Fade-out 5 ms anti-clic
-        n_fade = min(int(0.005 * sr), len(y2) // 4)
+        n_fade = min(int(0.010 * sr), len(y2) // 4)
         if n_fade > 1:
             y2[-n_fade:] *= np.linspace(1.0, 0.0, n_fade)[:, None]
         pk = float(np.max(np.abs(y2)))
         if pk > 1e-6:
             y2 = y2 * (10.0 ** (-1.0 / 20.0) / pk)
-        new_root = int(src_root) + 12
+        new_root = int(src_root) + 12 * int(shift_octaves)
+        if not (12 <= new_root <= 108):
+            return None
         out_dir = os.path.join(os.path.abspath(os.path.expanduser(project_dir)), "derived_samples")
         os.makedirs(out_dir, exist_ok=True)
         stem = os.path.splitext(os.path.basename(src_path))[0]
@@ -397,6 +426,11 @@ def prepare_octave_up_808(src_path: str, project_dir: str, src_root: int) -> tup
         return None
 
 
+def prepare_octave_up_808(src_path: str, project_dir: str, src_root: int) -> tuple[str, int] | None:
+    """Wrapper rétro-compatible (+12 st sur 808 grave)."""
+    return prepare_octave_shifted_sample(src_path, project_dir, src_root, shift_octaves=1)
+
+
 def register_fit(
     root_note: int | None,
     note_range_or_pitches: Iterable[int] | tuple[int, int] | None,
@@ -404,8 +438,8 @@ def register_fit(
     role: str | None = None,
 ) -> dict[str, Any]:
     """Vérifie `S_max = max |n - root_note| <= cap` (même métrique que `blueprint_safety`).
-    Pour un 808 grave (`root <= 28`, durée >= 1.2 s), autorise l'auto-dérivation +12 st
-    (`octave_up_needed=True`, `effective_root = root + 12`) si elle rentre dans `cap`."""
+    Autorise l'auto-dérivation polyphase ±12 st (`octave_shift_st`, `effective_root`) sur
+    les vrais samples tonaux de `samples/` (808 grave +12 st, synth/pad/vocal/pluck ±12 st)."""
     pitches = [int(p) for p in (note_range_or_pitches or []) if isinstance(p, (int, float)) and not isinstance(p, bool)]
     cat, cap = effective_shift_cap(entry, role=role)
     if root_note is None or not pitches:
@@ -414,7 +448,7 @@ def register_fit(
     lo, hi = min(pitches), max(pitches)
     s_max = max(abs(lo - rn), abs(hi - rn))
     ambitus = hi - lo
-    octave_up_needed = False
+    octave_shift_st = 0
     eff_root = rn
     slot = normalize_slot_role(role or "")
     sample_cat = infer_sample_category(
@@ -422,21 +456,28 @@ def register_fit(
         (entry or {}).get("filepath") or (entry or {}).get("sample_path"),
     )
     dur_s = float((entry or {}).get("duration_s") or (entry or {}).get("duration") or 0.0)
-    if dur_s <= 0.0 and slot == "bass_sub" and sample_cat == "808" and rn <= 28:
-        fp_chk = (entry or {}).get("filepath") or (entry or {}).get("sample_path")
-        if fp_chk and os.path.isfile(str(fp_chk)):
-            try:
-                import soundfile as _sf
-                dur_s = float(_sf.info(str(fp_chk)).duration)
-            except Exception:
-                dur_s = 0.0
-    if s_max > cap and slot == "bass_sub" and sample_cat == "808" and rn <= 28 and dur_s >= 1.2:
-        rn_up = rn + 12
-        s_up = max(abs(lo - rn_up), abs(hi - rn_up))
-        if s_up <= cap:
-            s_max = s_up
-            eff_root = rn_up
-            octave_up_needed = True
+    if s_max > cap and slot in TONAL_SLOTS and sample_cat in ("808", "bass", "synth", "pad", "vocal", "piano", "guitar"):
+        if dur_s <= 0.0:
+            fp_chk = (entry or {}).get("filepath") or (entry or {}).get("sample_path")
+            if fp_chk and os.path.isfile(str(fp_chk)):
+                try:
+                    import soundfile as _sf
+                    dur_s = float(_sf.info(str(fp_chk)).duration)
+                except Exception:
+                    dur_s = 0.0
+        # Essayer +12 st (si durée >= 1.2 s) puis -12 st (si rn >= 64 et non-basse)
+        for shift in (12, -12):
+            if shift == 12 and dur_s < 1.2:
+                continue
+            if shift == -12 and (slot == "bass_sub" or rn < 64):
+                continue
+            rn_try = rn + shift
+            s_try = max(abs(lo - rn_try), abs(hi - rn_try))
+            if s_try <= cap:
+                s_max = s_try
+                eff_root = rn_try
+                octave_shift_st = shift
+                break
     if s_max <= cap:
         action = "ok"
     elif ambitus <= DEFAULT_MULTIZONE_AMBITUS_ST.get(cat, 20):
@@ -450,7 +491,8 @@ def register_fit(
         "category": cat,
         "ambitus": int(ambitus),
         "action": action,
-        "octave_up_needed": octave_up_needed,
+        "octave_shift_st": int(octave_shift_st),
+        "octave_up_needed": octave_shift_st == 12,
         "effective_root": int(eff_root),
     }
 
@@ -862,10 +904,11 @@ def enforce_blueprint_sample_fit(
             new_fp = str(repl["filepath"])
             eff_fp = new_fp
             eff_rn = repl.get("midi_root")
-            if not percussive and slot_role == "bass_sub" and eff_rn is not None and int(eff_rn) <= 28 and write_diag_dir:
+            if not percussive and slot_role in TONAL_SLOTS and eff_rn is not None and write_diag_dir:
                 rf_rep = register_fit(int(eff_rn), pitches, repl, role=slot_role)
-                if rf_rep.get("octave_up_needed"):
-                    derived = prepare_octave_up_808(new_fp, write_diag_dir, int(eff_rn))
+                shift_st = int(rf_rep.get("octave_shift_st") or 0)
+                if shift_st in (-12, 12):
+                    derived = prepare_octave_shifted_sample(new_fp, write_diag_dir, int(eff_rn), shift_st // 12)
                     if derived is not None:
                         eff_fp, eff_rn = derived
             tr["source_type"] = "sample"

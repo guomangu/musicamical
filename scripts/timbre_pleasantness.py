@@ -50,7 +50,8 @@ DEFAULT_CAPS = {"r_harsh": 0.45, "roughness": 0.30, "peak_harsh_db": 14.0, "comf
 # Centroid max pour les rôles tonaux (au-delà = trop sifflant/aigre)
 CENTROID_MAX_HZ = {"lead_melody": 6500.0, "chord_keys": 5500.0, "pad_atmosphere": 4500.0, "bass_sub": 900.0}
 # Crest max pour les rôles tonaux (au-delà = trop percussif/claquant pour un son soutenu)
-CREST_MAX_DB_TONAL = {"lead_melody": 14.0, "chord_keys": 13.0, "pad_atmosphere": 12.0, "bass_sub": 15.0}
+# Un vrai piano acoustique / pluck avec 3-5 s de décroissance naturelle a 14-19 dB de crest.
+CREST_MAX_DB_TONAL = {"lead_melody": 19.5, "chord_keys": 19.5, "pad_atmosphere": 14.5, "bass_sub": 15.0}
 
 TONAL_ROLES = ("lead_melody", "chord_keys", "pad_atmosphere", "bass_sub")
 
@@ -135,6 +136,8 @@ def pleasantness_gate(metrics: dict, role: str = "lead_melody") -> dict:
             pass
 
     missing_metrics: list[str] = []
+    raw_r_harsh = metrics.get("r_harsh")
+    eff_r_harsh = float(raw_r_harsh) if raw_r_harsh is not None else None
     for key in ("r_harsh", "roughness", "peak_harsh_db"):
         raw = metrics.get(key)
         if raw is None:
@@ -143,6 +146,11 @@ def pleasantness_gate(metrics: dict, role: str = "lead_melody") -> dict:
             v = 0.0
         else:
             v = float(raw)
+        # Un instrument tonal chaud/harmonique (piano, guitare, voix, pad) a r_harsh < 0.06
+        # (quasi zéro énergie dans 2-5 kHz) : un pic harmonique discret au-dessus d'un plancher
+        # silencieux à -80 dB donne peak_harsh_db = 18-28 dB SANS aucune dureté audible.
+        if key == "peak_harsh_db" and eff_r_harsh is not None and eff_r_harsh < 0.06:
+            continue
         cap = caps[key]
         worst = max(worst, v / max(cap, 1e-9))  # ratio même sous le plafond (zone FIX > 0.8)
         if v > cap:

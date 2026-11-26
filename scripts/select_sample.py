@@ -140,7 +140,7 @@ def _fast_comfort_score(
     if r_harsh > tau:
         d = ((r_harsh - tau) / max(0.15, 1.0 - tau)) * 1.1
         score -= 0.45 if d > 0.45 else d
-    if peak_harsh_db > 10.0:
+    if peak_harsh_db > 10.0 and r_harsh >= 0.06:
         d = (peak_harsh_db - 10.0) * 0.04
         score -= 0.35 if d > 0.35 else d
     rough_thresh = 0.38 if role == "hihat_perc" else 0.18

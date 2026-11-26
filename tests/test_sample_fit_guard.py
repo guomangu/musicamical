@@ -607,6 +607,128 @@ class TestPhase2MusicalityAndTimbreFixes(unittest.TestCase):
             self.assertTrue(os.path.isfile(out_path))
             self.assertIn("derived_samples", out_path)
 
+    def test_phase4_resolve_project_dir_locks_to_projects_folder(self):
+        sys.path.insert(0, os.path.join(ROOT, "mcp-servers", "ai-studio-prod"))
+        import prod_server
+        p_bare = prod_server._resolve_project_dir("rap_2min")
+        self.assertEqual(p_bare, os.path.abspath(os.path.join(prod_server.ROOT, "projects", "rap_2min")))
+        p_rel = prod_server._resolve_project_dir("projects/mon_son")
+        self.assertEqual(p_rel, os.path.abspath(os.path.join(prod_server.ROOT, "projects", "mon_son")))
+        p_ext = prod_server._resolve_project_dir("/nonexistent_other_studio/projects/rap_2min")
+        self.assertEqual(p_ext, os.path.abspath(os.path.join(prod_server.ROOT, "projects", "rap_2min")))
+        p_tmp = prod_server._resolve_project_dir("/tmp/pytest_isolated_dir")
+        self.assertEqual(p_tmp, "/tmp/pytest_isolated_dir")
+
+    def test_phase4_octave_folded_mad_recovers_decaying_pluck(self):
+        from audio_metrics import analyze_single_file
+        sr = 44100
+        t = np.arange(int(1.6 * sr)) / sr
+        # Note unique B3 (246.94 Hz) avec queue décroissante et léger partiel d'octave 2*f0
+        env = np.exp(-t / 0.35)
+        sig = env * (0.75 * np.sin(2 * np.pi * 246.94 * t) + 0.35 * np.sin(2 * np.pi * 493.88 * t) + 0.12 * np.sin(2 * np.pi * 740.82 * t))
+        sig = (sig / max(float(np.max(np.abs(sig))), 1e-9) * 0.8).astype(np.float32)
+        with tempfile.TemporaryDirectory() as td:
+            p = _write_wav(os.path.join(td, "guitar_pluck_b3.wav"), sig, sr=sr)
+            entry, _ = analyze_single_file(p, with_clap=False)
+            self.assertTrue(entry["dsp"]["playable_chromatically"], entry["dsp"])
+            self.assertEqual(entry["dsp"]["sample_nature"], "mono_oneshot", entry["dsp"])
+
+    def test_phase4_prepare_octave_shifted_sample_down_and_up(self):
+        sr = 44100
+        t = np.arange(int(1.2 * sr)) / sr
+        pad_c5 = (0.7 * np.sin(2 * np.pi * 523.25 * t) * np.exp(-t / 0.9)).astype(np.float32)
+        with tempfile.TemporaryDirectory() as td:
+            wav_c5 = _write_wav(os.path.join(td, "glass_pad_c5.wav"), pad_c5, sr=sr)
+            rf = sfg.register_fit(72, [53, 56, 60, 63, 67, 70], {"category": "synth", "filepath": wav_c5}, role="pad_atmosphere")
+            self.assertTrue(rf["ok"], rf)
+            self.assertEqual(rf.get("octave_shift_st"), -12, rf)
+            self.assertEqual(rf.get("effective_root"), 60, rf)
+            derived = sfg.prepare_octave_shifted_sample(wav_c5, td, 72, -1)
+            self.assertIsNotNone(derived)
+            out_path, new_root = derived
+            self.assertEqual(new_root, 60)
+            self.assertTrue(os.path.isfile(out_path))
+            self.assertIn("derived_samples", out_path)
+
+    def test_phase4_sampler_role_envelopes_avoid_voice_stealing(self):
+        from song_builder import _default_channels_for_plan
+        with tempfile.TemporaryDirectory() as td:
+            bp = {
+                "title": "t", "bpm": 92, "key": "C", "mix_profile": "trap_rap",
+                "tracks": [
+                    {"name": "kick", "role": "drums", "source_type": "sample", "sample_path": "/samples/kick/k.wav", "root_note": 36},
+                    {"name": "bass", "role": "bass", "source_type": "sample", "sample_path": "/samples/808/b.wav", "root_note": 36},
+                    {"name": "chords", "role": "chords", "source_type": "sample", "sample_path": "/samples/synth/c.wav", "root_note": 60},
+                    {"name": "pad", "role": "chords", "source_type": "sample", "sample_path": "/samples/synth/p.wav", "root_note": 60},
+                    {"name": "lead", "role": "lead", "source_type": "sample", "sample_path": "/samples/guitar/l.wav", "root_note": 60},
+                ],
+            }
+            with open(os.path.join(td, "song_blueprint.json"), "w", encoding="utf-8") as fh:
+                json.dump(bp, fh)
+            chs = {c.track_key: c for c in _default_channels_for_plan({}, ["kick", "bass", "chords", "pad", "lead"], td, 0.0)}
+            self.assertEqual(chs["kick"].one_shot, 1)
+            self.assertEqual(chs["bass"].voices, 1)
+            self.assertEqual(chs["chords"].voices, 8)
+            self.assertEqual(chs["chords"].preset, "")
+            self.assertEqual(chs["pad"].voices, 8)
+            self.assertEqual(chs["pad"].preset, "")
+            self.assertGreaterEqual(chs["pad"].attack, 0.05)
+            self.assertGreaterEqual(chs["pad"].release, 0.35)
+            self.assertEqual(chs["lead"].voices, 6)
+            self.assertEqual(chs["lead"].preset, "")
+
+    def test_phase4_bottom_up_analyzer_4_levels(self):
+        import bottom_up_analyzer as bu
+        with tempfile.TemporaryDirectory() as td:
+            wav = _write_wav(os.path.join(td, "piano_c4.wav"), _saturated_808(261.63, dur=1.2, sr=44100), sr=44100)
+            bp = {
+                "title": "bu_test", "bpm": 120, "key": "C", "mix_profile": "trap_rap",
+                "emotion_vector": {"valence": 0.0, "energy": 0.7},
+                "tracks": [
+                    {"name": "chords", "role": "chords", "source_type": "sample", "plugin": "gl.sampler",
+                     "sample_path": wav, "root_note": 60, "mixer_track": 1},
+                ],
+                "structure": [{"section": "verse", "start_bar": 1, "bars": 4, "energy": 0.7}],
+            }
+            score_ir = {
+                "meta": {"bpm": 120.0, "time_signature": {"numerator": 4, "denominator": 4}},
+                "sections": [{"name": "verse", "bars": 4}],
+                "harmonic_grid": [{"bar": 1, "symbol": "Cm7", "root_pc": 0, "pcs": [0, 3, 7, 10]}],
+                "tracks": {
+                    "chords": {
+                        "role": "chords",
+                        "notes": [
+                            {"grid_beat": 0.0, "duration_beats": 4.0, "pitch": 60, "chord_idx": 0},
+                            {"grid_beat": 0.0, "duration_beats": 4.0, "pitch": 63, "chord_idx": 0},
+                            {"grid_beat": 0.0, "duration_beats": 4.0, "pitch": 67, "chord_idx": 0},
+                        ],
+                    },
+                    "bass": {
+                        "role": "bass",
+                        "notes": [
+                            {"grid_beat": 0.0, "duration_beats": 2.5, "pitch": 24, "chord_idx": 0},  # trop grave (<31) + overlap
+                            {"grid_beat": 2.0, "duration_beats": 2.0, "pitch": 36, "chord_idx": 0},
+                        ],
+                    },
+                    "lead": {
+                        "role": "lead",
+                        "notes": [
+                            {"grid_beat": 0.0, "duration_beats": 1.0, "pitch": 61, "chord_idx": 0},  # frottement b2 vs C(0)
+                            {"grid_beat": 2.0, "duration_beats": 1.0, "pitch": 79, "chord_idx": 0},  # apex > 74
+                        ],
+                    },
+                },
+            }
+            with open(os.path.join(td, "song_blueprint.json"), "w", encoding="utf-8") as fh:
+                json.dump(bp, fh)
+            with open(os.path.join(td, "score_ir.json"), "w", encoding="utf-8") as fh:
+                json.dump(score_ir, fh)
+            rep = bu.run_bottom_up_loop(td, auto_fix=True, max_iterations=2, write_report=True)
+            self.assertTrue(rep["passed"], rep)
+            self.assertEqual(rep["levels_passed"], "4/4", rep)
+            self.assertGreaterEqual(rep["total_fixes"], 3, rep)
+            self.assertTrue(os.path.isfile(os.path.join(td, "renders", "diagnostics", "bottom_up_report.json")))
+
 
 if __name__ == "__main__":
     unittest.main()

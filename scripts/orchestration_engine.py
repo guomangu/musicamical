@@ -307,14 +307,29 @@ def revoice_chords_with_lead(score_ir: Any, lead_min_margin: int = 2) -> dict[st
     if not lead_notes:
         return {"applied": 0}
     bpb = 4.0
-    applied = 0
+    # Regrouper les accords par onset pour préserver LIL et éviter tout cluster b2
+    by_onset: dict[float, list[Any]] = {}
     for n in ct.notes:
-        bar = float(n.grid_beat) // bpb
+        by_onset.setdefault(round(float(n.grid_beat), 3), []).append(n)
+    applied = 0
+    for grp in by_onset.values():
+        bar = float(grp[0].grid_beat) // bpb
         lead_bar = [int(x.pitch) for x in lead_notes if float(x.grid_beat) // bpb == bar]
         if not lead_bar:
             continue
         lead_min = min(lead_bar)
-        if int(n.pitch) >= lead_min - lead_min_margin and int(n.pitch) - 12 >= 36:
-            n.pitch = int(n.pitch) - 12
-            applied += 1
+        for n in grp:
+            cand = int(n.pitch) - 12
+            if int(n.pitch) >= lead_min - lead_min_margin and cand >= 52:
+                others = [int(o.pitch) for o in grp if o is not n]
+                # Ne jamais créer un cluster b2 (1 st) ni une violation LIL (2nde < 60, 3ce < 52)
+                if any(
+                    abs(cand - o) <= 1
+                    or (abs(cand - o) == 2 and min(cand, o) < 60)
+                    or (abs(cand - o) in (3, 4) and min(cand, o) < 52)
+                    for o in others
+                ):
+                    continue
+                n.pitch = cand
+                applied += 1
     return {"applied": applied, "lead_min_margin": lead_min_margin}
