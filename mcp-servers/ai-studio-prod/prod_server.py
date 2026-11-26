@@ -222,7 +222,8 @@ def _run_bridge(proj: str, bars: int = 0, seed: int = 0) -> dict[str, Any]:
 
 ROLE_PLUGIN = {
     "kick": "gl.kick", "snare": "gl.snare", "hihat": "gl.hat", "clap": "gl.clap", "perc": "gl.clap", "rim": "gl.clap",
-    "bass": "gl.fingerbass", "chords": "gl.keys", "lead": "gl.warmsynth", "counter": "gl.pluck",
+    "bass": "gl.analog", "chords": "gl.keys", "pad": "gl.keys", "lead": "gl.warmsynth",
+    "counter": "gl.keys", "arp": "gl.keys", "arpeggio": "gl.keys", "pluck": "gl.keys",
     "vocals": "gl.sampler", "fx": "gl.wavetable", "drums": "gl.kick", "remix_stem": "gl.sampler",
 }
 
@@ -265,28 +266,45 @@ def upgrade_blueprint_tracks(bp: dict[str, Any]) -> dict[str, Any]:
     prof = str(bp.get("mix_profile") or "trap_rap")
     val = float((bp.get("emotion_vector") or {}).get("valence", 0.0))
     from gl_dsl import resolve_archetype
+    from score_ir import classify_role
     from timbre_pleasantness import pick_gl_plugin
     _ARCH_ROLE = {"kick": "kick", "snare": "snare", "clap": "snare", "hihat": "hihat", "hat": "hihat",
                   "perc": "perc", "rim": "perc", "bass": "bass", "808": "bass", "sub": "bass",
-                  "chords": "chords", "keys": "chords", "pad": "chords", "lead": "lead",
-                  "melody": "lead", "counter": "lead", "fx": "fx"}
+                  "chords": "chords", "keys": "chords", "piano": "chords", "pad": "pad", "strings": "pad",
+                  "lead": "lead", "melody": "lead", "counter": "counter", "arp": "counter",
+                  "arpeggio": "counter", "pluck": "counter", "fx": "fx"}
     for tr in bp.get("tracks") or []:
         if not isinstance(tr, dict):
             continue
         name = str(tr.get("name") or "").lower()
         role = str(tr.get("role") or "")
+        # Corriger les anciens blueprints où `arp`/`pluck`/`piano` étaient classés `drums`
+        if role == "drums" and classify_role(name) != "drums":
+            role = classify_role(name)
+            tr["role"] = role
         arch_role = next((v for k, v in _ARCH_ROLE.items() if k in name), role)
         arch = resolve_archetype(prof, arch_role, valence=val)
         if arch and not tr.get("archetype"):
             tr["archetype"] = f"{prof}:{arch_role}"
         if tr.get("source_type") == "gridline_native":
-            if role in ("lead", "counter") and str(tr.get("plugin")) == "gl.fm":
+            if role in ("lead", "counter") and str(tr.get("plugin")) in ("gl.fm", "gl.pluck"):
                 plug = pick_gl_plugin(name or role, prof, val)
                 tr["plugin"] = plug["plugin"]
+                if plug.get("preset"):
+                    tr["preset"] = plug["preset"]
+                if plug.get("params"):
+                    tr["plugin_params"] = plug["params"]
+            if role == "bass" and str(tr.get("plugin")) == "gl.fingerbass":
+                plug = pick_gl_plugin("bass", prof, val)
+                tr["plugin"] = plug["plugin"]
+                if plug.get("preset"):
+                    tr["preset"] = plug["preset"]
                 if plug.get("params"):
                     tr["plugin_params"] = plug["params"]
             if arch_role == "perc" and str(tr.get("plugin")) == "gl.hat":
                 tr["plugin"] = "gl.clap"
+            if not tr.get("preset") and arch and arch.get("preset") and tr.get("plugin") == arch.get("plugin"):
+                tr["preset"] = str(arch["preset"])
     st = bp.get("structure")
     if isinstance(st, list) and st and not _structure_is_cumulative(st):
         bp["structure"] = blueprint_structure(st)
@@ -320,8 +338,9 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
     # générique "drums" via classify_role mais leur archétype est par nom de kit)
     _ARCH_ROLE = {"kick": "kick", "snare": "snare", "clap": "snare", "hihat": "hihat", "hat": "hihat",
                   "perc": "perc", "rim": "perc", "bass": "bass", "808": "bass", "sub": "bass",
-                  "chords": "chords", "keys": "chords", "pad": "chords", "lead": "lead", "melody": "lead",
-                  "counter": "lead", "fx": "fx", "vocal": "lead", "vocals": "lead"}
+                  "chords": "chords", "keys": "chords", "piano": "chords", "pad": "pad", "strings": "pad",
+                  "lead": "lead", "melody": "lead", "counter": "counter", "arp": "counter", "arpeggio": "counter",
+                  "pluck": "counter", "fx": "fx", "vocal": "lead", "vocals": "lead"}
     from gl_dsl import resolve_archetype
     for name in (haps.get("tracks") or {}):
         role = classify_role(name)
@@ -338,6 +357,8 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
               "source_type": "vocaloid" if role == "vocals" else "gridline_native",
               "plugin": plugin, "plugin_params": plug.get("params") or {},
               "mixer_track": mixer_track}
+        if plug.get("preset"):
+            tr["preset"] = str(plug["preset"])
         if arch:
             tr["archetype"] = f"{prof0}:{arch_role}"
         tracks.append(tr)
@@ -388,9 +409,13 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
 
 
 _SLOT_FOR = {"kick": "kick", "snare": "snare_clap", "clap": "snare_clap", "hihat": "hihat_perc",
-             "hat": "hihat_perc", "perc": "hihat_perc", "bass": "bass_sub", "808": "bass_sub",
-             "sub": "bass_sub", "chords": "chord_keys", "keys": "chord_keys", "pad": "pad_atmosphere",
-             "lead": "lead_melody", "melody": "lead_melody", "counter": "lead_melody", "fx": "fx"}
+             "hat": "hihat_perc", "open_hat": "hihat_perc", "perc": "hihat_perc", "rim": "hihat_perc",
+             "bass": "bass_sub", "808": "bass_sub", "sub": "bass_sub",
+             "chords": "chord_keys", "keys": "chord_keys", "piano": "chord_keys",
+             "pad": "pad_atmosphere", "strings": "pad_atmosphere",
+             "lead": "lead_melody", "melody": "lead_melody", "counter": "lead_melody",
+             "arp": "lead_melody", "arpeggio": "lead_melody", "pluck": "lead_melody", "bell": "lead_melody",
+             "fx": "fx"}
 
 
 def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
@@ -417,6 +442,8 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
             cached_note_ranges_and_catalog,
             enforce_blueprint_sample_fit,
             infer_sample_category,
+            prepare_octave_up_808,
+            register_fit,
             resolve_catalog_path,
         )
         from timbre_pleasantness import pick_gl_plugin, pleasantness_gate
@@ -522,9 +549,14 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                     )
                 )
             elif track_key in ("hihat", "hat", "open_hat"):
+                # Un hi-hat doit venir de hat/ ou open_hat/ (jamais un tom grave perc/ comme dnb_perc_ghost !)
+                hat_only = [
+                    c for c in pool_cands
+                    if infer_sample_category(c.get("category"), c.get("filepath")) in ("hat", "open_hat")
+                ]
+                pool_cands = hat_only
                 pool_cands.sort(
                     key=lambda c: (
-                        0 if infer_sample_category(c.get("category"), c.get("filepath")) in ("hat", "open_hat") else 1,
                         -(float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4),
                     )
                 )
@@ -583,7 +615,8 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                         "sample_nature": chosen_slot.get("sample_nature"), "category": chosen_slot.get("category"),
                         "inharmonicity": chosen_slot.get("inharmonicity"), "filepath": rpath,
                     }, str(chosen_slot.get("role") or slot_role))["verdict"] != "SWAP"):
-                if role == "drums" or key in GM_DRUM or str(chosen_slot.get("role")) in PERC_SLOT_ROLES:
+                is_perc_track = role == "drums" or key in GM_DRUM or str(chosen_slot.get("role")) in PERC_SLOT_ROLES
+                if is_perc_track:
                     rn = notated.get(key) or GM_DRUM.get(key) or chosen_slot.get("midi_root")
                 else:
                     rn = chosen_slot.get("midi_root")
@@ -591,16 +624,33 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                     pg = pick_gl_plugin(key, prof, valence)
                     tr["source_type"] = "gridline_native"
                     tr["plugin"] = pg["plugin"]
+                    if pg.get("preset"):
+                        tr["preset"] = str(pg["preset"])
+                    else:
+                        tr.pop("preset", None)
                     if pg.get("params"):
                         tr["plugin_params"] = pg["params"]
                     for stale_k in ("sample_path", "root_note", "fine_tune_ct"):
                         tr.pop(stale_k, None)
                     continue
+                # Auto-dérivation +12 st sans artefacts phase-vocoder pour 808 grave (C1 -> C2, root=36)
+                eff_path = rpath
+                eff_rn = int(max(0, min(127, int(rn))))
+                if not is_perc_track and slot_role == "bass_sub" and eff_rn <= 28:
+                    rf_b = register_fit(eff_rn, notes_by_track.get(key), chosen_slot, role="bass_sub")
+                    if rf_b.get("octave_up_needed"):
+                        derived = prepare_octave_up_808(rpath, proj, eff_rn)
+                        if derived is not None:
+                            eff_path, eff_rn = derived
                 tr["source_type"] = "sample"
-                tr["sample_path"] = rpath
+                tr["sample_path"] = eff_path
                 tr["plugin"] = "gl.sampler"
-                tr["root_note"] = int(max(0, min(127, int(rn))))
-                if chosen_slot.get("recommended_fine_tune_ct"):
+                tr.pop("preset", None)
+                tr["root_note"] = eff_rn
+                # Ne JAMAIS appliquer fine_tune_ct mélodique sur les percussions non-kick (snare/clap/hihat/perc)
+                if is_perc_track and key != "kick":
+                    tr["fine_tune_ct"] = 0
+                elif chosen_slot.get("recommended_fine_tune_ct"):
                     tr["fine_tune_ct"] = int(chosen_slot["recommended_fine_tune_ct"])
                 else:
                     tr.pop("fine_tune_ct", None)
@@ -609,6 +659,10 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                 pg = pick_gl_plugin(key, prof, valence)
                 tr["source_type"] = "gridline_native"
                 tr["plugin"] = pg["plugin"]
+                if pg.get("preset"):
+                    tr["preset"] = str(pg["preset"])
+                else:
+                    tr.pop("preset", None)
                 if pg.get("params"):
                     tr["plugin_params"] = pg["params"]  # cutoff/ADSR bornés, appliqués au rendu
                 for stale_k in ("sample_path", "root_note", "fine_tune_ct"):

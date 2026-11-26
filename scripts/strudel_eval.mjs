@@ -218,6 +218,7 @@ function sectionOf(pattern) {
 
 async function evalStack(stack) {
   seed(seedVal);
+  globalThis.__strudel_last_bass_mode = null;
   const r = await evaluate(stack.expr);
   const pattern = r.pattern;
   if (!pattern || typeof pattern.queryArc !== 'function') {
@@ -227,6 +228,7 @@ async function evalStack(stack) {
   const out = eventsOf(pattern);
   const sec = sectionOf(pattern);
   if (sec) out.sections = sec;
+  if (globalThis.__strudel_last_bass_mode) out.bass_mode = globalThis.__strudel_last_bass_mode;
   return out;
 }
 

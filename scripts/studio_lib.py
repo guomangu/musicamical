@@ -675,10 +675,11 @@ def setup_standard_buses(
         (f"mixer/{bus_music}/slot/{duck_slot}/Detector input", 1),
         (f"mixer/{bus_music}/slot/{duck_slot}/Threshold", -21.0), (f"mixer/{bus_music}/slot/{duck_slot}/Ratio", sc_ratio_music),
         (f"mixer/{bus_music}/slot/{duck_slot}/Attack", 0.005), (f"mixer/{bus_music}/slot/{duck_slot}/Release", 0.085), (f"mixer/{bus_music}/slot/{duck_slot}/Lookahead", 1),
-        # Q3.2 default stereo width (legacy engine = real side synthesis, symmetric) — UN SEUL gl.stereo
+        # Q3.2 default stereo width — élargissement modéré anti-phase-cancellation (UN SEUL gl.stereo)
+        # NB : Width=2.0 + Side=+12 dB détruisait la corrélation (-0.34 anti-phase sur gl.keys !).
         (f"mixer/{bus_music}/slot/{stereo_slot}/Reference engine", 0),
-        (f"mixer/{bus_music}/slot/{stereo_slot}/Width", 1.60 if acoustic_mode else 2.00),
-        (f"mixer/{bus_music}/slot/{stereo_slot}/Side level", 10.0 if acoustic_mode else 12.0),
+        (f"mixer/{bus_music}/slot/{stereo_slot}/Width", 1.10 if acoustic_mode else 1.15),
+        (f"mixer/{bus_music}/slot/{stereo_slot}/Side level", 0.5 if acoustic_mode else 1.5),
         (f"mixer/{bus_music}/slot/{stereo_slot}/Mono below", 250.0),
         (f"mixer/{bus_music}/slot/{stereo_slot}/Dephase", 0.0),
         # FX Room (Dry=0, Dry full=0, Decay <= T_noire for rhythmic genres)

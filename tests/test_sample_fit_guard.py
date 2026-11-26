@@ -461,5 +461,152 @@ class TestCIRealBankPalettes(unittest.TestCase):
                     self.assertTrue(rf["ok"], f"{prof}/{s['role']} S_max dépassé: {rf} ({s.get('filepath')})")
 
 
+class TestPhase2MusicalityAndTimbreFixes(unittest.TestCase):
+    """Non-régression Phase 2 (audit projects/trap_lent_planant_energique) :
+    - 68 mesures évaluées sans troncature à 16 mesures ;
+    - bassline(mode='root') ancrée sur la fondamentale réelle de chaque accord ;
+    - zéro cluster b2 interne (ex. G4+Ab4 dans Abmaj7) dans optimize_voicings_lil ;
+    - $pad / $chords synchronisés sur la grille harmonique (zéro polytonalité) ;
+    - fix_lead_b2_clashes ne déplace jamais une note d'accord ;
+    - $arp classé `counter` (jamais `drums`) ;
+    - cris vocaux (`Vox`) exclus des percussions ;
+    - gl.keys / gl.warmsynth / gl.pluck / gl.stereo paramètres propres ;
+    - NOISY_FLOOR ne rejette pas un one-shot hi-hat/snare décroissant propre."""
+
+    def test_voicings_no_internal_b2_cluster_on_maj7(self):
+        import strudel_to_score_ir as st
+        # Abmaj7 = [0(C), 3(Eb), 7(G), 8(Ab)] : jamais G4(67)+Ab4(68) à 1 demi-ton !
+        pcs_list = [[0, 3, 7, 10], [0, 3, 7, 8], [0, 3, 5, 8], [2, 5, 7, 11]]
+        voicings = st.optimize_voicings_lil(pcs_list)
+        for v in voicings:
+            sv = sorted(v)
+            for a, b in zip(sv, sv[1:]):
+                self.assertGreater(b - a, 1, f"cluster b2 interne interdit dans voicing {sv}")
+
+    def test_pad_split_at_chord_boundaries_no_polytonality(self):
+        import strudel_to_score_ir as st
+        # 8 mesures : Cm7 (0..8), Abmaj7 (8..16), Fm7 (16..24), G7 (24..32)
+        prog = ["Cm7", "Cm7", "Abmaj7", "Abmaj7", "Fm7", "Fm7", "G7", "G7"]
+        grid = st.build_grid(prog, "C", "minor", 4, 8)
+        tracks = {"pad": [{"start": 0.0, "length": 16.0, "pitch": -1, "velocity": 80, "chord_symbol": "Cm7"},
+                          {"start": 16.0, "length": 16.0, "pitch": -1, "velocity": 80, "chord_symbol": "Fm7"}]}
+        st.expand_chord_symbols(tracks, grid)
+        starts = sorted({ev["start"] for ev in tracks["pad"]})
+        self.assertEqual(starts, [0.0, 8.0, 16.0, 24.0], "pad doit changer d'accord sur chaque changement de grille")
+
+    def test_fix_lead_b2_preserves_chord_tones_on_maj7(self):
+        import strudel_to_score_ir as st
+        from score_ir import NoteEventIR, ScoreIR, TrackIR
+        grid = st.build_grid(["Abmaj7"], "C", "minor", 4, 1)
+        score = ScoreIR(bpm=92.0, time_signature={"numerator": 4, "denominator": 4},
+                        key="C", mode="minor", valence=0.0, harmonic_grid=grid)
+        # Ab4 (68) et G4 (67) sont TOUS DEUX dans Abmaj7 -> ne doivent PAS être déplacés !
+        score.tracks["lead"] = TrackIR(role="lead", monophonic=True, notes=[
+            NoteEventIR(grid_beat=0.0, duration_beats=1.0, pitch=68, velocity=90, chord_idx=0),
+            NoteEventIR(grid_beat=1.0, duration_beats=1.0, pitch=67, velocity=90, chord_idx=0),
+        ])
+        n = st.fix_lead_b2_clashes(score)
+        self.assertEqual(n, 0)
+        self.assertEqual([x.pitch for x in score.tracks["lead"].notes], [68, 67])
+
+    def test_arp_classified_as_counter_not_drums(self):
+        from score_ir import classify_role
+        self.assertEqual(classify_role("arp"), "counter")
+        self.assertEqual(classify_role("arpeggio"), "counter")
+        self.assertEqual(classify_role("piano"), "chords")
+        self.assertEqual(sfg.normalize_slot_role("arp"), "lead_melody")
+
+    def test_vocal_shout_excluded_from_perc(self):
+        pol = sfg.candidate_policy("hihat_perc", {"category": "perc", "filepath": "/samples/perc/MZ Perc [Urban Vox].wav"})
+        self.assertFalse(pol["allowed"], pol)
+
+    def test_noisy_floor_passes_clean_decaying_percussive_hat(self):
+        import sample_quality_v2 as q2
+        sr = 44100
+        rng = np.random.default_rng(7)
+        t = np.arange(int(0.35 * sr)) / sr
+        # Hi-hat synthétique propre : bruit filtré + résonance métallique à 8 kHz, décroissance exponentielle
+        env = np.exp(-t / 0.045)
+        hat = env * (0.45 * rng.standard_normal(len(t)) + 0.35 * np.sin(2 * np.pi * 8200.0 * t))
+        hat = hat / max(float(np.max(np.abs(hat))), 1e-9) * 0.65
+        res = q2.quality_gate_v2(hat, sr)
+        self.assertEqual(res["status"], "PASS", f"hi-hat propre ne doit PAS être rejeté NOISY_FLOOR: {res}")
+
+    @unittest.skipUnless(HAVE_STRUDEL, "node + @strudel requis")
+    def test_full_68_bar_form_and_bass_root_lock(self):
+        import strudel_to_score_ir as st
+        src = (
+            '// @meta 92 C:minor trap_rap V=0.0 form=I4-V12-P4-C8-V12-P4-C8-B4-C8-O4 seed=4209 ts=4/4\n'
+            'kit("trap_half", {var: 2, hats: "rolls"})\n'
+            '$chords: grid("Cm7 Abmaj7 Fm7 G7").slow(2).gain(0.68).muteIn("intro,outro")\n'
+            '$pad: grid("Cm7 Abmaj7 Fm7 G7").slow(4).gain(0.55).in("intro,chorus,bridge,outro")\n'
+            '$bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 40}).slow(4).in("verse,pre_chorus,chorus,outro")\n'
+            '$lead: deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.62).in("verse,chorus")\n'
+            '$arp: deg("0 3 6 7 6 3 0 ~", 4).slow(2).gain(0.45).in("pre_chorus,chorus,bridge")\n'
+        )
+        with tempfile.TemporaryDirectory() as td:
+            sp = os.path.join(td, "composition.strudel")
+            with open(sp, "w", encoding="utf-8") as fh:
+                fh.write(src)
+            rep = st.strudel_to_score_ir(td, run_eval=True, emit_plan=True)
+            self.assertTrue(rep.get("ok"), rep)
+            total_bars = sum(int(s.get("bars", 0)) for s in (rep.get("sections") or []))
+            self.assertEqual(total_bars, 68, "doit évaluer les 68 mesures du @meta form=, pas tronquer à 16 !")
+            with open(os.path.join(td, "composition.strudel.haps.json"), encoding="utf-8") as fh:
+                self.assertEqual(json.load(fh).get("bars"), 68)
+            with open(os.path.join(td, "arrangement_plan.json"), encoding="utf-8") as fh:
+                plan = json.load(fh)
+            for sec in plan["sections"]:
+                self.assertTrue(sec["active_roles"], f"section {sec['name']} (bar {sec['start_bar']}) ne doit pas être vide !")
+            with open(os.path.join(td, "score_ir.json"), encoding="utf-8") as fh:
+                ir = json.load(fh)
+            grid = ir["harmonic_grid"]
+            # Chaque note de basse en mode=root doit jouer la fondamentale exacte de l'accord courant
+            for n in ir["tracks"]["bass"]["notes"]:
+                seg = grid[n["chord_idx"]]
+                self.assertEqual(n["pitch"] % 12, seg["root_pc"], f"bass {n} != root {seg}")
+            # $arp doit avoir le rôle counter et être présent dans pre_chorus/chorus/bridge
+            self.assertEqual(ir["tracks"]["arp"]["role"], "counter")
+            self.assertTrue(any("arp" in s["active_roles"] for s in plan["sections"]))
+
+    def test_phase3_distinct_factory_presets_per_role(self):
+        from timbre_pleasantness import pick_gl_plugin
+        ch = pick_gl_plugin("chords", "trap_rap", 0.0)
+        pd = pick_gl_plugin("pad", "trap_rap", 0.0)
+        ld = pick_gl_plugin("lead", "trap_rap", 0.0)
+        ap = pick_gl_plugin("arp", "trap_rap", 0.0)
+        self.assertTrue(ch.get("preset"), ch)
+        self.assertTrue(pd.get("preset"), pd)
+        self.assertTrue(ld.get("preset"), ld)
+        self.assertTrue(ap.get("preset"), ap)
+        # Pad != Chords et Arp != Lead (zéro doublon timbral)
+        self.assertNotEqual((ch["plugin"], ch.get("preset")), (pd["plugin"], pd.get("preset")))
+        self.assertNotEqual((ld["plugin"], ld.get("preset")), (ap["plugin"], ap.get("preset")))
+
+    def test_phase3_viterbi_voice_leading_smooth_and_cluster_free(self):
+        import strudel_to_score_ir as st
+        pcs = [[0, 3, 7, 10], [0, 3, 7, 8], [0, 3, 5, 8], [2, 5, 7, 11]] * 2
+        vs = st.optimize_voicings_lil(pcs)
+        dists = [sum(abs(a - b) for a, b in zip(vs[i], vs[i + 1])) / len(vs[i]) for i in range(len(vs) - 1)]
+        self.assertLess(sum(dists) / len(dists), 1.5, f"voice leading trop brusque: {dists} -> {vs}")
+        for v in vs:
+            for a, b in zip(v, v[1:]):
+                self.assertGreater(b - a, 1, f"cluster b2 dans {v}")
+
+    def test_phase3_octave_up_808_resampling(self):
+        with tempfile.TemporaryDirectory() as td:
+            wav_c1 = _write_wav(os.path.join(td, "src_808_c1.wav"), _saturated_808(32.703, dur=1.6, sr=44100), sr=44100)
+            rf = sfg.register_fit(24, [32, 36, 41, 43], {"category": "808", "filepath": wav_c1, "duration_s": 1.6}, role="bass_sub")
+            self.assertTrue(rf["ok"], rf)
+            self.assertTrue(rf.get("octave_up_needed"), rf)
+            self.assertEqual(rf.get("effective_root"), 36)
+            derived = sfg.prepare_octave_up_808(wav_c1, td, 24)
+            self.assertIsNotNone(derived)
+            out_path, new_root = derived
+            self.assertEqual(new_root, 36)
+            self.assertTrue(os.path.isfile(out_path))
+            self.assertIn("derived_samples", out_path)
+
+
 if __name__ == "__main__":
     unittest.main()

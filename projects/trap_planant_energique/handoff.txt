@@ -1,0 +1,12 @@
+HANDOFF v4 trap_planant_energique
+strudel=composition.strudel#af83e9bfd7 seed=2026
+bridge_ok=True tracks=7 notes=1181
+sections=intro,verse,pre_chorus,chorus,verse,pre_chorus,chorus,outro
+eval_passed=True compile_passed=True fc_passed=True
+guards={"bass_register_clamped":0,"lead_apex_clamped":0,"chords_revoiced":133,"mono_onset_dedup":0,"chord_symbols_expanded":192}
+preflight=PASS gf=1.0 sw=0.923 rest=0.21 bad_leaps=0 (0 rendu: scripts/preflight_strudel_gate.py <projet>)
+palette=palette_B samples=4/4 rej=41 theme=synthetic safety=0err/0warn
+sound_guard=OK
+score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json
+master=renders/master.wav
+next: studio_refine(delta_json=...) ou strudel_patch={{"replace_track":"lead","code":"..."}}

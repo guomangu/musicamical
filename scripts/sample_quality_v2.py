@@ -169,6 +169,22 @@ def snr_db(mono: np.ndarray, sr: int) -> float:
     return _snr_spectral(mono, sr)[0]
 
 
+def _time_dynamic_range_db(mono: np.ndarray, sr: int, hop_ms: float = 20.0) -> float:
+    """Écart (dB) entre le RMS pic (trame 20 ms) et le 15e percentile (plancher temporel).
+    Un signal noyé dans un bruit de fond constant a un écart faible (< 15 dB) ;
+    un one-shot percussif propre (hat, snare, clap) décroît vers le silence (écart >= 18 dB)."""
+    if len(mono) < int(0.15 * sr):
+        return 99.0  # transitoire ultra-court (< 150 ms) : pas de plancher stationnaire mesurable
+    hop = max(1, int(hop_ms * sr / 1000.0))
+    nf = len(mono) // hop
+    if nf < 4:
+        return 99.0
+    rms = np.sqrt(np.mean(mono[: nf * hop].reshape(nf, hop) ** 2, axis=1)) + 1e-12
+    peak_rms = float(np.max(rms))
+    q15_rms = float(np.percentile(rms, 15))
+    return round(float(20.0 * math.log10(max(peak_rms, 1e-12) / max(q15_rms, 1e-12))), 2)
+
+
 def quality_gate_v2(x: np.ndarray, sr: int) -> dict:
     """Quality Gate physique v2. Rapide (numpy/scipy uniquement, cible < 15 ms/fichier).
     Retourne {status, true_peak_dbtp, snr_db, dc_offset, defects[]} — REJECTED si defects non vide."""
@@ -187,8 +203,11 @@ def quality_gate_v2(x: np.ndarray, sr: int) -> dict:
     if cutoff is not None:
         defects.append(f"UPSAMPLED_LOSSY(cutoff={cutoff}Hz)")
     snr, tonal_frac = _snr_spectral(mono, sr)
-    if snr < SNR_MIN_DB and tonal_frac >= 0.02:
-        defects.append("NOISY_FLOOR")  # signal structuré noyé dans un plancher de bruit
+    dyn_db = _time_dynamic_range_db(mono, sr)
+    # NOISY_FLOOR exige à la fois un faible SNR spectral ET un plancher de bruit persistant dans le temps
+    # (sinon les percussions large bande propres — hi-hats, snares, claps — sont faussement rejetées).
+    if snr < SNR_MIN_DB and tonal_frac >= 0.02 and dyn_db < 15.0:
+        defects.append("NOISY_FLOOR")  # signal structuré noyé dans un plancher de bruit persistant
     status = "REJECTED" if defects else "PASS"
     return {
         "status": status,

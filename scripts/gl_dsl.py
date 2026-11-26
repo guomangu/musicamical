@@ -439,7 +439,12 @@ SYNTH_REGISTRY: dict[str, SynthSpec] = {
         cutoff_param="Cutoff",
         cutoff_unit="norm",
         cutoff_bounds=(0.0, 1.0),
-        extra_defaults={"Filter": 1, "Filter high": 0, "Filter band": 0, "Emphasis": 0.08, "Chorus": 0},
+        extra_defaults={
+            "Filter": 1, "Filter high": 0, "Filter band": 0, "Emphasis": 0.08, "Chorus": 0,
+            "Osc 1 shape": 2, "Osc 1 warm": 0, "Osc 1 LFO": 0.0,
+            "Osc 2 on": 1, "Osc 2 shape": 4, "Osc 2 warm": 0, "Osc 2 level": 0.45, "Osc 2 LFO": 0.0,
+            "Filter LFO": 0.0, "Filter env": 0.20,
+        },
         has_internal_lpf=True,
     ),
     "gl.dcosynth": SynthSpec(
@@ -507,7 +512,7 @@ SYNTH_REGISTRY: dict[str, SynthSpec] = {
         cutoff_param="Brightness",
         cutoff_unit="brightness",
         cutoff_bounds=(0.0, 1.0),
-        extra_defaults={"Damping": 0.42, "Gate (damp on release)": 1},
+        extra_defaults={"Damping": 0.60, "Gate (damp on release)": 1, "Stereo width": 0.0, "Pick position": 0.35},
         has_internal_lpf=True,
     ),
     "gl.fm": SynthSpec(
@@ -535,10 +540,11 @@ SYNTH_REGISTRY: dict[str, SynthSpec] = {
         plugin="gl.keys",
         adsr_unit="seconds",
         adsr_params={"decay": "Decay", "release": "Release"},
-        adsr_bounds={"decay": (0.3, 12.0), "release": (0.02, 3.0)},
+        adsr_bounds={"decay": (2.8, 12.0), "release": (0.08, 3.0)},
         cutoff_param="Muffle",
         cutoff_unit="hz",
         cutoff_bounds=(500.0, 20000.0),
+        extra_defaults={"Detune": 0.0, "Overdrive": 0.0, "Hardness": 0.35, "Stereo": 0.25, "Volume": 0.72},
         has_internal_lpf=False,  # Also attach clean gl.eq LPF on insert per spec
     ),
     "gl.fingerbass": SynthSpec(
@@ -546,6 +552,18 @@ SYNTH_REGISTRY: dict[str, SynthSpec] = {
         adsr_unit="fixed",
         adsr_params={},
         extra_defaults={"Treble": 0.35},
+        has_internal_lpf=False,
+    ),
+    "gl.additive": SynthSpec(
+        plugin="gl.additive",
+        adsr_unit="fixed",
+        adsr_params={},
+        has_internal_lpf=False,
+    ),
+    "gl.harmor": SynthSpec(
+        plugin="gl.harmor",
+        adsr_unit="fixed",
+        adsr_params={},
         has_internal_lpf=False,
     ),
     "gl.sampler": SynthSpec(
@@ -846,7 +864,7 @@ def synth_voice(
         elif spec.cutoff_unit == "norm":
             params[spec.cutoff_param] = _hz_to_norm_cutoff(eff_cutoff)
         elif spec.cutoff_unit == "brightness":
-            params[spec.cutoff_param] = round(clamp((eff_cutoff - 1000.0) / 10000.0, 0.22, 0.72), 3)
+            params[spec.cutoff_param] = round(clamp((eff_cutoff - 1000.0) / 14000.0, 0.18, 0.42), 3)
 
     # Polyphony & Unison
     if spec.polyphony_param:
@@ -919,9 +937,19 @@ def resolve_archetype(profile: str, role: str, valence: float = 0.0) -> dict[str
     if not entry:
         return None
     params = dict(entry.get("params") or {})
+    plugin = str(entry.get("plugin") or "gl.warmsynth")
+    preset = str(entry.get("preset") or "")
     if float(valence) < -0.2:
-        params.update(entry.get("dark_overrides") or {})
-    return {"plugin": entry.get("plugin", "gl.warmsynth"), "params": params}
+        ov = dict(entry.get("dark_overrides") or {})
+        if ov.get("plugin"):
+            plugin = str(ov.pop("plugin"))
+        if ov.get("preset"):
+            preset = str(ov.pop("preset"))
+        params.update(ov)
+    out: dict[str, Any] = {"plugin": plugin, "params": params}
+    if preset:
+        out["preset"] = preset
+    return out
 
 
 # ---------------------------------------------------------------------------

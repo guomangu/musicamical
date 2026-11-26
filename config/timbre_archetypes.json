@@ -1,6 +1,6 @@
 {
-  "schema_version": "3.2",
-  "description": "Archétypes timbraux gl.* calibrés par (mix_profile, role, valence) — remplacent le repli générique. Micro-detune <= 4 ct sur couches secondaires uniquement, jamais sur la fondation.",
+  "schema_version": "3.3",
+  "description": "Archétypes timbraux gl.* calibrés avec presets factory vérifiés (+0.6 ct, corrélation saine, zéro doublon entre rôles) par (mix_profile, role, valence).",
   "archetypes": {
     "trap_rap:bass": {
       "plugin": "gl.sampler",
@@ -12,48 +12,85 @@
       "dark_overrides": {}
     },
     "trap_rap:chords": {
-      "plugin": "gl.warmsynth",
+      "plugin": "gl.keys",
+      "preset": "Classic tine",
       "params": {
         "cutoff_hz": 6500,
-        "attack_ms": 8,
-        "release_ms": 180
+        "attack_ms": 12,
+        "release_ms": 260
       },
-      "dark_overrides": {}
+      "dark_overrides": {
+        "preset": "Soft"
+      }
+    },
+    "trap_rap:pad": {
+      "plugin": "gl.analog",
+      "preset": "Velvet Pad",
+      "params": {
+        "cutoff_hz": 5500,
+        "attack_ms": 240,
+        "release_ms": 600
+      },
+      "dark_overrides": {
+        "plugin": "gl.wavetable",
+        "preset": "Formant Choir",
+        "cutoff_hz": 4800
+      }
     },
     "trap_rap:lead": {
       "plugin": "gl.warmsynth",
+      "preset": "Soft Brass",
       "params": {
-        "cutoff_hz": 3200,
+        "cutoff_hz": 4500,
         "attack_ms": 12,
         "release_ms": 200,
         "vibrato_delay_ms": 250
       },
       "dark_overrides": {
-        "cutoff_hz": 2600
+        "plugin": "gl.wavetable",
+        "preset": "Glass Bell",
+        "cutoff_hz": 3800
+      }
+    },
+    "trap_rap:counter": {
+      "plugin": "gl.additive",
+      "preset": "Harp pluck",
+      "params": {
+        "cutoff_hz": 6500,
+        "attack_ms": 6,
+        "release_ms": 220
+      },
+      "dark_overrides": {
+        "plugin": "gl.wavetable",
+        "preset": "Glass Bell"
       }
     },
     "trap_rap:kick": {
       "plugin": "gl.kick",
+      "preset": "Deep 808",
       "params": {},
       "dark_overrides": {}
     },
     "trap_rap:snare": {
       "plugin": "gl.snare",
+      "preset": "Tight",
       "params": {},
       "dark_overrides": {}
     },
     "trap_rap:hihat": {
       "plugin": "gl.hat",
+      "preset": "Closed",
       "params": {},
       "dark_overrides": {}
     },
     "trap_rap:perc": {
       "plugin": "gl.clap",
+      "preset": "Room",
       "params": {},
       "dark_overrides": {}
     },
     "pop_rnb:bass": {
-      "plugin": "gl.fingerbass",
+      "plugin": "gl.analog",
       "params": {
         "attack_ms": 3,
         "release_ms": 90
@@ -62,22 +99,46 @@
     },
     "pop_rnb:chords": {
       "plugin": "gl.keys",
+      "preset": "Classic tine",
       "params": {
         "cutoff_hz": 7500
       },
-      "dark_overrides": {}
+      "dark_overrides": {
+        "preset": "Soft"
+      }
+    },
+    "pop_rnb:pad": {
+      "plugin": "gl.analog",
+      "preset": "PWM Strings",
+      "params": {
+        "cutoff_hz": 6200,
+        "attack_ms": 220,
+        "release_ms": 550
+      },
+      "dark_overrides": {
+        "preset": "Velvet Pad"
+      }
     },
     "pop_rnb:lead": {
-      "plugin": "gl.twinva",
+      "plugin": "gl.warmsynth",
+      "preset": "Soft Brass",
       "params": {
-        "cutoff_hz": 8200,
+        "cutoff_hz": 7500,
         "attack_ms": 8,
         "release_ms": 200,
         "vibrato_delay_ms": 220
       },
       "dark_overrides": {
-        "cutoff_hz": 6800
+        "cutoff_hz": 6000
       }
+    },
+    "pop_rnb:counter": {
+      "plugin": "gl.wavetable",
+      "preset": "Glass Bell",
+      "params": {
+        "cutoff_hz": 7000
+      },
+      "dark_overrides": {}
     },
     "edm_club:bass": {
       "plugin": "gl.analog",
@@ -90,22 +151,40 @@
       "dark_overrides": {}
     },
     "edm_club:chords": {
-      "plugin": "gl.sawswarm",
+      "plugin": "gl.harmor",
+      "preset": "Prism keys",
       "params": {
         "cutoff_hz": 8000
       },
       "dark_overrides": {}
     },
-    "edm_club:lead": {
+    "edm_club:pad": {
       "plugin": "gl.wavetable",
+      "preset": "Formant Choir",
       "params": {
-        "cutoff_hz": 10000,
+        "cutoff_hz": 6800
+      },
+      "dark_overrides": {}
+    },
+    "edm_club:lead": {
+      "plugin": "gl.additive",
+      "preset": "Masked lead",
+      "params": {
+        "cutoff_hz": 9000,
         "vibrato_delay_ms": 240
       },
       "dark_overrides": {}
     },
+    "edm_club:counter": {
+      "plugin": "gl.wavetable",
+      "preset": "Glass Bell",
+      "params": {
+        "cutoff_hz": 8000
+      },
+      "dark_overrides": {}
+    },
     "rock_metal:bass": {
-      "plugin": "gl.fingerbass",
+      "plugin": "gl.analog",
       "params": {
         "attack_ms": 2,
         "release_ms": 70
@@ -113,16 +192,34 @@
       "dark_overrides": {}
     },
     "rock_metal:chords": {
-      "plugin": "gl.analog",
+      "plugin": "gl.string",
+      "preset": "Power chords",
       "params": {
         "cutoff_hz": 6800
       },
       "dark_overrides": {}
     },
-    "rock_metal:lead": {
-      "plugin": "gl.sawswarm",
+    "rock_metal:pad": {
+      "plugin": "gl.analog",
+      "preset": "PWM Strings",
       "params": {
-        "cutoff_hz": 9200
+        "cutoff_hz": 5800
+      },
+      "dark_overrides": {}
+    },
+    "rock_metal:lead": {
+      "plugin": "gl.warmsynth",
+      "preset": "Soft Brass",
+      "params": {
+        "cutoff_hz": 8500
+      },
+      "dark_overrides": {}
+    },
+    "rock_metal:counter": {
+      "plugin": "gl.string",
+      "preset": "Clean electric",
+      "params": {
+        "cutoff_hz": 7500
       },
       "dark_overrides": {}
     },
@@ -136,6 +233,7 @@
     },
     "lofi_chill:chords": {
       "plugin": "gl.keys",
+      "preset": "Soft",
       "params": {
         "cutoff_hz": 5200,
         "tremolo_depth": 0.06
@@ -144,8 +242,17 @@
         "cutoff_hz": 4600
       }
     },
+    "lofi_chill:pad": {
+      "plugin": "gl.analog",
+      "preset": "Velvet Pad",
+      "params": {
+        "cutoff_hz": 4800
+      },
+      "dark_overrides": {}
+    },
     "lofi_chill:lead": {
-      "plugin": "gl.warmsynth",
+      "plugin": "gl.analog",
+      "preset": "Glass Pluck",
       "params": {
         "cutoff_hz": 4200,
         "attack_ms": 10,
@@ -156,8 +263,16 @@
         "cutoff_hz": 3400
       }
     },
+    "lofi_chill:counter": {
+      "plugin": "gl.string",
+      "preset": "Nylon",
+      "params": {
+        "cutoff_hz": 5500
+      },
+      "dark_overrides": {}
+    },
     "jazz_acoustic:bass": {
-      "plugin": "gl.fingerbass",
+      "plugin": "gl.analog",
       "params": {
         "attack_ms": 3,
         "release_ms": 110
@@ -166,21 +281,39 @@
     },
     "jazz_acoustic:chords": {
       "plugin": "gl.keys",
+      "preset": "Classic tine",
       "params": {
         "cutoff_hz": 6800
       },
       "dark_overrides": {}
     },
+    "jazz_acoustic:pad": {
+      "plugin": "gl.analog",
+      "preset": "PWM Strings",
+      "params": {
+        "cutoff_hz": 5800
+      },
+      "dark_overrides": {}
+    },
     "jazz_acoustic:lead": {
       "plugin": "gl.string",
+      "preset": "Nylon",
       "params": {
         "cutoff_hz": 8500,
         "vibrato_delay_ms": 260
       },
       "dark_overrides": {}
     },
-    "classical_ambient:bass": {
+    "jazz_acoustic:counter": {
       "plugin": "gl.string",
+      "preset": "Concert harp",
+      "params": {
+        "cutoff_hz": 7500
+      },
+      "dark_overrides": {}
+    },
+    "classical_ambient:bass": {
+      "plugin": "gl.analog",
       "params": {
         "attack_ms": 12,
         "release_ms": 300
@@ -188,7 +321,8 @@
       "dark_overrides": {}
     },
     "classical_ambient:chords": {
-      "plugin": "gl.string",
+      "plugin": "gl.keys",
+      "preset": "Soft",
       "params": {
         "cutoff_hz": 5800,
         "attack_ms": 15
@@ -197,11 +331,29 @@
         "cutoff_hz": 5800
       }
     },
+    "classical_ambient:pad": {
+      "plugin": "gl.analog",
+      "preset": "PWM Strings",
+      "params": {
+        "cutoff_hz": 5800,
+        "attack_ms": 250
+      },
+      "dark_overrides": {}
+    },
     "classical_ambient:lead": {
       "plugin": "gl.string",
+      "preset": "Concert harp",
       "params": {
         "cutoff_hz": 8000,
         "vibrato_delay_ms": 280
+      },
+      "dark_overrides": {}
+    },
+    "classical_ambient:counter": {
+      "plugin": "gl.additive",
+      "preset": "Harp pluck",
+      "params": {
+        "cutoff_hz": 7200
       },
       "dark_overrides": {}
     }

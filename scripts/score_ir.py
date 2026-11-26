@@ -246,11 +246,11 @@ def classify_role(track_key: str) -> str:
     rl = str(track_key).lower()
     if any(k in rl for k in ("bass", "808", "sub")):
         return "bass"
-    if any(k in rl for k in ("chord", "pad", "keys", "harmony", "string", "rhodes")):
+    if any(k in rl for k in ("chord", "pad", "keys", "harmony", "string", "rhodes", "piano", "epiano", "organ")):
         return "chords"
     if any(k in rl for k in ("lead", "melody", "topline")):
         return "lead"
-    if "counter" in rl:
+    if any(k in rl for k in ("counter", "arp", "arpeggio", "pluck", "bell", "mallet", "marimba", "kalimba", "harp", "guitar", "synth")):
         return "counter"
     if "remix" in rl:
         return "remix_stem"  # v3.3 #5 — scénario C (Remix / Sample Flip)
@@ -896,7 +896,7 @@ def _nearest_scale_pitch(pitch: int, scale_pcs: set[int]) -> int:
 
 def autofix_score_ir(score_ir: ScoreIR, thresholds: dict[str, Any] | None = None,
                      guard_ms: float = DEFAULT_GUARD_MS) -> tuple[ScoreIR, dict[str, Any]]:
-    """Réparations déterministes sur le ScoreIR (snap gamme, clamp frontière, chevauchements mono)."""
+    """Réparations déterministes sur le ScoreIR (snap gamme, ancrage basse, clamp frontière, chevauchements mono)."""
     grid = score_ir.harmonic_grid
     guard_beats = ms_to_beats(float(guard_ms), float(score_ir.bpm))
     changes: list[dict[str, Any]] = []
@@ -906,6 +906,25 @@ def autofix_score_ir(score_ir: ScoreIR, thresholds: dict[str, Any] | None = None
             seg = grid[cidx] if 0 <= cidx < len(grid) else (grid[0] if grid else {})
             pc = int(note.pitch) % 12
             scale_pcs = set(seg.get("scale_pcs", []))
+            chord_pcs = set(seg.get("chord_pcs", []))
+            if tir.role == "bass" and seg:
+                root_pc = int(seg.get("bass_pc", seg.get("root_pc", 0))) % 12
+                fifth_pc = (root_pc + 7) % 12
+                # Sur la basse : jamais de note hors-accord ou de sensible/tierce majeure sur temps fort de changement d'accord
+                at_seg_start = abs(float(note.grid_beat) - float(seg.get("start_beat", 0.0))) < 0.12
+                bad_bass = (chord_pcs and pc not in chord_pcs) or (at_seg_start and pc not in (root_pc, fifth_pc))
+                if bad_bass:
+                    target = 36 + root_pc
+                    while target < 31:
+                        target += 12
+                    while target > 48:
+                        target -= 12
+                    if target != int(note.pitch):
+                        changes.append({"track": tkey, "beat": round(note.grid_beat, 4), "kind": "bass_root_lock",
+                                        "from": int(note.pitch), "to": int(target)})
+                        note.pitch = int(target)
+                        note.note_role = "bass_root"
+                        pc = target % 12
             if scale_pcs and pc not in scale_pcs and tir.role in ("lead", "counter") and note.note_role not in ("appoggiatura", "anticipation"):
                 new_pitch = _nearest_scale_pitch(int(note.pitch), scale_pcs)
                 if new_pitch != int(note.pitch):

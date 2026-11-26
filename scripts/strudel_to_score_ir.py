@@ -230,27 +230,63 @@ def _lil_bad(pitches: list[int]) -> bool:
 def optimize_voicings_lil(pcs_list: list[list[int]], lo: int = CHORDS_REGISTER[0], hi: int = CHORDS_REGISTER[1]) -> list[list[int]]:
     from itertools import product
 
-    def candidates(pcs: list[int]) -> list[list[int]]:
+    def candidates(pcs: list[int], strict_no_b2: bool = True) -> list[list[int]]:
         pools = [[m for m in range(lo, hi + 1) if m % 12 == pc] for pc in pcs]
         res = []
         for combo in product(*pools):
             s = sorted(combo)
-            if s[-1] - s[0] <= 16 and len(set(s)) == len(pcs) and not _lil_bad(s):
-                tight_low = any((s[k + 1] - s[k] <= 1 and s[k] < 57) for k in range(len(s) - 1))
-                if not tight_low:
-                    res.append(s)
+            if s[-1] - s[0] <= 18 and len(set(s)) == len(pcs) and not _lil_bad(s):
+                # Rejeter tout cluster de demi-ton (b2 interne, ex. G4+Ab4 dans Abmaj7) à TOUTE hauteur
+                has_b2 = any((s[k + 1] - s[k] <= 1) for k in range(len(s) - 1))
+                if strict_no_b2 and has_b2:
+                    continue
+                if not strict_no_b2 and any((s[k + 1] - s[k] <= 1 and s[k] < 57) for k in range(len(s) - 1)):
+                    continue
+                res.append(s)
         return res
 
-    all_cands = [candidates(pcs) for pcs in pcs_list]
+    all_cands = [candidates(pcs, strict_no_b2=True) or candidates(pcs, strict_no_b2=False) for pcs in pcs_list]
     for i, c in enumerate(all_cands):
         if not c:
             pools = [[m for m in range(lo, hi + 1) if m % 12 == pc] for pc in pcs_list[i]]
             all_cands[i] = [sorted(x) for x in product(*pools) if len(set(x)) == len(pcs_list[i])]
     mid = (lo + hi) / 2.0
-    chosen = [min(all_cands[0], key=lambda c: abs(sum(c) / len(c) - mid))]
-    for cands in all_cands[1:]:
-        prev = chosen[-1]
-        chosen.append(min(cands, key=lambda c: sum(min(abs(n - p) for p in prev) for n in c) / len(c)))
+
+    def _vl_dist(a: list[int], b: list[int]) -> float:
+        # Distance voix-à-voix (sorted) + symétrique si cardinalités diffèrent
+        if len(a) == len(b):
+            return sum(abs(x - y) for x, y in zip(a, b)) / max(1, len(a))
+        d1 = sum(min(abs(x - y) for y in b) for x in a) / max(1, len(a))
+        d2 = sum(min(abs(y - x) for x in a) for y in b) / max(1, len(b))
+        return 0.5 * (d1 + d2)
+
+    # Programmation dynamique (Viterbi) : trouve la conduite de voix globalement minimale (avg <= 1.5 st)
+    dp_cost = [[abs(sum(c) / len(c) - mid) * 0.15 for c in all_cands[0]]]
+    dp_prev: list[list[int]] = [[-1] * len(all_cands[0])]
+    for step in range(1, len(all_cands)):
+        prev_cands = all_cands[step - 1]
+        cur_cands = all_cands[step]
+        costs: list[float] = []
+        backs: list[int] = []
+        for c in cur_cands:
+            best_val = 1e18
+            best_j = 0
+            center_pen = abs(sum(c) / len(c) - mid) * 0.05
+            for j, pc in enumerate(prev_cands):
+                val = dp_cost[-1][j] + _vl_dist(pc, c) + center_pen
+                if val < best_val:
+                    best_val = val
+                    best_j = j
+            costs.append(best_val)
+            backs.append(best_j)
+        dp_cost.append(costs)
+        dp_prev.append(backs)
+    idx = min(range(len(all_cands[-1])), key=lambda j: dp_cost[-1][j])
+    chosen = [all_cands[-1][idx]]
+    for step in range(len(all_cands) - 1, 0, -1):
+        idx = dp_prev[step][idx]
+        chosen.append(all_cands[step - 1][idx])
+    chosen.reverse()
     return chosen
 
 
@@ -275,17 +311,34 @@ def dedup_mono_onsets(tracks: dict[str, list[dict[str, Any]]]) -> int:
     return n
 
 
-def apply_register_guards(tracks: dict[str, list[dict[str, Any]]], grid: list[dict[str, Any]], bpb: int) -> dict[str, int]:
-    report = {"bass_register_clamped": 0, "lead_apex_clamped": 0, "chords_revoiced": 0,
+def apply_register_guards(
+    tracks: dict[str, list[dict[str, Any]]],
+    grid: list[dict[str, Any]],
+    bpb: int,
+    bass_modes: dict[str, str] | None = None,
+) -> dict[str, int]:
+    report = {"bass_register_clamped": 0, "bass_root_locked": 0, "lead_apex_clamped": 0, "chords_revoiced": 0,
               "mono_onset_dedup": dedup_mono_onsets(tracks)}
+    bmodes = bass_modes or {}
     for name, notes in tracks.items():
         role = classify_role(name)
         if role == "bass":
+            lock_root = bmodes.get(name) == "root"
             for ev in notes:
                 if ev.get("pitch", 0) < 0:
                     continue
-                newp = fold_into_register(int(ev["pitch"]), *BASS_REGISTER)
-                if newp != int(ev["pitch"]):
+                curp = int(ev["pitch"])
+                if lock_root and grid:
+                    cidx = segment_index_for_beat(grid, float(ev["start"]))
+                    seg = grid[cidx] if 0 <= cidx < len(grid) else grid[0]
+                    root_pc = int(seg.get("bass_pc", seg.get("root_pc", 0))) % 12
+                    target = fold_into_register(36 + root_pc, *BASS_REGISTER)
+                    if target != curp:
+                        report["bass_root_locked"] += 1
+                        ev["pitch"] = target
+                    continue
+                newp = fold_into_register(curp, *BASS_REGISTER)
+                if newp != curp:
                     report["bass_register_clamped"] += 1
                     ev["pitch"] = newp
         elif role == "lead":
@@ -328,6 +381,9 @@ def apply_register_guards(tracks: dict[str, list[dict[str, Any]]], grid: list[di
 
 
 def expand_chord_symbols(tracks: dict[str, list[dict[str, Any]]], grid: list[dict[str, Any]]) -> int:
+    """Expanse les symboles d'accords sur la grille unifiée : si un événement d'accord/pad
+    enjambe plusieurs accords DISTINCTS de `grid`, il est découpé proprement aux changements
+    d'accord pour empêcher toute polytonalité ($pad vs $chords à vitesses `.slow()` différentes)."""
     n = 0
     for name, notes in list(tracks.items()):
         if classify_role(name) != "chords":
@@ -337,14 +393,32 @@ def expand_chord_symbols(tracks: dict[str, list[dict[str, Any]]], grid: list[dic
             if "chord_symbol" not in ev and ev.get("pitch", -1) >= 0:
                 out.append(ev)
                 continue
-            cidx = segment_index_for_beat(grid, float(ev["start"]))
-            seg = grid[cidx] if 0 <= cidx < len(grid) else (grid[0] if grid else {"chord_pcs": [0, 4, 7]})
-            pcs = list(seg.get("chord_pcs") or [0, 4, 7])
-            for pc in pcs:
-                base = 60 + ((pc - 60) % 12)
-                out.append({"start": ev["start"], "length": ev["length"],
-                            "pitch": fold_into_register(base, *CHORDS_REGISTER), "velocity": ev.get("velocity", 80)})
-                n += 1
+            ev_start = float(ev["start"])
+            ev_end = ev_start + max(0.02, float(ev["length"]))
+            # Découper en sous-spans contigus de même chord_pcs le long de grid
+            spans: list[tuple[float, float, list[int]]] = []
+            if grid:
+                for seg in grid:
+                    s0 = max(ev_start, float(seg["start_beat"]))
+                    s1 = min(ev_end, float(seg["end_beat"]))
+                    if s1 <= s0 + 1e-6:
+                        continue
+                    pcs = list(seg.get("chord_pcs") or [0, 4, 7])
+                    if spans and spans[-1][2] == pcs and abs(spans[-1][1] - s0) < 1e-4:
+                        spans[-1] = (spans[-1][0], s1, pcs)
+                    else:
+                        spans.append((s0, s1, pcs))
+            if not spans:
+                cidx = segment_index_for_beat(grid, ev_start)
+                seg = grid[cidx] if 0 <= cidx < len(grid) else (grid[0] if grid else {"chord_pcs": [0, 4, 7]})
+                spans = [(ev_start, ev_end, list(seg.get("chord_pcs") or [0, 4, 7]))]
+            for s0, s1, pcs in spans:
+                dur = round(max(0.02, s1 - s0), 5)
+                for pc in pcs:
+                    base = 60 + ((pc - 60) % 12)
+                    out.append({"start": round(s0, 5), "length": dur,
+                                "pitch": fold_into_register(base, *CHORDS_REGISTER), "velocity": ev.get("velocity", 80)})
+                    n += 1
         out.sort(key=lambda e: (e["start"], e["pitch"]))
         tracks[name] = out
     return n
@@ -362,7 +436,8 @@ def fix_lead_b2_clashes(score: ScoreIR) -> int:
             chord_pcs = set(seg.get("chord_pcs", []))
             scale_pcs = set(seg.get("scale_pcs", []))
             pc = int(note.pitch) % 12
-            if not chord_pcs or not any(min((pc - c) % 12, (c - pc) % 12) == 1 for c in chord_pcs):
+            # Une note d'accord (ex. Ab ou G sur Abmaj7) n'est JAMAIS un frottement b2 illicite !
+            if not chord_pcs or pc in chord_pcs or not any(min((pc - c) % 12, (c - pc) % 12) == 1 for c in chord_pcs):
                 continue
             best: tuple[int, int] | None = None
             for cand in sorted(scale_pcs):
@@ -408,11 +483,16 @@ def build_score_ir_from_strudel(
     seed = int(haps.get("seed") or bp.get("seed") or 42)
 
     tracks, cutoffs, progression = haps_to_tracks(haps)
+    bass_modes = {
+        tn: str((td or {}).get("bass_mode") or "")
+        for tn, td in (haps.get("tracks") or {}).items()
+        if isinstance(td, dict) and td.get("bass_mode")
+    }
     grid = build_grid(progression, key, mode, bpb, bars)
     n_chord_notes = expand_chord_symbols(tracks, grid)
     # v4.1 : la mutation se mesure APRES expansion des accords (by design), AVANT les garde-fous
     pre_pitches = {k: sorted(int(n["pitch"]) for n in v) for k, v in tracks.items()}
-    guard_report = apply_register_guards(tracks, grid, bpb)
+    guard_report = apply_register_guards(tracks, grid, bpb, bass_modes=bass_modes)
     guard_report["chord_symbols_expanded"] = n_chord_notes
     post_pitches = {k: sorted(int(n["pitch"]) for n in v) for k, v in tracks.items()}
     mutation = {}
@@ -522,7 +602,13 @@ def build_arrangement_plan(haps: dict[str, Any], score: ScoreIR, info: dict[str,
 
     motifs: dict[str, dict[str, Any]] = {}
     plan_sections: list[dict[str, Any]] = []
-    for name, sb, nb, kind in sections:
+    name_counts: dict[str, int] = {}
+    for name, _sb, _nb, _kind in sections:
+        name_counts[name] = name_counts.get(name, 0) + 1
+    seen_name: dict[str, int] = {}
+    for sec_idx, (name, sb, nb, kind) in enumerate(sections):
+        seen_name[name] = seen_name.get(name, 0) + 1
+        motif_key = name if name_counts.get(name, 1) <= 1 else f"{name}_{seen_name[name]}"
         sec_start = sb * bpb
         sec_end = (sb + nb) * bpb
         sec: dict[str, Any] = {"name": name, "kind": kind, "start_bar": sb, "bars": nb, "active_roles": [], "role_modifiers": {}}
@@ -542,8 +628,8 @@ def build_arrangement_plan(haps: dict[str, Any], score: ScoreIR, info: dict[str,
             if not local:
                 continue
             local.sort(key=lambda e: (e["start"], e["pitch"]))
-            motifs.setdefault(tname, {})[name] = {"notes": local, "bars": nb, "loop": False}
-            mod: dict[str, Any] = {"motif": name}
+            motifs.setdefault(tname, {})[motif_key] = {"notes": local, "bars": nb, "loop": False}
+            mod: dict[str, Any] = {"motif": motif_key}
             cuts = [c for c in info["cutoffs"].get(tname, []) if sec_start - 1e-6 <= c[0] < sec_end - 1e-6]
             if cuts:
                 vals = sorted(c[1] for c in cuts)
@@ -583,7 +669,9 @@ def run_strudel_eval(strudel_path: str, bars: int, seed: int, out_path: str) -> 
     if not node:
         raise RuntimeError("node introuvable : installe Node.js puis `npm install` dans scripts/ (pont Strudel headless)")
     script = os.path.join(SCRIPTS_DIR, "strudel_eval.mjs")
-    cmd = [node, script, strudel_path, "--bars", str(bars)]
+    cmd = [node, script, strudel_path]
+    if bars and int(bars) > 0:
+        cmd += ["--bars", str(int(bars))]
     if seed:
         cmd += ["--seed", str(seed)]
     cmd += ["--out", out_path, "--compact"]
@@ -624,8 +712,7 @@ def strudel_to_score_ir(
             bars = sum(int(s["bars"]) for s in blueprint["structure"])
         if not seed and blueprint:
             seed = int(blueprint.get("seed") or 0)
-        # v4.1 hotfix : seed=0 -> on ne passe PAS --seed, l'eval derive meta.seed (ou SHA-256 du source)
-        bars = bars or 16
+        # v4.1 hotfix : bars=0 et seed=0 -> ne PAS forcer --bars 16 (laisse strudel_eval.mjs sommer @meta form=!)
         haps = run_strudel_eval(strudel, bars, seed, haps_file)
     else:
         with open(haps_file, encoding="utf-8") as fh:

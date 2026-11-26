@@ -147,6 +147,7 @@ export function installPrelude(core, meta) {
     const tonic = keyToTonicMidi(m.key || 'C', 2); // octave 2 -> fondamentale dans [36,47]
     const scale = SCALES[String(m.mode || 'minor').toLowerCase()] || SCALES.minor;
     const mode = String(opts.mode || 'stepwise');
+    g.__strudel_last_bass_mode = mode;
     const gridSyms = Array.isArray(g.__strudel_grid) ? g.__strudel_grid : null;
     let tokens = parseDegSeq(String(seq).trim(), tonic, scale);
     if (mode === 'root' && gridSyms && gridSyms.length) {

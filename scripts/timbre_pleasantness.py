@@ -233,36 +233,52 @@ def palette_timbre_coherence(items: list[dict]) -> dict:
 
 
 def pick_gl_plugin(role: str, mix_profile: str = "trap_rap", valence: float = 0.0) -> dict:
-    """Plugin `gl.*` agréable pour (rôle, profil, valence) : archetype calibré
-    (`gl_dsl.resolve_archetype`, dark_overrides si valence < -0.2), avec préférence au confort :
-    attaque douce, cutoff raisonnable. Repli : carte statique ROLE_PLUGIN de la façade."""
+    """Plugin `gl.*` + preset factory calibré pour (rôle, profil, valence) : archetype
+    (`gl_dsl.resolve_archetype`, dark_overrides si valence < -0.2), avec séparation stricte
+    entre pad/chords et counter/lead. Repli : carte statique ROLE_PLUGIN de la façade."""
     from gl_dsl import SYNTH_REGISTRY, resolve_archetype
-    tonal_map = {"bass_sub": "bass", "bass": "bass", "chord_keys": "chords", "chords": "chords",
-                 "pad_atmosphere": "chords", "lead_melody": "lead", "lead": "lead",
-                 "vocals": "lead", "counter": "lead"}
+    tonal_map = {
+        "bass_sub": "bass", "bass": "bass", "808": "bass", "sub": "bass",
+        "chord_keys": "chords", "chords": "chords", "keys": "chords", "piano": "chords",
+        "pad_atmosphere": "pad", "pad": "pad", "strings": "pad",
+        "lead_melody": "lead", "lead": "lead", "melody": "lead", "vocals": "lead",
+        "counter": "counter", "arp": "counter", "arpeggio": "counter", "pluck": "counter", "bell": "counter",
+    }
     # rôles percussifs (kick/snare/hihat/clap/perc/fx) : PAS d'archetype tonal -> repli direct gl.*
     arch = resolve_archetype(mix_profile, tonal_map[role], valence=valence) if role in tonal_map else None
+    if arch is None and role in tonal_map and tonal_map[role] in ("pad", "counter"):
+        arch = resolve_archetype(mix_profile, "chords" if tonal_map[role] == "pad" else "lead", valence=valence)
     fallback = {
-        "kick": "gl.kick", "snare": "gl.snare", "clap": "gl.clap", "hihat": "gl.hat", "perc": "gl.clap",
-        "rim": "gl.clap",
-        "bass": "gl.fingerbass", "808": "gl.fingerbass", "sub": "gl.fingerbass",
-        "chords": "gl.keys", "pad": "gl.keys", "lead": "gl.warmsynth", "counter": "gl.pluck",
-        "vocals": "gl.sampler", "fx": "gl.wavetable",
+        "kick": ("gl.kick", "Deep 808"), "snare": ("gl.snare", "Tight"), "clap": ("gl.clap", "Room"),
+        "hihat": ("gl.hat", "Closed"), "perc": ("gl.clap", "Room"), "rim": ("gl.snare", "Rim"),
+        "bass": ("gl.analog", ""), "808": ("gl.analog", ""), "sub": ("gl.analog", ""),
+        "chords": ("gl.keys", "Classic tine"), "pad": ("gl.analog", "Velvet Pad"),
+        "lead": ("gl.warmsynth", "Soft Brass"), "counter": ("gl.additive", "Harp pluck"),
+        "arp": ("gl.additive", "Harp pluck"), "arpeggio": ("gl.additive", "Harp pluck"),
+        "pluck": ("gl.additive", "Harp pluck"), "vocals": ("gl.sampler", ""), "fx": ("gl.wavetable", "Formant Choir"),
     }
-    plugin = (arch or {}).get("plugin") or fallback.get(role) or fallback.get(tonal_map.get(role, role), "gl.warmsynth")
+    fb_plug, fb_preset = fallback.get(role) or fallback.get(tonal_map.get(role, role), ("gl.warmsynth", "Soft Brass"))
+    plugin = (arch or {}).get("plugin") or fb_plug
+    preset = str((arch or {}).get("preset") or "")
     # Jamais renvoyer `gl.sampler` comme repli synthé natif (sans fichier sample -> silence !)
     if plugin not in SYNTH_REGISTRY or (plugin == "gl.sampler" and role != "vocals"):
-        plugin = fallback.get(role) or fallback.get(tonal_map.get(role, role), "gl.warmsynth")
+        plugin = fb_plug
+        preset = fb_preset
+    elif not preset and plugin == fb_plug:
+        preset = fb_preset
     params = dict((arch or {}).get("params") or {})
     # garde-fou de confort FORCÉ sur les rôles tonaux : attaque >= 2 ms, release >= 60 ms,
     # cutoff <= 9 kHz — et sur chords/pad en valence >= -0.2 : attaque >= 8 ms, cutoff <= 6.5 kHz (§5)
     if role in tonal_map:
-        min_att = 8.0 if (valence >= -0.2 and tonal_map[role] == "chords") else 2.0
-        max_cut = 6500.0 if (valence >= -0.2 and tonal_map[role] == "chords") else 9000.0
+        min_att = 8.0 if (valence >= -0.2 and tonal_map[role] in ("chords", "pad")) else 2.0
+        max_cut = 6500.0 if (valence >= -0.2 and tonal_map[role] in ("chords", "pad")) else 9000.0
         params["attack_ms"] = max(min_att, float(params.get("attack_ms", min_att)))
         params["release_ms"] = max(60.0, float(params.get("release_ms", 60.0)))
         params["cutoff_hz"] = min(float(params.get("cutoff_hz", max_cut)), max_cut)
-    return {"plugin": plugin, "params": params, "archetype": bool(arch)}
+    out = {"plugin": plugin, "params": params, "archetype": bool(arch)}
+    if preset:
+        out["preset"] = preset
+    return out
 
 
 def main() -> int:

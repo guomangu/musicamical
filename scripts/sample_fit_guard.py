@@ -43,6 +43,10 @@ DEFAULT_SLOT_FOR: dict[str, str] = {
     "lead": "lead_melody",
     "melody": "lead_melody",
     "counter": "lead_melody",
+    "arp": "lead_melody",
+    "arpeggio": "lead_melody",
+    "pluck": "lead_melody",
+    "bell": "lead_melody",
     "fx": "fx",
 }
 
@@ -121,6 +125,12 @@ _ELECTRONIC_NAME_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Exclure les cris/voix classés par erreur dans perc/ (ex. "MZ Perc [Urban Vox].wav") des rôles percussifs
+_VOCAL_NAME_RE = re.compile(
+    r"(?:^|[^a-z0-9])(vox|vocal|vocals|chant|hey|shout|scream|laugh|voice|talk|acapella)(?:$|[^a-z0-9])",
+    re.IGNORECASE,
+)
+
 # Seuils de transposition (mêmes caps que blueprint_safety)
 DEFAULT_SHIFT_CAP_ST: dict[str, int] = {"acoustic": 5, "synth": 7}
 DEFAULT_MULTIZONE_AMBITUS_ST: dict[str, int] = {"acoustic": 18, "synth": 20}
@@ -177,6 +187,13 @@ def infer_sample_category(category: str | None = None, filepath: str | None = No
                 return "synth"
             if parent in _KNOWN_FOLDER_CATS:
                 return parent
+            # Dérivés `<projet>/derived_samples/<stem>_oct36.wav` : déduire depuis le nom de fichier
+            if parent == "derived_samples":
+                bname = parts[-1]
+                if "808" in bname:
+                    return "808"
+                if "bass" in bname or "sub" in bname:
+                    return "bass"
     return cat or "other"
 
 
@@ -251,6 +268,10 @@ def candidate_policy(role: str, cand: dict[str, Any], valence: float = 0.0) -> d
         reasons.append(f"category={cat} interdite pour {slot}")
     elif cat_tier == "discouraged":
         reasons.append(f"category={cat} déconseillée pour {slot}")
+
+    if slot in PERCUSSIVE_SLOTS and _VOCAL_NAME_RE.search(os.path.basename(fp)):
+        allowed = False
+        reasons.append(f"vocal_shout_in_perc({os.path.basename(fp)})")
 
     if nat_verdict == "forbidden":
         allowed = False
@@ -338,13 +359,53 @@ def effective_shift_cap(entry: dict[str, Any] | None = None, role: str | None = 
     return cat, cap
 
 
+def prepare_octave_up_808(src_path: str, project_dir: str, src_root: int) -> tuple[str, int] | None:
+    """Crée un dérivé 808 +12 st sans artefacts phase-vocoder (rééchantillonnage polyphase 2:1
+    anti-aliasing dans `<project>/derived_samples/`, jamais `<project>/samples/` pour ne pas
+    déclencher le verrou Scénario B). Conserve >= 0.6 s de sub propre à root = src_root + 12."""
+    if not src_path or not os.path.isfile(src_path):
+        return None
+    try:
+        import numpy as np
+        import soundfile as sf
+        from scipy import signal as _sig
+    except Exception:
+        return None
+    try:
+        y, sr = sf.read(src_path, dtype="float64", always_2d=True)
+        if len(y) < int(1.0 * sr):
+            return None
+        # Rééchantillonnage polyphase exact 1/2 = +12.000 st (zéro artefact phase-vocoder)
+        out_cols = [_sig.resample_poly(y[:, ch], 1, 2) for ch in range(y.shape[1])]
+        y2 = np.column_stack(out_cols)
+        y2 = y2 - np.mean(y2, axis=0, keepdims=True)
+        # Fade-out 5 ms anti-clic
+        n_fade = min(int(0.005 * sr), len(y2) // 4)
+        if n_fade > 1:
+            y2[-n_fade:] *= np.linspace(1.0, 0.0, n_fade)[:, None]
+        pk = float(np.max(np.abs(y2)))
+        if pk > 1e-6:
+            y2 = y2 * (10.0 ** (-1.0 / 20.0) / pk)
+        new_root = int(src_root) + 12
+        out_dir = os.path.join(os.path.abspath(os.path.expanduser(project_dir)), "derived_samples")
+        os.makedirs(out_dir, exist_ok=True)
+        stem = os.path.splitext(os.path.basename(src_path))[0]
+        out_path = os.path.join(out_dir, f"{stem}_oct{new_root}.wav")
+        sf.write(out_path, y2, sr, subtype="PCM_24")
+        return (out_path, new_root)
+    except Exception:
+        return None
+
+
 def register_fit(
     root_note: int | None,
     note_range_or_pitches: Iterable[int] | tuple[int, int] | None,
     entry: dict[str, Any] | None = None,
     role: str | None = None,
 ) -> dict[str, Any]:
-    """Vérifie `S_max = max |n - root_note| <= cap` (même métrique que `blueprint_safety`)."""
+    """Vérifie `S_max = max |n - root_note| <= cap` (même métrique que `blueprint_safety`).
+    Pour un 808 grave (`root <= 28`, durée >= 1.2 s), autorise l'auto-dérivation +12 st
+    (`octave_up_needed=True`, `effective_root = root + 12`) si elle rentre dans `cap`."""
     pitches = [int(p) for p in (note_range_or_pitches or []) if isinstance(p, (int, float)) and not isinstance(p, bool)]
     cat, cap = effective_shift_cap(entry, role=role)
     if root_note is None or not pitches:
@@ -353,6 +414,29 @@ def register_fit(
     lo, hi = min(pitches), max(pitches)
     s_max = max(abs(lo - rn), abs(hi - rn))
     ambitus = hi - lo
+    octave_up_needed = False
+    eff_root = rn
+    slot = normalize_slot_role(role or "")
+    sample_cat = infer_sample_category(
+        (entry or {}).get("category"),
+        (entry or {}).get("filepath") or (entry or {}).get("sample_path"),
+    )
+    dur_s = float((entry or {}).get("duration_s") or (entry or {}).get("duration") or 0.0)
+    if dur_s <= 0.0 and slot == "bass_sub" and sample_cat == "808" and rn <= 28:
+        fp_chk = (entry or {}).get("filepath") or (entry or {}).get("sample_path")
+        if fp_chk and os.path.isfile(str(fp_chk)):
+            try:
+                import soundfile as _sf
+                dur_s = float(_sf.info(str(fp_chk)).duration)
+            except Exception:
+                dur_s = 0.0
+    if s_max > cap and slot == "bass_sub" and sample_cat == "808" and rn <= 28 and dur_s >= 1.2:
+        rn_up = rn + 12
+        s_up = max(abs(lo - rn_up), abs(hi - rn_up))
+        if s_up <= cap:
+            s_max = s_up
+            eff_root = rn_up
+            octave_up_needed = True
     if s_max <= cap:
         action = "ok"
     elif ambitus <= DEFAULT_MULTIZONE_AMBITUS_ST.get(cat, 20):
@@ -366,6 +450,8 @@ def register_fit(
         "category": cat,
         "ambitus": int(ambitus),
         "action": action,
+        "octave_up_needed": octave_up_needed,
+        "effective_root": int(eff_root),
     }
 
 
@@ -537,15 +623,21 @@ def _apply_synth_fallback(tr: dict[str, Any], key: str, slot_role: str, mix_prof
     except Exception:
         fallback = {
             "kick": "gl.kick", "snare_clap": "gl.snare", "hihat_perc": "gl.clap" if "perc" in key else "gl.hat",
-            "bass_sub": "gl.fingerbass", "chord_keys": "gl.keys", "pad_atmosphere": "gl.warmsynth",
+            "bass_sub": "gl.analog", "chord_keys": "gl.keys", "pad_atmosphere": "gl.keys",
             "lead_melody": "gl.warmsynth",
         }
         pg = {"plugin": fallback.get(slot_role, "gl.warmsynth"), "params": {}}
     tr["source_type"] = "gridline_native"
     plug = str(pg.get("plugin") or "gl.warmsynth")
+    preset = str(pg.get("preset") or "")
     if plug == "gl.sampler":
-        plug = "gl.fingerbass" if slot_role == "bass_sub" else "gl.warmsynth"
+        plug = "gl.analog" if slot_role == "bass_sub" else "gl.warmsynth"
+        preset = "" if slot_role == "bass_sub" else "Soft Brass"
     tr["plugin"] = plug
+    if preset:
+        tr["preset"] = preset
+    else:
+        tr.pop("preset", None)
     params = dict(pg.get("params") or {})
     if slot_role in TONAL_SLOTS:
         params = _soft_tonal_params(slot_role, params, valence=valence)
@@ -768,19 +860,29 @@ def enforce_blueprint_sample_fit(
         )
         if repl is not None:
             new_fp = str(repl["filepath"])
+            eff_fp = new_fp
+            eff_rn = repl.get("midi_root")
+            if not percussive and slot_role == "bass_sub" and eff_rn is not None and int(eff_rn) <= 28 and write_diag_dir:
+                rf_rep = register_fit(int(eff_rn), pitches, repl, role=slot_role)
+                if rf_rep.get("octave_up_needed"):
+                    derived = prepare_octave_up_808(new_fp, write_diag_dir, int(eff_rn))
+                    if derived is not None:
+                        eff_fp, eff_rn = derived
             tr["source_type"] = "sample"
-            tr["sample_path"] = new_fp
+            tr["sample_path"] = eff_fp
             tr["plugin"] = "gl.sampler"
+            tr.pop("preset", None)
             if percussive:
                 notated = max(set(pitches), key=pitches.count) if pitches else None
-                tr["root_note"] = int(notated or GM_DRUM.get(key) or repl.get("midi_root") or 36)
+                tr["root_note"] = int(notated or GM_DRUM.get(key) or eff_rn or 36)
+                tr["fine_tune_ct"] = 0
             else:
-                tr["root_note"] = int(max(0, min(127, int(repl["midi_root"]))))
-            ft = repl.get("recommended_fine_tune_ct") or repl.get("recommended_gl_fine_tune_ct") or 0
-            if ft:
-                tr["fine_tune_ct"] = int(ft)
-            else:
-                tr.pop("fine_tune_ct", None)
+                tr["root_note"] = int(max(0, min(127, int(eff_rn))))
+                ft = repl.get("recommended_fine_tune_ct") or repl.get("recommended_gl_fine_tune_ct") or 0
+                if ft:
+                    tr["fine_tune_ct"] = int(ft)
+                else:
+                    tr.pop("fine_tune_ct", None)
             if slot_role in TONAL_SLOTS:
                 tr["plugin_params"] = _soft_tonal_params(slot_role, tr.get("plugin_params"), valence=eff_valence)
             used_paths.add(os.path.normpath(os.path.abspath(new_fp)).lower())

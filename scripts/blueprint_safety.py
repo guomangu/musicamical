@@ -555,7 +555,7 @@ def blueprint_musical_safety_issues(
             if note_midis:
                 try:
                     from sample_fit_guard import effective_shift_cap
-                    cat, cap = effective_shift_cap(entry, role=role or name)
+                    cat, cap = effective_shift_cap(entry or {"filepath": sample_path}, role=role or name)
                 except Exception:
                     cat = sample_shift_category(entry)
                     cap = SAMPLE_SHIFT_CAP_ST.get(cat, SAMPLE_SHIFT_CAP_ST["synth"])

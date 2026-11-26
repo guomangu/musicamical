@@ -186,6 +186,7 @@ class ChannelSpec:
     lpf_hz: float | None = None
     resonance: float = 0.08
     # Native gl.* extra params & semantic synth_voice support
+    preset: str = ""
     plugin_params: dict[str, Any] = field(default_factory=dict)
     role: str | None = None
     valence: float = 0.0
@@ -617,7 +618,7 @@ def build_gridline_project(
                 v = clamp(db_to_auto(mk, ref_fader=v) * 1.25, 0.10, 1.15)
             eff_volumes[idx] = round(v, 4)
 
-        # Add channels (1 sonorité = 1 canal + 1 insert dédié)
+        # Add channels (1 sonorité = 1 canal + 1 insert dédié, avec preset factory si défini)
         mcp.batch([
             {
                 "tool": "add_channel",
@@ -627,6 +628,7 @@ def build_gridline_project(
                     "mixer": ch.mixer,
                     "volume": eff_volumes[idx],
                     "pan": ch.pan,
+                    **({"preset": ch.preset} if ch.preset else {}),
                 },
             }
             for idx, ch in enumerate(channels, start=1)
@@ -650,6 +652,12 @@ def build_gridline_project(
                 spatches, sparams = _sampler_param_changes(idx, ch, samples_dir, manifest_data)
                 patches.extend(spatches)
                 param_changes.extend(sparams)
+            elif ch.preset:
+                # Preset factory chargé sur le canal : préserver son sound-design (oscillateurs,
+                # filtre, stéréo, enveloppe) — n'appliquer que l'EQ LPF d'insert si nécessaire !
+                if voice_cfg is not None and voice_cfg.needs_insert_lpf:
+                    auto_insert_eq_mixers.append(ch.mixer)
+                    auto_insert_lpf_params.extend(voice_cfg.to_insert_eq_tuples(ch.mixer, slot=1))
             elif voice_cfg is not None:
                 param_changes.extend(voice_cfg.to_channel_tuples(idx))
                 if voice_cfg.needs_insert_lpf:
@@ -1478,14 +1486,13 @@ def _default_channels_for_plan(
             with open(bp_path, encoding="utf-8") as fh:
                 bp_obj = json.load(fh)
             for tr in bp_obj.get("tracks") or []:
-                rk = str(tr.get("role") or tr.get("name") or "").lower()
-                if rk:
-                    bp_tracks[rk] = tr
                 nk = str(tr.get("name") or "").lower()
-                if nk and nk != rk:
-                    # lookup aussi par NOM de piste : toutes les pistes drums partagent le rôle
-                    # "drums" — sinon le sample branché sur $kick/$snare n'atteint jamais le canal
-                    bp_tracks.setdefault(nk, tr)
+                rk = str(tr.get("role") or tr.get("name") or "").lower()
+                # Priorité au NOM exact de piste (évite que `pad` écrase `chords` qui partagent role="chords")
+                if nk:
+                    bp_tracks[nk] = tr
+                if rk and rk != nk:
+                    bp_tracks.setdefault(rk, tr)
         except Exception:
             pass
 
@@ -1513,8 +1520,10 @@ def _default_channels_for_plan(
             spec = ChannelSpec("Pad", role, idx, "music", plugin="gl.warmsynth", role="pad", valence=valence, volume=0.46, fx_send=0.18, hall_send=0.22)
         elif any(k in rl for k in ("chord", "keys")):
             spec = ChannelSpec("Chords", role, idx, "music", plugin="gl.keys", role="chords", valence=valence, volume=0.50, fx_send=0.14, hall_send=0.14)
-        elif "counter" in rl:
-            spec = ChannelSpec("Counter Harmony", role, idx, "music", plugin="gl.pluck", role="lead", valence=valence, volume=0.52, pan=-0.25, fx_send=0.12, delay_send=0.10, hall_send=0.16)
+        elif any(k in rl for k in ("counter", "arp", "arpeggio", "pluck")):
+            spec = ChannelSpec("Arp" if "arp" in rl else "Counter Harmony", role, idx, "music",
+                               plugin="gl.additive", preset="Harp pluck", role="lead", valence=valence,
+                               volume=0.56, pan=-0.22, fx_send=0.14, delay_send=0.14, hall_send=0.18)
         elif "fx" in rl:
             spec = ChannelSpec("FX", role, idx, "music", plugin="gl.wavetable", role="bell", valence=valence, volume=0.44, pan=0.35, fx_send=0.20, delay_send=0.12, hall_send=0.25, single_shot_clips=True)
         elif any(k in rl for k in ("vocal", "vox")):
@@ -1534,6 +1543,10 @@ def _default_channels_for_plan(
                         spec.lpf_hz = 9000.0
             elif bp_tr.get("plugin") and str(bp_tr["plugin"]).startswith("gl."):
                 spec.plugin = str(bp_tr["plugin"])
+                if bp_tr.get("preset"):
+                    spec.preset = str(bp_tr["preset"])
+                else:
+                    spec.preset = ""
             pp = bp_tr.get("plugin_params") or {}
             if isinstance(pp, dict) and pp:
                 # params de confort de l'archetype (pick_gl_plugin) : cutoff/ADSR bornés anti-son-criard
@@ -1607,9 +1620,12 @@ def apply_wetness_sends(
 def _timbre_features_for_channel(ch: Any, proj_dir: str) -> dict[str, Any]:
     """v3.1 HARM-03 : features timbre d'un canal (synthé gl.* ou sample du catalogue)."""
     plugin = str(getattr(ch, "plugin", "") or "")
+    preset_l = str(getattr(ch, "preset", "") or "").lower()
     fam = plugin.replace("gl.", "").lower()
     feats: dict[str, Any] = {"plugin": plugin, "family": fam}
-    if fam in ("fm", "matrixfm"):
+    if any(w in preset_l for w in ("pad", "string", "choir", "soft", "tine", "keys", "warm", "organ")):
+        feats.update(spectral_centroid_hz=700.0, family="pad")
+    elif fam in ("fm", "matrixfm"):
         feats.update(inharmonicity=0.35, spectral_centroid_hz=2600.0, family="fm")
     elif fam in ("sawswarm", "wavetable", "analog", "dcosynth"):
         feats.update(spectral_centroid_hz=2400.0, family="saw")
