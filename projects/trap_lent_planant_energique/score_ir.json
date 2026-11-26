@@ -21472,7 +21472,7 @@
     "lead": {
       "role": "lead",
       "monophonic": true,
-      "timbre_class": "gl.warmsynth",
+      "timbre_class": "gl.analog",
       "inharmonicity": 0.0,
       "notes": [
         {

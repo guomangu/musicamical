@@ -253,7 +253,7 @@ def pick_gl_plugin(role: str, mix_profile: str = "trap_rap", valence: float = 0.
         "hihat": ("gl.hat", "Closed"), "perc": ("gl.clap", "Room"), "rim": ("gl.snare", "Rim"),
         "bass": ("gl.analog", ""), "808": ("gl.analog", ""), "sub": ("gl.analog", ""),
         "chords": ("gl.keys", "Classic tine"), "pad": ("gl.analog", "Velvet Pad"),
-        "lead": ("gl.warmsynth", "Soft Brass"), "counter": ("gl.additive", "Harp pluck"),
+        "lead": ("gl.analog", "Glass Pluck"), "counter": ("gl.additive", "Harp pluck"),
         "arp": ("gl.additive", "Harp pluck"), "arpeggio": ("gl.additive", "Harp pluck"),
         "pluck": ("gl.additive", "Harp pluck"), "vocals": ("gl.sampler", ""), "fx": ("gl.wavetable", "Formant Choir"),
     }

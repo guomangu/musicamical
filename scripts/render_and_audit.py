@@ -907,10 +907,12 @@ def _apply_autofix_mutations(
             bm_idx = int(bus_music_track["mixer"])
             bm_eq_slots = _slots_for_plugin(bus_music_track, "gl.eq")
 
-            # Rule 3: surgical resonances (-4 dB @ F_i, Q=2.8 -> width=0.22) with the v3.0
-            # notch budget from config: beyond max_eq_notches_total the fix is SWAP_SAMPLE,
-            # not more comb-like EQ (a sample needing 4 surgical cuts is the wrong timbre).
-            if resonances:
+            # Rule 3: surgical resonances (-2 à -4 dB @ F_i >= 800 Hz, Q=2.8) with the v3.0
+            # notch budget from config: NEVER notch < 800 Hz (musical fundamentals C4..G4!)
+            # and cap cut depth at -4 dB on BUS Music (a -10 dB cut at 315 Hz hollows out the mix
+            # and leaves only harsh 2-5 kHz buzz).
+            harsh_resonances = [r for r in (resonances or []) if float(r.get("freq_hz", 0.0)) >= 800.0]
+            if harsh_resonances:
                 _per_track_cap, _total_cap = notch_caps()
                 _already = int(state.get("resonance_notches_total", 0))
                 if _already >= _total_cap:
@@ -923,7 +925,7 @@ def _apply_autofix_mutations(
                     top_res = []
                 else:
                     top_res = sorted(
-                        resonances,
+                        harsh_resonances,
                         key=lambda r: float(r.get("local_excess_db", r.get("excess_db", 0.0))),
                         reverse=True,
                     )[: max(0, _total_cap - _already)]
@@ -942,7 +944,7 @@ def _apply_autofix_mutations(
                         idx,
                         "peak",
                         float(r["freq_hz"]),
-                        -min(12.0, max(6.0, float(r.get("local_excess_db", 5.0)) + 1.0)),
+                        -round(min(4.0, max(2.0, float(r.get("local_excess_db", 4.0)) * 0.5)), 2),
                         q=2.8,
                     )
                     for idx, r in enumerate(top_res, start=1)
@@ -957,7 +959,7 @@ def _apply_autofix_mutations(
                             "rule": "resonances_surgical_eq",
                             "target": f"mixer/{bm_idx}/slot/{surg_slot}",
                             "freqs_hz": [float(r["freq_hz"]) for r in top_res],
-                            "gain_db": [-min(12.0, max(6.0, float(r.get("local_excess_db", 5.0)) + 1.0)) for r in top_res],
+                            "gain_db": [-round(min(4.0, max(2.0, float(r.get("local_excess_db", 4.0)) * 0.5)), 2) for r in top_res],
                             "q": 2.8,
                             "notches_total": state["resonance_notches_total"],
                             "notch_cap_total": _total_cap,
@@ -980,16 +982,16 @@ def _apply_autofix_mutations(
 
                 if need_low_mids:
                     cur_hpf = cur_eq.get("Band 1 freq", 120.0)
-                    new_hpf = round(max(cur_hpf, 135.0), 1)
+                    new_hpf = round(max(cur_hpf, 130.0), 1)
                     bm_bands.append(eq_band(1, "hpf", new_hpf))
-                    bm_bands.append(eq_band(2, "peak", 280.0, -3.0, q=1.2))
+                    bm_bands.append(eq_band(2, "peak", 280.0, -1.5, q=1.2))
                     state["low_mids_applied"] = True
                     mutations.append(
                         {
                             "rule": "low_mids_clean",
                             "target": f"mixer/{bm_idx}/slot/{prim_slot}",
                             "hpf_hz": new_hpf,
-                            "dip_280hz_db": -3.0,
+                            "dip_280hz_db": -1.5,
                         }
                     )
 

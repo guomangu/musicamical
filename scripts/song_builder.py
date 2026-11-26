@@ -1515,11 +1515,11 @@ def _default_channels_for_plan(
             # Piste perc/rim DÉDIÉE : jamais un clone du canal HiHat (nom, plugin et pan distincts)
             spec = ChannelSpec("Perc", role, idx, "drums", plugin="gl.clap", volume=0.48, pan=-0.18)
         elif any(k in rl for k in ("bass", "808", "sub")):
-            spec = ChannelSpec("Bass", role, idx, "bass", plugin="gl.warmsynth", role="bass", valence=valence, volume=0.62)
+            spec = ChannelSpec("Bass", role, idx, "bass", plugin="gl.analog", role="bass", valence=valence, volume=0.54)
         elif any(k in rl for k in ("pad", "string")):
-            spec = ChannelSpec("Pad", role, idx, "music", plugin="gl.warmsynth", role="pad", valence=valence, volume=0.46, fx_send=0.18, hall_send=0.22)
+            spec = ChannelSpec("Pad", role, idx, "music", plugin="gl.analog", preset="Velvet Pad", role="pad", valence=valence, volume=0.56, fx_send=0.18, hall_send=0.22)
         elif any(k in rl for k in ("chord", "keys")):
-            spec = ChannelSpec("Chords", role, idx, "music", plugin="gl.keys", role="chords", valence=valence, volume=0.50, fx_send=0.14, hall_send=0.14)
+            spec = ChannelSpec("Chords", role, idx, "music", plugin="gl.keys", preset="Classic tine", role="chords", valence=valence, volume=0.68, fx_send=0.14, hall_send=0.14)
         elif any(k in rl for k in ("counter", "arp", "arpeggio", "pluck")):
             spec = ChannelSpec("Arp" if "arp" in rl else "Counter Harmony", role, idx, "music",
                                plugin="gl.additive", preset="Harp pluck", role="lead", valence=valence,

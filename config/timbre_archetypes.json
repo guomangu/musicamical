@@ -38,18 +38,18 @@
       }
     },
     "trap_rap:lead": {
-      "plugin": "gl.warmsynth",
-      "preset": "Soft Brass",
+      "plugin": "gl.analog",
+      "preset": "Glass Pluck",
       "params": {
-        "cutoff_hz": 4500,
-        "attack_ms": 12,
+        "cutoff_hz": 5500,
+        "attack_ms": 8,
         "release_ms": 200,
         "vibrato_delay_ms": 250
       },
       "dark_overrides": {
-        "plugin": "gl.wavetable",
-        "preset": "Glass Bell",
-        "cutoff_hz": 3800
+        "plugin": "gl.additive",
+        "preset": "Masked lead",
+        "cutoff_hz": 4200
       }
     },
     "trap_rap:counter": {
@@ -120,8 +120,8 @@
       }
     },
     "pop_rnb:lead": {
-      "plugin": "gl.warmsynth",
-      "preset": "Soft Brass",
+      "plugin": "gl.additive",
+      "preset": "Masked lead",
       "params": {
         "cutoff_hz": 7500,
         "attack_ms": 8,
@@ -208,8 +208,8 @@
       "dark_overrides": {}
     },
     "rock_metal:lead": {
-      "plugin": "gl.warmsynth",
-      "preset": "Soft Brass",
+      "plugin": "gl.additive",
+      "preset": "Masked lead",
       "params": {
         "cutoff_hz": 8500
       },
