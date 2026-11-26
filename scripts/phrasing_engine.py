@@ -468,21 +468,21 @@ def velocity_cutoff_automation(
             mean_v = sum(float(n.get("velocity", 80)) for n in in_phrase) / len(in_phrase)
             t = max(0.0, min(1.0, (mean_v - 40.0) / 60.0))  # vel 40 -> fermé, 100 -> ouvert
             hz = lo_hz + t * (hi_hz - lo_hz)
-            if abs(hz - lo_hz) < 1.0 and abs(hz - hi_hz) < 1.0:
-                continue  # no-op : un clip d'automation plat (valeur constante) n'est jamais émis
-            filter_sweep(
-                autos,
-                mixer_idx=mixer_idx,
-                slot_idx=1,
-                start_beat=round(p, 4),
-                end_beat=round(pend, 4),
-                start_hz=hz,
-                end_hz=hz,
-                curve="linear",
-                track_idx=track_idx,
-                steps=2,
-                name=f"{track_key} vel->cutoff",
-            )
-            applied += 1
+            if abs(hz - lo_hz) >= 1.0 or abs(hz - hi_hz) >= 1.0:
+                # un clip d'automation plat (valeur constante) n'est jamais émis
+                filter_sweep(
+                    autos,
+                    mixer_idx=mixer_idx,
+                    slot_idx=1,
+                    start_beat=round(p, 4),
+                    end_beat=round(pend, 4),
+                    start_hz=hz,
+                    end_hz=hz,
+                    curve="linear",
+                    track_idx=track_idx,
+                    steps=2,
+                    name=f"{track_key} vel->cutoff",
+                )
+                applied += 1
         p += phrase_bars * bpb
     return {"applied": applied, "track": track_key, "lo_hz": lo_hz, "hi_hz": hi_hz}
