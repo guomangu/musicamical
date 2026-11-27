@@ -37,11 +37,18 @@ if (lintErrors.length) {
 
 const FORM_SECTION = { i: 'intro', v: 'verse', p: 'pre_chorus', c: 'chorus', b: 'bridge', o: 'outro', d: 'drop' };
 function parseMetaLine(body, meta) {
+  // v4.3 : `intent="..."` peut contenir des espaces -> extrait AVANT le split sur espaces
+  const intentMatch = /intent="([^"]*)"/.exec(body);
+  if (intentMatch) { meta.intent = intentMatch[1]; body = body.replace(/intent="[^"]*"/, ' '); }
   for (const tok of body.split(/\s+/).filter(Boolean)) {
     let m;
     if ((m = /^(\d{2,3})$/.exec(tok))) meta.bpm = Number(m[1]);
     else if ((m = /^([A-Ga-g][#b]?):(\w+)$/.exec(tok))) { meta.key = m[1][0].toUpperCase() + m[1].slice(1); meta.mode = m[2]; }
     else if ((m = /^V=(-?\d+(?:\.\d+)?)$/.exec(tok))) meta.valence = Number(m[1]);
+    else if ((m = /^T=(-?\d+(?:\.\d+)?)$/.exec(tok))) meta.tension = Number(m[1]);   // v4.3 (D2) emotion_vector
+    else if ((m = /^E=(-?\d+(?:\.\d+)?)$/.exec(tok))) meta.energy = Number(m[1]);     // v4.3 (D2)
+    else if ((m = /^D=(-?\d+(?:\.\d+)?)$/.exec(tok))) meta.depth = Number(m[1]);       // v4.3 (D2)
+    else if ((m = /^dur=(\d+(?:\.\d+)?)s$/.exec(tok))) meta.dur_s = Number(m[1]);     // v4.3 (D7) durée cible
     else if ((m = /^seed=(\d+)$/.exec(tok))) meta.seed = Number(m[1]);
     else if ((m = /^ts=(\d+)\/(\d+)$/.exec(tok))) meta.time_signature = [Number(m[1]), Number(m[2])];
     else if ((m = /^form=([A-Za-z]\d+(?:-[A-Za-z]\d+)*)$/.exec(tok))) {
@@ -143,9 +150,48 @@ const meta = extractMeta(src);
 const seedVal = Number(seedArg ?? meta.seed ?? (parseInt(createHash('sha256').update(src).digest('hex').slice(0, 8), 16) % 1000003));
 const ts = Array.isArray(meta.time_signature) ? meta.time_signature : [4, 4];
 const beatsPerBar = Number(ts[0] || 4);
+const denom = Number(ts[1] || 4);
+// v4.3 (D7) : B_bar en noires par mesure (4/4 -> 4, 3/4 -> 3, 6/8 -> 3, 5/4 -> 5)
+const beatsPerBarQuarter = beatsPerBar * 4 / Math.max(1, denom);
 let sections = Array.isArray(meta.sections) && meta.sections.length ? meta.sections : null;
 let bars = barsArg || Number(meta.bars || 0);
 if (!bars && sections) bars = sections.reduce((a, s) => a + Number(s.bars || 0), 0);
+// v4.3 (D7) : `dur=120s` -> N_bars = round(T_sec * BPM / (60 * B_bar)), multi-signatures.
+// Si form= est omis, on génère une forme par défaut ajustée ; si form= et dur= coexistent,
+// on ajuste la répartition des sections pour tomber à ±4 mesures de la durée demandée.
+if (!bars && meta.dur_s && Number(meta.dur_s) > 0) {
+  const bpmEff = Number(meta.bpm ?? 120);
+  const target = Math.max(4, Math.round(Number(meta.dur_s) * bpmEff / (60 * beatsPerBarQuarter)));
+  if (sections && sections.length) {
+    let cur = sections.reduce((a, s) => a + Number(s.bars || 0), 0);
+    let diff = target - cur;
+    const order = sections.map((s, i) => i).sort((a, b) => Number(sections[b].bars || 0) - Number(sections[a].bars || 0));
+    let k = 0;
+    while (diff !== 0 && order.length && k < 256) {
+      const i = order[k % order.length]; k++;
+      const add = Math.sign(diff) * Math.min(Math.abs(diff), 4);
+      if (Number(sections[i].bars || 0) + add >= 2) { sections[i].bars = Number(sections[i].bars || 0) + add; diff -= add; }
+    }
+    bars = sections.reduce((a, s) => a + Number(s.bars || 0), 0);
+    meta.dur_adjusted_bars = bars;
+  } else {
+    sections = [
+      { name: 'intro', bars: 4 }, { name: 'verse', bars: 8 }, { name: 'chorus', bars: 8 },
+      { name: 'verse', bars: 8 }, { name: 'chorus', bars: 8 }, { name: 'bridge', bars: 8 }, { name: 'outro', bars: 4 },
+    ];
+    let cur = sections.reduce((a, s) => a + s.bars, 0);
+    let diff = target - cur;
+    const order = sections.map((s, i) => i).sort((a, b) => sections[b].bars - sections[a].bars);
+    let k = 0;
+    while (diff !== 0 && k < 256) {
+      const i = order[k % order.length]; k++;
+      const add = Math.sign(diff) * Math.min(Math.abs(diff), 4);
+      if (sections[i].bars + add >= 2) { sections[i].bars += add; diff -= add; }
+    }
+    bars = target;
+    meta.dur_adjusted_bars = bars;
+  }
+}
 if (!bars) bars = 16;
 
 const NOTE_RE = /^[a-gA-G][#bsf]*-?\d*$/;
@@ -228,6 +274,9 @@ async function evalStack(stack) {
   const out = eventsOf(pattern);
   const sec = sectionOf(pattern);
   if (sec) out.sections = sec;
+  // v4.3 (D5) : variations structurées déclarées via .lift("section", {...})
+  const lifts = globalThis.__strudel_lifts && globalThis.__strudel_lifts.get ? globalThis.__strudel_lifts.get(pattern) : null;
+  if (lifts && lifts.length) out.lifts = lifts;
   if (globalThis.__strudel_last_bass_mode) out.bass_mode = globalThis.__strudel_last_bass_mode;
   return out;
 }
@@ -262,6 +311,15 @@ for (const [role, pat] of Object.entries(globalThis.__strudel_kit || {})) {
   }
 }
 
+// v4.3 (D5) — métadonnées narratives déclaratives (sectionGrid/transition/groove/lift/compings)
+const narrative = Object.assign(
+  { section_grids: {}, transitions: [], groove_id: null, comping_by_section: {}, lifts: {} },
+  globalThis.__strudel_narrative || {},
+);
+for (const [tname, tr] of Object.entries(tracks)) {
+  if (tr && Array.isArray(tr.lifts) && tr.lifts.length) narrative.lifts[tname] = tr.lifts;
+}
+
 const chordTrackName = Object.keys(tracks).find((n) => /chord|harmony/i.test(n));
 const progression = new Array(bars).fill(null);
 if (chordTrackName) {
@@ -284,23 +342,33 @@ if (chordTrackName) {
 if (!sections) sections = [{ name: 'song', bars }];
 
 const output = {
-  schema_version: '4.1',
+  schema_version: '4.3',
   source: path.basename(file),
   meta: {
     bpm: Number(meta.bpm ?? 120),
     key: String(meta.key ?? 'C'),
     mode: String(meta.mode ?? 'minor'),
-    time_signature: { numerator: beatsPerBar, denominator: Number(ts[1] || 4) },
+    time_signature: { numerator: beatsPerBar, denominator: denom },
     seed: seedVal,
     sections,
     progression,
     mix_profile: meta.mix_profile ? String(meta.mix_profile) : undefined,
     valence: meta.valence !== undefined ? Number(meta.valence) : undefined,
+    // v4.3 : emotion_vector complet (D2) + intent (D1) + dur= multi-signatures (D7)
+    tension: meta.tension !== undefined ? Number(meta.tension) : undefined,
+    energy: meta.energy !== undefined ? Number(meta.energy) : undefined,
+    depth: meta.depth !== undefined ? Number(meta.depth) : undefined,
+    intent: meta.intent ? String(meta.intent) : undefined,
+    dur_s: meta.dur_s !== undefined ? Number(meta.dur_s) : undefined,
+    dur_adjusted_bars: meta.dur_adjusted_bars !== undefined ? Number(meta.dur_adjusted_bars) : undefined,
+    beats_per_bar_quarters: Number(beatsPerBarQuarter.toFixed(4)),
+    render_seconds: Number((bars * beatsPerBarQuarter * 60 / Number(meta.bpm ?? 120)).toFixed(2)),
   },
   bars,
   beats_per_bar: beatsPerBar,
   seed: seedVal,
   tracks,
+  narrative,
   errors,
 };
 

@@ -20,30 +20,38 @@ Le fichier `<projet>/composition.strudel` est la **seule entrée composition** (
 | `140` | BPM (2-3 chiffres) | — |
 | `C:minor` | tonalité + mode (`major/minor/dorian/phrygian/aeolian/...`) | C:minor |
 | `trap_rap` | `mix_profile` (7 profils : trap_rap, pop_rnb, edm_club, rock_metal, lofi_chill, jazz_acoustic, classical_ambient) | trap_rap |
-| `V=-0.6` | valence [-1, 1] — **garder V=0.0** (V < -0.2 plie le lead par octaves et casse le gap_fill) | 0.0 |
+| `V=-0.6` | valence [-1, 1] — **libre en v4.3** : V < -0.2 = chaîne sombre (transposition **par phrase**, gap_fill OK) | 0.0 |
 | `form=I4-V8-C8-O4` | sections : I=intro V=verse P=pre_chorus C=chorus B=bridge D=drop O=outro, `L4` = 4 mesures | — |
+| `T= E= D=` | (v4.3) tension/énergie/profondeur → `emotion_vector` du blueprint | 0.5/0.7/0.5 |
+| `dur=180s` / `intent="dark hypnotic…"` | (v4.3) durée cible multi-signatures / intention textuelle → palette (D1) | — |
 | `seed=1337` | seed déterministe | SHA-256 du source |
 | `ts=3/4` | signature | 4/4 |
 
-**Durée visée ~3 min** : `bars = round(180 * bpm / 240)` (90 BPM → 68 mesures ≈ 3 min 02 s).
+**Durée visée** : `bars = round(dur_s * bpm / (60 * B_bar))`, `B_bar = num*4/den` (4/4→4, 3/4→3, 6/8→3) — ex. `dur=180s` 140 BPM : 105 mes. (4/4), 140 (3/4). Sans `form=`, forme ajustée à ±4 mesures.
 
 ## 2. Primitives du prélude v4.1 (jamais de notes brutes)
 
 | Primitif | Rôle | Exemple |
 |---|---|---|
 | `grid("Cm7 Abmaj7 Fm7 G7")` | grille d'accords, **1 symbole = 1 mesure** | `$chords: grid("Cm7 Abmaj7 Fm7 G7").slow(2).gain(0.7).muteIn("intro,outro")` |
-| `deg("0 ~ [2 3] 4", 4)` | degrés dans la gamme du `@meta` (octave 4 = C4=60) | `$lead: deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~", 4).slow(2).in("verse,chorus")` |
+$lead: deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.6).in("verse,chorus")
 | `bassline("<1 ~ 1 ~>", {mode:"root", glide:40})` | basse en degrés, **snappée sur la grille**, registre `[31,48]` garanti à la source | `$bass: bassline("<1 ~ 1 ~>", {mode:"root", glide:40}).slow(4)` |
 | `kit("trap_half", {var:2, hats:"rolls"})` | émet `$kick/$snare/$hihat/$perc` séparés (kits : trap_half, trap_full, boom_bap, house, drill, ambient) | ligne seule, sans `$` |
 | `.in("verse,chorus")` / `.only("chorus")` / `.muteIn("intro,outro")` | présence par section (macro-forme) | sur n'importe quelle piste |
 | `.slow(N)` | ralentit ×N (voir table §5) | `.slow(2)`, `.slow(4)` |
 | `track(role, pat)`, `glide(ms)` | piste nommée / legato | rarement nécessaire |
+| `sectionGrid({default:"Cm7 …", bridge:"Fm7 …"})` | (v4.3) progressions **par section** → `section_progressions` | `$chords: sectionGrid({...}).slow(2)` |
+| `transition("before:chorus", "drum_fill_and_riser", {style:"snare_roll"})` | (v4.3) transition → `arrangement_plan.transitions[]` (ligne seule) | `harmonic_anticipation`, `outro` |
+| `kit("trap_half", {groove:"trap_dark_03", var:2})` | (v4.3) `groove=` = banque de grooves locaux | opts de `kit()` |
+| `.lift("chorus", {oct:12, energy:"+1.5dB"})` | (v4.3) variation par section → `role_modifiers[].lift` | sur toute piste `$` |
 
 ## 3. Exemple de syntaxe (testé CI — **NE JAMAIS recopier la grille ni le motif tel quel !**)
 
 > **Anti-clonage créatif obligatoire** : cet exemple montre uniquement la *syntaxe* valide. Pour chaque nouveau morceau, **inventer une tonalité, un BPM, une progression d'accords, un kit (`boom_bap`, `trap_half`, `trap_full`, `drill`, `house`, `ambient`) et un motif Lead originaux** adaptés à la demande (ex. `F:minor` `Fm7 Dbmaj7 Bbm7 C7`, `D:minor` `Dm7 Bbmaj7 Gm7 A7`, `G:minor` `Gm7 Ebmaj7 Cm7 D7`, `A:minor` `Am7 Fmaj7 Dm7 E7`).
 
 ```js
+
+> v4.3 : **plus de `degradeBy` sur le `$lead`** (piège §7) — variation seedée sur la rythmique (`kit(..., {hats:"rolls"})`).
 // @meta 140 C:minor trap_rap V=-0.6 form=I4-V8-C8-O4
 kit("trap_half", {var: 2, hats: "rolls"})
 $chords: grid("Cm7 Abmaj7 Fm7 G7").slow(2).gain(0.7).muteIn("intro,outro")
@@ -73,7 +81,7 @@ Le rapport liste `bad_leaps` (leap + `start_beat`) et `b2_fixed_by_bridge` (comb
 | st | 0 | +2 | +3 | +5 | **+7** | +8 | +10 | +12 | +14 |
 | note | C | D | Eb | F | G | Ab | Bb | C' | D' |
 
-**Piège** : deg 4 = **+7 st** (G), pas +4. **Apex** : `LEAD_APEX_MAX = 74`, clamp `while p>74: p-=12` → règle **`base + motif_max ≤ deg 8`** (deg 11 = 79 → clamp −12 → gap_fill détruit).
+**Piège** : deg 4 = **+7 st** (G), pas +4. **Apex** : `LEAD_APEX_MAX = 74` (72 si `V < -0.2`) ; v4.3, dépassement = **transposition de phrase d'octave** (`k = ceil((p_max−APEX)/12)`, plancher 58 sombre / 55 sinon), `gap_fill` OK. Règle : `base + motif_max ≤ deg 8`.
 
 **`slow(N)`** (1 cycle = 1 mesure = 4 beats ; `degrés/mesure = L/N`, `step = 4/(L/N)` beats) :
 
@@ -85,7 +93,7 @@ Le rapport liste `bad_leaps` (leap + `start_beat`) et `b2_fixed_by_bridge` (comb
 
 Règle : 16/mesure → seq 128 + `.slow(8)` ; 8/mesure → seq 64 + `.slow(8)` ou seq 8 sans slow.
 
-**b2-safe par accord** (i-VI-III-VII en C mineur ; un degré est « unsafe » si sa pc est à 1 st d'une pc de l'accord — `fix_lead_b2_clashes` réécrit ces notes et casse le leap+fill) :
+**b2-safe par accord** (i-VI-III-VII en C mineur ; « unsafe » = pc à 1 st d'une pc de l'accord). v4.3 : `fix_lead_b2_clashes` **contextuel** — appoggiatures résolues sur temps faible conservées (≤ 0.5 temps, quota ≤ 2/4 mes. sombre) ; dissonances tenues snappées en préservant le contour (J = |Δ| + 2·chgt direction + 3·casse gap_fill) :
 
 | Accord | degrés interdits | degrés sûrs |
 |---|---|---|
@@ -108,7 +116,7 @@ Règle : 16/mesure → seq 128 + `.slow(8)` ; 8/mesure → seq 64 + `.slow(8)` o
 
 | Piège | Symptôme | Fix |
 |---|---|---|
-| `V < -0.2` dans `@meta` | lead plié par octaves, leaps ±12 | `V=0.0` |
+| `V < -0.2` dans `@meta` | (v4.2 : pliage note à note, contournement `V=0.0`) | **v4.3 : `V` libre**, transposition par phrase (§5) ; `fix_lead_b2_clashes` conserve les appoggiatures résolues |
 | `sometimesBy(x>0, degradeBy)` sur le lead mélodique | clashes b2 au gate final | garder sur batterie/hats seulement |
 | seq longue sans `.slow()` | notes de 1/64 de mesure | `.slow(8)` |
 | base montante deg 0→4 | clamp −12, gap_fill 0.2–0.4 | base ≤ 1, motif ≤ deg 7 |
@@ -128,7 +136,9 @@ studio_prepare(project_dir: str, intent: str = "", refs: list[str] | None = None
                remix: str | None = None, lyrics: dict | None = None) -> str   # ≤ 450 cars, tabulaire
 
 studio_compose(project_dir: str, strudel_code: str, palette_id: str = "auto",
+               intent: str = "", palette_strategy: str = "semantic",
                auto_master: bool = True, auto_prepare: bool = False,
+               render_mode: str = "full",   # v4.3 : "preview" = validation + sonde 12 mesures, sans rendu full
                remix_source_path: str | None = None, lyrics_spec: dict | None = None) -> str  # ≤ 400 cars
 
 studio_refine(project_dir: str, delta_json: dict | None = None, strudel_patch: dict | None = None,
@@ -139,12 +149,12 @@ studio_refine(project_dir: str, delta_json: dict | None = None, strudel_patch: d
 
 | Scénario | Quand | Appel |
 |---|---|---|
-| **A — Création originale** (défaut) | nouveau morceau | `studio_compose(projet, strudel_code, auto_prepare=true)` — **1 tour**, palette `auto` = synthés natifs `gl.*` (0 token). `auto_prepare` génère un blueprint **valide schéma** (pistes depuis les `$`, `chord_progression` depuis `grid()`, `motif_cell.apex` selon valence) |
+| **A — Création originale** (défaut) | nouveau morceau | `studio_compose(projet, strudel_code, auto_prepare=true, intent="...")` — **1 tour**, palette `auto` = **vrais samples `samples.db`/`samples/` en priorité absolue** (repli `gl.*` si aucun sample sain). `auto_prepare` génère un blueprint **valide schéma** (pistes `$`, `chord_progression` `grid()`/`sectionGrid()`, `emotion_vector` `V/T/E/D`) |
 | **B — Samples verrouillés** | dossier `Samples/` fourni | `studio_prepare(projet, intent, refs=[...])` d'abord (palettes depuis les samples indexés), puis compose |
 | **C — Remix** | audio source fourni | `studio_compose(..., remix_source_path="source.wav")` (ou `studio_prepare(..., remix=...)`) |
 | **D — Chant** | paroles fournies | `lyrics_spec={...}` → piste `$vocals` synchronisée dans le blueprint |
 
-`studio_prepare` sans `Samples/` projet retourne `PALETTES:` vide : c'est normal, le chemin par défaut est `palette_id="auto"` + `gl.*` ; le `CTX` du retour (132 BPM / C minor…) est une **valeur par défaut à surcharger** dans `@meta`.
+`studio_prepare` sans `Samples/` interroge **`samples.db` global** : `PALETTES:` = banque racine (repli `gl.*` si DB vide). Le `CTX` (132 BPM / C minor…) est une **valeur par défaut à surcharger** dans `@meta`. `clap=OFF(dsp_fallback)` = < 50 % de samples avec vecteur CLAP.
 
 ## Ce que retourne `studio_compose`
 
@@ -168,7 +178,8 @@ studio_refine(projet, delta_json={...})                                         
 - Calibration réelle `gl.*` : `config/gl_calibration.json` (régénérer 1×/version Gridline avec `scripts/calibrate_gl_plugins.py`) lue par le solveur.
 - Corridors spectraux : `golden_references/spectral_corridors_external.json` (vrais masters commerciaux, provenance `external_pro_reference`, généré par `scripts/build_external_corridors.py`) préféré automatiquement au fichier interne.
 - Proxy PQ : `scripts/pq_proxy.py` (régresseur sklearn, < 10 ms, `predict()` → `None` si non entraîné).
-- Seuils durs du master : ceiling limiteur `-1.2 dBTP`, jamais de LPF brique < 6.5 kHz (harmonie) / 9 kHz (lead) — tout est dans `config/mix_profiles.json`.
+- Seuils durs du master : ceiling `-1.2 dBTP` ; LPF source ≥ 6.5 kHz (harmonie) / 9 kHz (lead), `gl.sampler` pad 6.5 / chords 6.8 / lead 9.5 kHz — SSOT `config/mix_profiles.json`.
+- Palette v4.3 (D1) : `intent=` (paramètre ou `@meta intent="..."`) → score composite `S = α·S_intent + β·S_cohérence + γ·S_couv − λ·P_fallback` (poids `palette_scoring_weights`).
 
 ## Qualité des samples (Audio Intelligence v2)
 
@@ -202,11 +213,7 @@ choisis sont durs, grinçants ou se masquent entre eux.
 4. **La façade ne cherchait pas dans `samples/`** : `palette_id="auto"` ne proposait que des
    synthés `gl.*`, même quand des samples propres étaient indexés ; et les samples posés à la
    racine de `samples/` restaient physiquement non classés.
-5. **Serveur MCP périmé après `git pull`** : le processus serveur en mémoire garde l'ancien code
-   → `palette: null`, pistes 100 % `gl.*`, aucune ligne `palette=`. Correctif : `studio_compose`
-   détecte que `prod_server.py` a changé depuis son démarrage et affiche `RESTART session agent`
-   (retour + `handoff.txt`) → fermer/rouvrir la session agent. `install.sh` fait aussi un
-   `git pull --ff-only` et rappelle de redémarrer.
+5. **Serveur MCP périmé après `git pull`** : corrigé en v4.3 (D6, hot-execution) — chaque appel passe par un **worker subprocess éphémère** (`prod_worker.py`, code disque à jour) : **plus de `RESTART session agent`** (alerte réservée à un changement de *signature des 3 outils*). Vieux code = `palette: null`, pistes 100 % `gl.*`.
 6. **Chemins de samples fantômes** (DB indexée depuis une ancienne racine, ex. `.../musicos/...`) :
    `indexer.reroute_sample_path` re-reroute sous `<racine>/samples/...` si le fichier existe, sinon
    le sample est exclu (jamais branché).
@@ -243,7 +250,7 @@ table `sample_quality_v2` n'était remplie que pour les nouveaux fichiers, jamai
 - `pleasantness_gate(metrics, role)` → verdict dur **PASS / FIX / SWAP** + score + raisons.
   Plafonds durs par rôle (`PLEASANTNESS_CAPS`) : `r_harsh`, `roughness` (Plomp-Levelt), `peak_harsh_db`,
   plancher `comfort_min` ; plus pour les rôles tonaux : centroïde max (lead 6,5 kHz, chords 5,5 kHz,
-  pad 4,5 kHz, basse 900 Hz) et crest max (lead 14 dB, chords 13 dB, pad 12 dB). SWAP si un plafond
+  pad 4,5 kHz, basse 900 Hz) et crest max (lead 19,5 dB, chords 19,5 dB, pad 14,5 dB — SSOT `sample_guard_invariants.pleasantness_caps.crest_max_db` dans `config/mix_profiles.json`). SWAP si un plafond
   est dépassé, FIX si on en approche (> 80 %), PASS sinon. Les cymbales (hihat) sont tolérées
   (plafonds hauts).
 - `plomp_levelt_roughness(freqs, mags)` : rugosité sensorielle d'un spectre (paires de partiels
@@ -317,7 +324,7 @@ Exécutée automatiquement dans `studio_compose` (`scripts/bottom_up_analyzer.py
 4. **Niveau 4 — Morceau** : audite la cohérence globale (sections non vides, plafond cognitif `<= 8` pistes simultanées, cohérence timbrale Bark24 inter-pistes, puis audio final `master.wav` : peak, RMS, corrélation stéréo, dureté 2–5 kHz).
 
 ### B. Harmonie & rythme (passer les gates du premier coup)
-- Toujours `// @meta …` 1 ligne + `form=` + présence par section (`.in()/.only()/.muteIn()`), `V=0.0`.
+- Toujours `// @meta …` 1 ligne + `form=` + présence par section (`.in()/.only()/.muteIn()`) ; `V=` libre [-1,1] en v4.3 (transposition par phrase, plus de `V=0.0` de contournement).
 - Jamais de notes brutes : `grid(...)` / `deg(...)` / `bassline(...)` / `kit(...)` uniquement.
 - Pre-flight **avant** tout rendu : `python scripts/preflight_strudel_gate.py <projet>` (0 rendu, ~2 s) ;
   viser `preflight=PASS gf≥0.60 sw≥0.65 rest∈[0.20,0.50] bad_leaps=0` ; degrés b2-safe `{0, 3, 6, 7}` (voir Partie 1 §5).
@@ -334,7 +341,7 @@ Exécutée automatiquement dans `studio_compose` (`scripts/bottom_up_analyzer.py
 
 ### D. Fiabilité opérationnelle
 - **Toujours ranger les projets dans `projects/<nom>`** : `prod_server._resolve_project_dir()` verrouille automatiquement tout nom court ou chemin relatif/externe vers `$AI_STUDIO_DIR/projects/<nom>`, et `install.sh` synchronise `~/Music/AI-Studio` vers le dépôt actif.
-- **Après chaque `git pull` / `install.sh` : redémarrer la session agent** (les serveurs MCP chargent le code au démarrage). Signes d'un serveur périmé : `palette: null`, pistes 100 % `gl.*`, ou alerte `RESTART session agent` dans le retour/`handoff.txt`.
+- **v4.3 : plus de redémarrage de session après `git pull`/`install.sh`** (worker MCP éphémère D6). `RESTART session agent` ne doit plus apparaître (sauf changement de signature des outils). Vieux code = `palette: null`, 100 % `gl.*`.
 - `install.sh` fait `git pull --ff-only`, organise les samples, réindexe (backfill q2) : `AI_STUDIO_GIT_PULL=0`
   pour désactiver ; tous les paramètres sont dans `.env` (voir `.env.example`).
 - Retouches économes : `studio_refine(semantic_patch={"lead": {"oct": -1, "rests": "+15%"}})` (~20–40 tokens)

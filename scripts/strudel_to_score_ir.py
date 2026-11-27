@@ -634,12 +634,16 @@ def build_arrangement_plan(haps: dict[str, Any], score: ScoreIR, info: dict[str,
             if cuts:
                 vals = sorted(c[1] for c in cuts)
                 mod["cutoff_hz"] = round(vals[len(vals) // 2], 1)
+            # v4.3 (D5) : .lift("chorus", {oct: 12, ...}) -> role_modifiers[tname].lift
+            _lifts = (haps.get("narrative") or {}).get("lifts") or {}
+            if tname in _lifts and _lifts[tname]:
+                mod["lift"] = _lifts[tname]
             sec["role_modifiers"][tname] = mod
             sec["active_roles"].append(tname)
         plan_sections.append(sec)
 
     plan = {
-        "version": "4.0-strudel",
+        "version": "4.3-strudel",
         "meta": {
             "title": str(bp.get("title") or meta.get("title") or "strudel_bridge"),
             "bpm": info["bpm"],
@@ -661,7 +665,79 @@ def build_arrangement_plan(haps: dict[str, Any], score: ScoreIR, info: dict[str,
         "motifs": motifs,
         "sections": plan_sections,
     }
+    # v4.3 (D5) : pont des primitives narratives Strudel (sectionGrid/transition/groove/lift/compings)
+    # vers arrangement_plan.json : compile_song exécutera nativement NarrativeHarmony +
+    # transitions_lib + midi_groove_bank + orchestration_engine à 0 token LLM supplémentaire.
+    narr = haps.get("narrative") or {}
+    sec_grids = narr.get("section_grids") or {}
+    if sec_grids:
+        prog_by_kind: dict[str, list[str]] = {}
+        for sname, syms in sec_grids.items():
+            if str(sname).lower() == "default" or not syms:
+                continue
+            low = str(sname).lower().replace("-", "_").replace(" ", "_")
+            kind = _SECTION_KIND_MAP.get(low)
+            if kind is None:
+                kind = "chorus" if any(k in low for k in ("chorus", "refrain", "drop", "climax", "hook")) else "verse"
+            prog_by_kind[kind] = [symbol_to_roman(str(s), tonic_pc) if s else "i" for s in syms]
+        if prog_by_kind:
+            plan["harmonic_core"]["section_progressions"] = prog_by_kind
+    plan["transitions"] = _narrative_transitions_to_plan(narr.get("transitions") or [], sections)
+    if narr.get("groove_id"):
+        plan["groove_preference"] = {"groove_id": str(narr["groove_id"]), "source": "composition.strudel:kit()"}
+    if narr.get("comping_by_section"):
+        plan["comping_by_section"] = narr["comping_by_section"]
     return plan
+
+
+_TRANSITION_TYPES = ("drum_fill", "riser_impact", "drum_fill_and_riser", "harmonic_anticipation", "impact")
+_TRANSITION_STYLES = ("auto", "snare_roll", "tom_fill", "pickup")
+
+
+def _narrative_transitions_to_plan(narr_transitions: list[Any],
+                                    sections: list[tuple[str, int, int, str]]) -> list[dict[str, Any]]:
+    """v4.3 (D5) — convertit `transition("before:chorus", "drum_fill_and_riser", {...})` en
+    événements `arrangement_plan.transitions[]` conformes au schéma (bar base 1, type enum)."""
+    out: list[dict[str, Any]] = []
+    total_bars = sum(int(nb) for _n, _sb, nb, _k in sections) if sections else 0
+    for t in narr_transitions or []:
+        if not isinstance(t, dict):
+            continue
+        where = str(t.get("where") or "")
+        kind = str(t.get("kind") or "")
+        opts = t.get("opts") or {}
+        bar = 1
+        if where.startswith("before:"):
+            target = where.split(":", 1)[1].strip().lower()
+            for name, sb, _nb, k in sections:
+                if name.lower() == target or k == target:
+                    bar = sb + 1
+                    break
+        elif where.strip().lower() in ("outro", "end", "final"):
+            bar = max(1, total_bars)
+        else:
+            wl = where.strip().lower()
+            for name, sb, _nb, k in sections:
+                if name.lower() == wl or k == wl:
+                    bar = sb + 1
+                    break
+        ev: dict[str, Any] = {"bar": int(bar),
+                              "type": kind if kind in _TRANSITION_TYPES else "drum_fill_and_riser"}
+        if opts.get("style") is not None:
+            st = str(opts["style"])
+            ev["style"] = st if st in _TRANSITION_STYLES else "auto"
+        if opts.get("offset") is not None:
+            try:
+                ev["offset_beats"] = max(0.0, min(2.0, float(opts["offset"])))
+            except Exception:
+                pass
+        if opts.get("pct") is not None:
+            try:
+                ev["ratio"] = max(0.0, min(1.0, float(opts["pct"]) / 100.0))
+            except Exception:
+                pass
+        out.append(ev)
+    return out
 
 
 def run_strudel_eval(strudel_path: str, bars: int, seed: int, out_path: str) -> dict[str, Any]:

@@ -19,6 +19,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sqlite3
 import sys
 from typing import Any
@@ -357,6 +358,254 @@ def _build_mood_anchor_vec(emotion_vector: dict[str, float], anchors: dict[str, 
     v = np.mean(emb[idxs], axis=0)
     nrm = float(np.linalg.norm(v))
     return (v / nrm).astype(np.float32) if nrm > 1e-12 else None
+
+
+# ---------------------------------------------------------------------------
+# v4.3 (chantier D1) — intention textuelle -> vecteur sémantique + score composite
+# ---------------------------------------------------------------------------
+
+# Synonymes FR/EN -> tokens d'ancre (ids `semantic_anchors.json`) pour la projection lexicale
+# de l'`intent` (0 PyTorch : pas de text-tower CLAP au runtime, on projette sur les ancres
+# pré-encodées du .npz via recouvrement lexical pondéré).
+_INTENT_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "sombre": ("dark", "nocturnal", "sad", "melancholic"), "dark": ("dark", "nocturnal"),
+    "nocturne": ("nocturnal", "dark"), "hypnotique": ("hypnotic", "minimal"), "hypnotic": ("hypnotic", "minimal"),
+    "minimal": ("minimal", "sparse"), "minimaliste": ("minimal", "sparse"),
+    "mental": ("introspective", "intimate"), "introspectif": ("introspective", "intimate"),
+    "agressif": ("aggressive", "menacing", "festival"), "aggressive": ("aggressive", "menacing"),
+    "festival": ("festival", "energetic", "club"), "rêveur": ("dreamy", "cloud", "ethereal"), "dreamy": ("dreamy", "ethereal"),
+    "nuage": ("cloud", "dreamy"), "épique": ("cinematic", "epic"), "cinematic": ("cinematic", "epic"),
+    "intime": ("intimate", "acoustic", "fragile"), "acoustique": ("acoustic", "intimate"),
+    "feutré": ("felt", "muted", "warm"), "muted": ("muted", "felt"),
+    "poussiéreux": ("dusty", "vintage"), "dusty": ("dusty", "vintage"), "vintage": ("vintage", "dusty"),
+    "vitreux": ("glassy", "airy"), "glassy": ("glassy", "airy"), "aérien": ("airy", "glassy"),
+    "granuleux": ("gritty", "saturated"), "gritty": ("gritty", "saturated"), "saturé": ("saturated", "gritty"),
+    "propre": ("clean", "subby"), "clean": ("clean", "sub"), "sub": ("sub", "clean"),
+    "métallique": ("metallic", "harsh"), "metallic": ("metallic", "harsh"), "criard": ("harsh", "metallic"),
+    "chaud": ("warm", "mellow"), "warm": ("warm", "mellow"), "froid": ("cold", "glassy"),
+    "profond": ("deep", "sub"), "deep": ("deep", "sub"), "808": ("808", "sub", "bass"),
+    "lourd": ("heavy", "sub"), "rap": ("rap",), "lent": ("slow", "calm"), "mélancolique": ("melancholic", "sad"),
+}
+
+_TOKEN_RE = re.compile(r"[a-zàâäéèêëîïôöùûüç]+")
+
+
+def _intent_tokens(intent: str) -> set[str]:
+    toks: set[str] = set()
+    for t in _TOKEN_RE.findall(str(intent or "").lower()):
+        toks.add(t)
+        for syn in _INTENT_SYNONYMS.get(t, ()):
+            toks.add(syn)
+    return toks
+
+
+def _anchor_json_definitions(json_path: str | None = None) -> list[dict[str, Any]]:
+    """Définitions lexicales complètes (incl. axe `style_nuance` v4.3) depuis le JSON —
+    le .npz peut être ré-encodé offline plus tard (`build_semantic_anchors.py --populate-db`)."""
+    if json_path is None:
+        json_path = os.path.join(INDEX_DIR, "semantic_anchors.json")
+    try:
+        with open(json_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return [a for a in (data.get("anchors") or []) if isinstance(a, dict)]
+    except Exception:
+        return []
+
+
+def build_intent_vector(intent: str, anchors: dict[str, Any] | None,
+                        anchors_json_path: str | None = None) -> np.ndarray | None:
+    """v4.3 (D1) — projette l'`intent` textuel sur les ancres sémantiques pré-encodées :
+    recouvrement lexical (tokens intent + synonymes vs prompts/labels/ids des ancres, avec
+    repli `fallback_id` pour les ancres du JSON pas encore ré-encodées dans le .npz), puis
+    moyenne pondérée des embeddings CLAP -> vecteur L2-normalisé dans l'espace CLAP.
+    0 PyTorch, déterministe, < 5 ms."""
+    toks = _intent_tokens(intent)
+    if not toks or not anchors:
+        return None
+    emb = np.asarray(anchors["embeddings"], dtype=np.float32)
+    ids = list(anchors["ids"])
+    id_to_idx = {aid: i for i, aid in enumerate(ids)}
+    prompts = anchors.get("prompts") or []
+    fr_labels = anchors.get("fr_labels") or []
+
+    def _anchor_text(i: int) -> set[str]:
+        parts = [ids[i]]
+        if i < len(prompts):
+            parts.append(str(prompts[i]))
+        if i < len(fr_labels):
+            parts.append(str(fr_labels[i]))
+        text = " ".join(parts).lower()
+        out = set(_TOKEN_RE.findall(text))
+        out |= set(ids[i].split("_"))
+        return out
+
+    weights: list[tuple[int, int]] = []
+    seen_ids: set[str] = set()
+    for i in range(len(ids)):
+        w = len(toks & _anchor_text(i))
+        if w > 0:
+            weights.append((w, i))
+            seen_ids.add(ids[i])
+    # Ancres définies dans le JSON mais pas encore dans le .npz : repli via `fallback_id`
+    for a in _anchor_json_definitions(anchors_json_path):
+        aid = str(a.get("id") or "")
+        if not aid or aid in seen_ids:
+            continue
+        text = f"{aid} {a.get('prompt', '')} {a.get('fr_label', '')}".lower()
+        tset = set(_TOKEN_RE.findall(text)) | set(aid.split("_"))
+        w = len(toks & tset)
+        if w <= 0:
+            continue
+        fb = str(a.get("fallback_id") or "")
+        j = id_to_idx.get(fb) if fb else None
+        if j is None:
+            j = next((i for i in range(len(ids)) if ids[i].split("_")[0] == aid.split("_")[0]), None)
+        if j is not None:
+            weights.append((w, j))
+    if not weights:
+        return None
+    weights.sort(key=lambda wi: (-wi[0], wi[1]))
+    v = np.zeros(emb.shape[1], dtype=np.float32)
+    for w, i in weights[:10]:
+        v += float(w) * emb[i]
+    nrm = float(np.linalg.norm(v))
+    return (v / nrm).astype(np.float32) if nrm > 1e-12 else None
+
+
+def _item_clap_vec(item: dict[str, Any]) -> np.ndarray | None:
+    cv = item.get("_clap_vec")
+    if cv is None:
+        cv = item.get("clap_vec")
+    if cv is None:
+        return None
+    arr = np.asarray(cv, dtype=np.float32)
+    if arr.ndim != 1 or arr.size == 0:
+        return None
+    nrm = float(np.linalg.norm(arr))
+    return (arr / nrm).astype(np.float32) if nrm > 1e-12 else None
+
+
+def palette_intent_score(items: list[dict[str, Any]], intent_vec: np.ndarray | None) -> float | None:
+    """v4.3 (D1) — similarité cosinus moyenne entre le vecteur `intent` et les `clap_vec`
+    des pistes de la palette. Retourne None si aucun vecteur CLAP (marqueur clap=OFF)."""
+    if intent_vec is None:
+        return None
+    sims: list[float] = []
+    for it in items:
+        cv = _item_clap_vec(it)
+        if cv is not None and cv.size == intent_vec.size:
+            sims.append(float(np.dot(cv, intent_vec)))
+    if not sims:
+        return None
+    return round(max(0.0, min(1.0, 0.5 + 0.5 * float(np.mean(sims)))), 4)
+
+
+_PIVOT_ROLES = ("bass_sub", "chord_keys", "kick")
+
+
+def composite_palette_score(palette: dict[str, Any],
+                            items: list[dict[str, Any]] | None = None,
+                            intent_vec: np.ndarray | None = None,
+                            weights: dict[str, float] | None = None,
+                            sample_pool: dict[str, list[dict[str, Any]]] | None = None) -> dict[str, Any]:
+    """v4.3 (D1) — score composite borné dans [0, 1] :
+    S(p) = α·S_intent + β·S_coherence + γ·S_coverage − λ·P_fallback.
+    - S_intent : cosinus moyen intent↔clap_vec (None -> neutre 0.5, α transféré sur β) ;
+    - S_coherence : `timbre_coherence.score` (anti-masquage Bark24 + rugosité + DRR) ;
+    - S_coverage : min(1, N_real/N_tracks / 0.85) — plateau saturant à 85 % ;
+    - P_fallback : pénalité si un rôle pivot (bass/chords/kick) tombe en repli synth
+      alors qu'un sample sain existe dans une autre palette/pool.
+    Pondérations par défaut depuis `config/mix_profiles.json` (`palette_scoring_weights`)."""
+    try:
+        from mix_config import palette_scoring_weights as _mc_weights
+        weights = weights or _mc_weights()
+    except Exception:
+        pass
+    w = weights or {"alpha": 0.45, "beta": 0.35, "gamma": 0.20, "lambda": 0.25, "coverage_saturation": 0.85}
+    alpha, beta, gamma, lam = float(w["alpha"]), float(w["beta"]), float(w["gamma"]), float(w["lambda"])
+    sat = float(w.get("coverage_saturation", 0.85))
+
+    slots = palette.get("slots") or []
+    items = items if items is not None else []
+    n_tracks = max(1, len(slots) or len(items))
+    n_real = sum(1 for s in slots if s.get("source_type") in ("sample", "project_sample") and s.get("filepath"))
+    coverage = min(1.0, (n_real / n_tracks) / max(1e-6, sat))
+
+    raw_intent = palette_intent_score(items or slots, intent_vec) if intent_vec is not None else None
+    clap_off = intent_vec is not None and raw_intent is None
+    if raw_intent is None:
+        alpha, beta = 0.0, beta + alpha  # intent vide ou clap=OFF : α transféré sur β
+        s_intent = 0.5
+    else:
+        s_intent = raw_intent
+
+    coh = palette.get("timbre_coherence") or {}
+    s_coh = float(coh.get("score", 1.0)) if isinstance(coh, dict) else 1.0
+
+    p_fallback = 0.0
+    if sample_pool:
+        for role in _PIVOT_ROLES:
+            slot = next((s for s in slots if s.get("role") == role), None)
+            if slot is None:
+                continue
+            is_fallback = slot.get("source_type") not in ("sample", "project_sample")
+            has_healthy = any(
+                c.get("source_type") in ("sample", "project_sample") and c.get("filepath")
+                and str(c.get("_policy_tier") or c.get("policy_tier") or "neutral") in ("preferred", "neutral")
+                and c.get("_gate_verdict") in (None, "PASS", "FIX") and c.get("_range_ok", True)
+                for c in (sample_pool.get(role) or [])
+            )
+            if is_fallback and has_healthy:
+                p_fallback += 1.0 / len(_PIVOT_ROLES)
+
+    score = alpha * s_intent + beta * s_coh + gamma * coverage - lam * p_fallback
+    return {
+        "score": round(max(0.0, min(1.0, score)), 4),
+        "s_intent": s_intent,
+        "s_coherence": round(s_coh, 4),
+        "s_coverage": round(coverage, 4),
+        "p_fallback": round(p_fallback, 4),
+        "clap_off": bool(clap_off),
+    }
+
+
+def clap_coverage_ratio(candidate_pool: dict[str, list[dict[str, Any]]] | None = None,
+                        db_path: str = DEFAULT_DB_PATH) -> float | None:
+    """v4.3 (D1) — proportion de samples de l'index disposant d'un `clap_vec` non nul.
+    < 0.50 -> marqueur `clap=OFF(dsp_fallback)` (le filtrage sémantique est dégradé)."""
+    if candidate_pool:
+        total = 0
+        with_vec = 0
+        for cands in candidate_pool.values():
+            for c in cands:
+                if c.get("source_type") not in ("sample", "project_sample"):
+                    continue
+                total += 1
+                if _item_clap_vec(c) is not None:
+                    with_vec += 1
+        if total:
+            return round(with_vec / total, 4)
+    try:
+        if not os.path.isfile(db_path):
+            return None
+        conn = sqlite3.connect(db_path)
+        try:
+            has_cards = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sample_semantic_cards'"
+            ).fetchone() is not None
+            if not has_cards:
+                return None
+            total = conn.execute("SELECT COUNT(*) FROM sample_semantic_cards").fetchone()[0]
+            with_vec = conn.execute(
+                "SELECT COUNT(*) FROM sample_semantic_cards WHERE clap_vec IS NOT NULL"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        if not total:
+            return None
+        return round(with_vec / total, 4)
+    except Exception:
+        return None
 
 
 def _load_project_candidates(
@@ -945,6 +1194,8 @@ def propose_palettes(
     note_ranges: dict[str, Any] | None = None,
     include_pool: bool = False,
     user_samples_locked: bool | None = None,
+    intent: str = "",
+    palette_strategy: str = "semantic",
 ) -> dict[str, Any]:
     """
     Build `num_palettes` (default 3) complementary, conflict-free sound palettes.
@@ -952,6 +1203,12 @@ def propose_palettes(
     v4.2: enforces F3 (`note_ranges` S_max cap), F4 (role category/nature policy),
     F5 (non-vacuous pleasantness gate + `gate_unmeasured`), F6 (`include_pool` top-8),
     and F8 (bounded score <= 1.0, hard coherence threshold >= 0.6, conditioned sample-first).
+    v4.3 (D1): `intent` (texte libre, ex. "dark hypnotic minimal mental rap, muted keys") est
+    projeté sur les ancres sémantiques (`semantic_anchors.npz`) et le score de chaque palette
+    devient le score composite S(p) = α·S_intent + β·S_cohérence + γ·S_couverture − λ·P_fallback
+    (poids dans `config/mix_profiles.json` → `palette_scoring_weights`). `palette_strategy`
+    ∈ {"semantic" (défaut, composite si intent), "organic", "dark", "hybrid"} ne filtre pas
+    mais oriente le thème préféré des 3 palettes proposées.
     """
     from sample_fit_guard import candidate_policy, register_fit
     from timbre_pleasantness import palette_timbre_coherence, pleasantness_gate
@@ -1069,6 +1326,13 @@ def propose_palettes(
 
     anchors = load_semantic_anchors(anchors_path)
     mood_vec = _build_mood_anchor_vec(ev, anchors)
+    # v4.3 (D1) : vecteur d'intention projeté sur les ancres sémantiques (0 PyTorch)
+    intent_vec = build_intent_vector(intent, anchors) if str(intent or "").strip() else None
+    try:
+        from mix_config import palette_scoring_weights as _mc_psw
+        _psw = _mc_psw()
+    except Exception:
+        _psw = None
 
     palettes_out: list[dict[str, Any]] = []
     used_ids_per_role: dict[str, set[str]] = {r: set() for r in eff_roles}
@@ -1133,9 +1397,14 @@ def propose_palettes(
                 chosen_l.append(best_cand)
         return chosen_l, missing_l
 
+    # v4.3 (D1) : `palette_strategy` oriente le thème préféré en tête de liste
+    _themes = list(_PALETTE_THEMES)
+    _strat_theme = {"organic": "organic", "dark": "synthetic", "hybrid": "hybrid"}.get(str(palette_strategy or "").lower())
+    if _strat_theme:
+        _themes.sort(key=lambda t: 0 if t[2] == _strat_theme else 1)
     for p_idx in range(n_pal):
-        if p_idx < len(_PALETTE_THEMES):
-            pid, label, pref_theme = _PALETTE_THEMES[p_idx]
+        if p_idx < len(_themes):
+            pid, label, pref_theme = _themes[p_idx]
         else:
             pid, label, pref_theme = f"palette_{chr(65 + p_idx)}", f"Palette {chr(65 + p_idx)}", "hybrid"
 
@@ -1170,6 +1439,13 @@ def propose_palettes(
         # F8: score borné strictement dans [0, 1] ; qualité et sample_ratio publiés séparément
         bonus_sample = (0.08 if user_locked else 0.06) * (n_healthy_real / max(1, len(chosen)))
         pal_score = round(max(0.0, min(1.0, quality_score + bonus_sample)), 4)
+        # v4.3 (D1) : score composite S(p) avec intention sémantique si fournie
+        comp = composite_palette_score(
+            {"slots": [{"role": it["role"], "source_type": it["source_type"], "filepath": it.get("filepath")}
+                       for it in chosen],
+             "timbre_coherence": timbre_coh},
+            items=chosen, intent_vec=intent_vec, weights=_psw, sample_pool=sample_pool)
+        pal_score = comp["score"] if intent_vec is not None else pal_score
 
         reason_parts = [
             f"Chevauchement Bark24 faible ({breakdown['overlap_mean']:.2f})"
@@ -1222,6 +1498,8 @@ def propose_palettes(
             "quality_score": quality_score,
             "sample_ratio": sample_ratio,
             "score_breakdown": breakdown,
+            "composite_score": comp if intent_vec is not None else None,
+            "intent_score": comp.get("s_intent") if intent_vec is not None else None,
             "complementarity_reason": " ; ".join(reason_parts),
             "timbre_coherence": timbre_coh,
             "missing_roles": missing_roles,
@@ -1242,10 +1520,15 @@ def propose_palettes(
     if user_locked:
         diag.append("Verrou d'exclusivité actif : 0 sample externe importé (uniquement Samples/ projet + gl.* autorisés).")
 
+    _clap_cov = clap_coverage_ratio(sample_pool if include_pool else None, db_path=db_path)
     out_payload: dict[str, Any] = {
         "verdict": verdict,
         "score": best_score,
         "user_samples_locked": user_locked,
+        "intent": str(intent or ""),
+        "palette_strategy": palette_strategy,
+        "clap_coverage": _clap_cov,
+        "clap_off": (True if _clap_cov is not None and _clap_cov < 0.50 else False),
         "selection_trace": selection_trace,
         "mix_profile": mix_profile,
         "target_key": target_key,

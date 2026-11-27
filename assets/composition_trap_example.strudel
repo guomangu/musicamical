@@ -1,7 +1,7 @@
-// Exemple canonique v4.1 (Trap, C minor, 140 BPM, 24 mesures) — testé en CI à 0 correction de garde-fou.
+// Exemple canonique v4.3 (Trap, C minor, 140 BPM, 24 mesures) — v4.3 : plus de degradeBy sur $lead — testé en CI à 0 correction de garde-fou.
 // En-tête 1 ligne : bpm key:mode mix_profile V=valence form=I4-V8-C8-O4 (I=intro V=verse C=chorus O=outro)
 // @meta 140 C:minor trap_rap V=-0.6 form=I4-V8-C8-O4
 kit("trap_half", {var: 2, hats: "rolls"})
 $chords: grid("Cm7 Abmaj7 Fm7 G7").slow(2).gain(0.7).muteIn("intro,outro")
 $bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 40}).slow(4).in("verse,chorus,outro")
-$lead: deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.6).sometimesBy(0.25, x => x.degradeBy(0.5)).in("verse,chorus")
+$lead: deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.6).in("verse,chorus")

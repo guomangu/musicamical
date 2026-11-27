@@ -321,10 +321,14 @@ def candidate_policy(role: str, cand: dict[str, Any], valence: float = 0.0) -> d
     }
 
 
-def _load_config_shift_caps() -> tuple[dict[str, int], dict[str, int]]:
-    """Lit `max_semitone_shift_st` (+ `max_semitone_shift_st_by_role` optionnel) depuis config/mix_profiles.json."""
+def _load_config_shift_caps() -> tuple[dict[str, int], dict[str, int], dict[str, int], dict[str, int]]:
+    """Lit `max_semitone_shift_st` (+ `max_semitone_shift_st_by_role`) et v4.3 (D3) les plafonds
+    `sample_guard_invariants.max_semitone_shift_{single_zone,multizone_or_derived}` depuis
+    config/mix_profiles.json (SSOT exclusif, aucun doublon codé en dur)."""
     caps = dict(DEFAULT_SHIFT_CAP_ST)
     by_role: dict[str, int] = {}
+    single_zone: dict[str, int] = {}
+    multizone: dict[str, int] = {}
     cfg_path = os.environ.get("MIX_PROFILES_PATH") or os.path.join(ROOT, "config", "mix_profiles.json")
     try:
         with open(cfg_path, encoding="utf-8") as fh:
@@ -343,9 +347,20 @@ def _load_config_shift_caps() -> tuple[dict[str, int], dict[str, int]]:
             for k, v in raw_r.items():
                 if v is not None:
                     by_role[str(k).lower()] = int(v)
+        sgi = cfg.get("sample_guard_invariants") or {}
+        sz = sgi.get("max_semitone_shift_single_zone") or {}
+        mz = sgi.get("max_semitone_shift_multizone_or_derived") or {}
+        if isinstance(sz, dict):
+            for k, v in sz.items():
+                if v is not None:
+                    single_zone[str(k).lower()] = int(v)
+        if isinstance(mz, dict):
+            for k, v in mz.items():
+                if v is not None:
+                    multizone[str(k).lower()] = int(v)
     except Exception:
         pass
-    return caps, by_role
+    return caps, by_role, single_zone, multizone
 
 
 def shift_category(entry: dict[str, Any] | None) -> str:
@@ -357,9 +372,28 @@ def shift_category(entry: dict[str, Any] | None) -> str:
     return "synth"
 
 
+def effective_shift_caps(entry: dict[str, Any] | None = None, role: str | None = None) -> tuple[str, int, int]:
+    """v4.3 (D3/D4) — retourne `(category, cap_multi_st, cap_single_st)` depuis le SSOT
+    `sample_guard_invariants` : cap_single (mono-zone, 7 st) vs cap_multi (multi-zone/dérivé, 9-10 st)."""
+    caps, by_role, single_zone, multizone = _load_config_shift_caps()
+    cat = shift_category(entry)
+    cap = caps.get(cat, caps["synth"])
+    slot = normalize_slot_role(role or "")
+    if slot and slot in by_role:
+        sample_cat = infer_sample_category((entry or {}).get("category"), (entry or {}).get("filepath") or (entry or {}).get("sample_path"))
+        if slot == "bass_sub":
+            if cat != "acoustic" and sample_cat in ("808", "bass", "bass_sub"):
+                cap = int(by_role[slot])
+        else:
+            cap = int(by_role[slot])
+    cap_single = int(single_zone.get(slot, cap)) if slot else cap
+    cap_multi = int(multizone.get(slot, cap)) if slot else cap
+    return cat, cap_multi, cap_single
+
+
 def effective_shift_cap(entry: dict[str, Any] | None = None, role: str | None = None) -> tuple[str, int]:
     """Retourne `(category, cap_st)` aligné sur `config/mix_profiles.json` + `blueprint_safety`."""
-    caps, by_role = _load_config_shift_caps()
+    caps, by_role, _single_zone, _multizone = _load_config_shift_caps()
     cat = shift_category(entry)
     cap = caps.get(cat, caps["synth"])
     slot = normalize_slot_role(role or "")
@@ -441,7 +475,7 @@ def register_fit(
     Autorise l'auto-dérivation polyphase ±12 st (`octave_shift_st`, `effective_root`) sur
     les vrais samples tonaux de `samples/` (808 grave +12 st, synth/pad/vocal/pluck ±12 st)."""
     pitches = [int(p) for p in (note_range_or_pitches or []) if isinstance(p, (int, float)) and not isinstance(p, bool)]
-    cat, cap = effective_shift_cap(entry, role=role)
+    cat, cap, cap_single = effective_shift_caps(entry, role=role)
     if root_note is None or not pitches:
         return {"ok": True, "s_max": 0, "cap": cap, "category": cat, "ambitus": 0, "action": "ok"}
     rn = int(root_note)
@@ -484,10 +518,15 @@ def register_fit(
         action = "multizone"
     else:
         action = "swap"
+    # v4.3 (D4) : une piste mono-zone ne doit jamais dépasser le plafond single-zone (7 st) ;
+    # au-delà, le rendu passera en multi-zone (±4 st/zone) ou en dérivé d'octave.
+    needs_multizone = s_max > cap_single and s_max <= cap
     return {
         "ok": s_max <= cap,
         "s_max": int(s_max),
         "cap": int(cap),
+        "cap_single_zone": int(cap_single),
+        "needs_multizone": bool(needs_multizone),
         "category": cat,
         "ambitus": int(ambitus),
         "action": action,

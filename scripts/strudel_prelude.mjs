@@ -122,6 +122,38 @@ export function installPrelude(core, meta) {
   g.__kitMarker = kitMarker;
   const sectionMap = new WeakMap();
   g.__sectionMap = sectionMap;
+  // v4.3 (D5) — pont vers les moteurs narratifs v3.2/v3.3 (NarrativeHarmony, transitions_lib,
+  // midi_groove_bank, orchestration_engine) : métadonnées déclaratives exportées dans le Haps JSON.
+  g.__strudel_narrative = { section_grids: {}, transitions: [], groove_id: null, comping_by_section: {} };
+  g.__strudel_lifts = new WeakMap();
+
+  // v4.3 (D5) — progressions narratives par section : compile vers harmonic_core.section_progressions.
+  // 1 symbole d'accord = 1 mesure ; chaque section suit sa propre progression (repli `default`).
+  g.sectionGrid = (spec) => {
+    const m = g.__strudel_meta || {};
+    const secs = Array.isArray(m.sections) && m.sections.length ? m.sections : [{ name: 'song', bars: 16 }];
+    const syms = [];
+    const sectionGrids = {};
+    for (const s of secs) {
+      const rawKey = String(s.name || 'song');
+      const key = rawKey.toLowerCase();
+      const list = (spec && (spec[key] || spec[rawKey] || spec.default)) || '';
+      const arr = String(list).trim().split(/\s+/).filter(Boolean);
+      sectionGrids[key] = arr;
+      const nb = Math.max(1, Number(s.bars || 4));
+      for (let b = 0; b < nb; b++) syms.push(arr.length ? arr[b % arr.length] : 'Cm7');
+    }
+    g.__strudel_grid = syms;
+    g.__strudel_narrative.section_grids = sectionGrids;
+    return core.chord('<' + syms.join(' ') + '>');
+  };
+
+  // v4.3 (D5) — transition déclarative (ex. transition("before:chorus", "drum_fill_and_riser", {style:"snare_roll"})).
+  // Effet de bord uniquement (compile vers arrangement_plan.transitions[]) : n'émet aucune piste.
+  g.transition = (where, kind, opts = {}) => {
+    g.__strudel_narrative.transitions.push({ where: String(where), kind: String(kind), opts: opts || {} });
+    return core.s('~ ~ ~ ~');
+  };
 
   g.grid = (symbols) => {
     const arr = String(symbols).trim().split(/\s+/).filter(Boolean);
@@ -179,6 +211,9 @@ export function installPrelude(core, meta) {
       if (opts.var) p = p.sometimesBy(Math.min(0.5, Number(opts.var) / 10), (x) => x.degradeBy(0.5));
       g.__strudel_kit[role] = p;
     }
+    // v4.3 (D5) — banque de grooves minés localement (listés par studio_prepare) :
+    // kit("trap_half", { groove: "trap_dark_03", var: 2, hats: "rolls" })
+    if (opts.groove) g.__strudel_narrative.groove_id = String(opts.groove);
     const dummy = core.s('~ ~ ~ ~');
     try { kitMarker.add(dummy); } catch { /* WeakSet ok */ }
     return dummy; // si kit() est appelé dans une pile $, celle-ci est ignorée (marqueur)
@@ -214,6 +249,26 @@ export function installPrelude(core, meta) {
       defineSec('in', 'in', proto.in);
       defineSec('only', 'only', proto.only);
       defineSec('muteIn', 'mute', proto.muteIn);
+      // v4.3 (D5) — .lift("chorus", { oct: 12, energy: "+1.5dB" }) : variation structurée par
+      // section (anti-clone 8 mesures), compilée vers arrangement_plan role_modifiers.
+      if (!proto.lift) {
+        proto.lift = function (section, opts = {}) {
+          try {
+            const cur = g.__strudel_lifts.get(this) || [];
+            cur.push(Object.assign({ section: String(section) }, opts || {}));
+            g.__strudel_lifts.set(this, cur);
+          } catch { /* WeakMap indisponible */ }
+          return this;
+        };
+      }
+      // v4.3 (D5) — .comping({ verse: "pad_hold", chorus: "syncopated_stab" }) après sectionGrid :
+      // style de comping par section (orchestration_engine), exporté dans le Haps JSON.
+      if (!proto.comping) {
+        proto.comping = function (map) {
+          g.__strudel_narrative.comping_by_section = map || {};
+          return this;
+        };
+      }
     }
   } catch { /* glide() curried reste disponible */ }
 

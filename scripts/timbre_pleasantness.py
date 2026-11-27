@@ -51,7 +51,24 @@ DEFAULT_CAPS = {"r_harsh": 0.45, "roughness": 0.30, "peak_harsh_db": 14.0, "comf
 CENTROID_MAX_HZ = {"lead_melody": 6500.0, "chord_keys": 5500.0, "pad_atmosphere": 4500.0, "bass_sub": 900.0}
 # Crest max pour les rôles tonaux (au-delà = trop percussif/claquant pour un son soutenu)
 # Un vrai piano acoustique / pluck avec 3-5 s de décroissance naturelle a 14-19 dB de crest.
-CREST_MAX_DB_TONAL = {"lead_melody": 19.5, "chord_keys": 19.5, "pad_atmosphere": 14.5, "bass_sub": 15.0}
+# v4.3 (D3) : valeurs lues dans le SSOT `config/mix_profiles.json`
+# (`sample_guard_invariants.pleasantness_caps.crest_max_db`) — aucun doublon codé en dur.
+def _crest_max_db_tonal() -> dict[str, float]:
+    try:
+        from mix_config import crest_max_db as _mc_crest
+        out = {}
+        for role in ("lead_melody", "chord_keys", "pad_atmosphere", "bass_sub"):
+            v = _mc_crest(role)
+            if v is not None:
+                out[role] = v
+        if out:
+            return out
+    except Exception:
+        pass
+    return {"lead_melody": 19.5, "chord_keys": 19.5, "pad_atmosphere": 14.5, "bass_sub": 15.0}
+
+
+CREST_MAX_DB_TONAL = _crest_max_db_tonal()
 
 TONAL_ROLES = ("lead_melody", "chord_keys", "pad_atmosphere", "bass_sub")
 
