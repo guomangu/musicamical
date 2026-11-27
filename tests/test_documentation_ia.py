@@ -40,9 +40,10 @@ class TestDocumentationIA(unittest.TestCase):
     def test_key_content_present(self):
         with open(os.path.join(IA_DIR, "01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md"), encoding="utf-8") as fh:
             guide = fh.read()
-        # Partie 1 : contrat Strudel + exemple canonique gate-PASS + pre-flight
+        # Partie 1 : contrat Strudel v4.4 (architecture riche 8-10 pistes, notes tenues `_`, arp, pre-flight)
         for token in ("// @meta 140 C:minor trap_rap",
-                      'deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~", 4)',
+                      'deg("0 _ _ ~ 3 _ 2 ~',
+                      'arp("0 ~ 2 ~ 1 ~ 3 ~", 4)',
                       "preflight_strudel_gate.py", "gap_fill", "{0, 3, 6, 7}"):
             self.assertIn(token, guide)
         # Partie 2 : façade 3 outils + scénarios + budget tokens

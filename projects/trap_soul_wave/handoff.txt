@@ -1,0 +1,13 @@
+HANDOFF v4 trap_soul_wave
+strudel=composition.strudel#766c732494 seed=3033
+bridge_ok=True tracks=7 notes=1383
+sections=intro,verse,chorus,verse,chorus,bridge,chorus,outro
+eval_passed=True compile_passed=True fc_passed=True
+guards={"bass_register_clamped":0,"bass_root_locked":39,"lead_apex_clamped":0,"chords_revoiced":101,"mono_onset_dedup":0,"lead_phrases_transposed":0,"lead_peaks_compressed":0,"octave_folds_breaking_gap_fill":0,"lead_phrase_transposed_by_track":{"lead":0},"chord_symbols_expanded":109}
+preflight=PASS gf=1.0 sw=0.923 rest=0.212 bad_leaps=0 (0 rendu: scripts/preflight_strudel_gate.py <projet>)
+palette=palette_A samples=7/7 rej=30 theme=organic safety=0err/1warn
+sound_guard=OK
+BU=PASS(4/4,fix=0)
+score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json
+master=renders/master.wav
+next: studio_refine(delta_json=...) ou strudel_patch={{"replace_track":"lead","code":"..."}}

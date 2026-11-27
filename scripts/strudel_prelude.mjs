@@ -17,14 +17,65 @@ const TONIC_PC = { c: 0, 'c#': 1, db: 1, d: 2, 'd#': 3, eb: 3, e: 4, f: 5, 'f#':
 // Registre basse canonique du pont (miroir de BASS_REGISTER du pont Python)
 const BASS_LO = 31, BASS_HI = 48;
 
-// Kits rythmiques embarqués (miroir local de midi_groove_bank) : 1 entrée = 1 rôle atomique.
+// Kits rythmiques pro 2 mesures (1 entrée = 1 rôle atomique, vrai bounce + perc + open_hat).
+// Jamais de `hh*16` continu sur tout le morceau ni de `perc` vide !
 const KITS = {
-  trap_half: { kick: 'bd ~ ~ ~', snare: '~ ~ cp ~', hihat: 'hh*8', perc: '~ ~ ~ ~' },
-  trap_full: { kick: 'bd ~ bd ~', snare: '~ ~ cp ~', hihat: 'hh*8', perc: '~ ~ sh ~' },
-  boom_bap: { kick: 'bd ~ ~ bd', snare: '~ ~ ~ cp', hihat: 'hh*4 oh', perc: '~ rim ~ ~' },
-  house: { kick: 'bd*4', snare: '~ ~ cp ~', hihat: '~ oh ~ oh', perc: '~ ~ ~ ~' },
-  drill: { kick: 'bd ~ bd bd', snare: '~ ~ cp cp', hihat: 'hh*16', perc: '~ ~ ~ sh' },
-  ambient: { kick: 'bd ~ ~ ~', snare: '~ ~ ~ ~', hihat: 'hh*4', perc: '~ ~ ~ ~' },
+  trap_half: {
+    kick: '<[bd ~ ~ ~ ~ ~ ~ bd ~ ~ bd ~ ~ ~ ~ ~] [bd ~ ~ ~ ~ ~ bd ~ ~ ~ bd ~ ~ ~ ~ ~]>',
+    snare: '<[~ ~ cp ~] [~ ~ cp ~]>',
+    hihat: '<[hh hh hh hh hh hh hh hh] [hh hh hh [hh*2] hh hh hh hh]>',
+    hihat_rolls: '<[hh hh hh [hh*3] hh hh hh hh] [hh hh hh hh hh [hh*3] hh [hh*4]]>',
+    open_hat: '<[~ ~ ~ ~ ~ oh ~ ~] [~ ~ ~ ~ ~ oh ~ ~]>',
+    perc: '<[~ ~ ~ rim ~ ~ ~ ~] [~ ~ ~ ~ ~ rim ~ ~]>',
+  },
+  trap_full: {
+    kick: '<[bd ~ ~ bd ~ ~ bd ~] [bd ~ ~ bd ~ ~ ~ bd]>',
+    snare: '<[~ ~ cp ~] [~ ~ cp ~]>',
+    hihat: '<[hh hh hh hh hh hh hh hh] [hh hh [hh*2] hh hh hh hh hh]>',
+    hihat_rolls: '<[hh hh [hh*3] hh hh hh hh [hh*2]] [hh hh hh [hh*3] hh hh [hh*4] hh]>',
+    open_hat: '<[~ ~ ~ oh ~ ~ ~ ~] [~ ~ ~ oh ~ ~ ~ oh]>',
+    perc: '<[~ ~ sh ~ ~ ~ sh ~] [~ ~ sh ~ ~ sh ~ ~]>',
+  },
+  boom_bap: {
+    kick: '<[bd ~ ~ ~ ~ ~ ~ bd ~ ~ bd ~ ~ ~ ~ ~] [bd ~ ~ ~ ~ ~ bd ~ ~ ~ bd ~ ~ bd ~ ~]>',
+    snare: '<[~ cp ~ cp] [~ cp ~ cp]>',
+    hihat: '<[hh hh hh hh hh hh hh hh] [hh hh hh hh hh hh hh hh]>',
+    hihat_rolls: '<[hh hh hh hh hh hh [hh*2] hh] [hh hh hh [hh*2] hh hh hh hh]>',
+    open_hat: '<[~ ~ ~ ~ ~ ~ ~ oh] [~ ~ ~ ~ ~ ~ ~ oh]>',
+    perc: '<[~ rim ~ ~ ~ ~ rim ~] [~ ~ rim ~ ~ ~ ~ rim]>',
+  },
+  house: {
+    kick: 'bd*4',
+    snare: '~ cp ~ cp',
+    hihat: '<[~ hh ~ hh ~ hh ~ hh] [~ hh ~ hh ~ hh [hh*2] hh]>',
+    hihat_rolls: '<[~ hh ~ hh ~ hh ~ hh] [~ hh ~ [hh*2] ~ hh [hh*2] hh]>',
+    open_hat: '~ oh ~ oh',
+    perc: '<[~ ~ ~ rim ~ ~ rim ~] [~ ~ rim ~ ~ ~ ~ rim]>',
+  },
+  drill: {
+    kick: '<[bd ~ ~ ~ ~ ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~] [bd ~ ~ ~ ~ ~ bd ~ ~ ~ ~ ~ ~ bd ~ ~]>',
+    snare: '<[~ ~ ~ ~ ~ ~ cp ~ ~ ~ ~ ~ ~ ~ ~ cp] [~ ~ ~ ~ ~ ~ cp ~ ~ ~ ~ ~ ~ cp ~ ~]>',
+    hihat: '<[hh ~ ~ hh ~ ~ hh ~ hh ~ ~ hh ~ ~ hh ~] [hh ~ ~ hh ~ ~ hh ~ hh ~ hh ~ hh ~ ~ hh]>',
+    hihat_rolls: '<[hh ~ ~ hh ~ ~ [hh*3] ~ hh ~ ~ hh ~ ~ hh ~] [hh ~ ~ hh ~ ~ hh ~ hh ~ [hh*3] ~ hh ~ [hh*2] hh]>',
+    open_hat: '<[~ ~ ~ ~ ~ ~ ~ ~ ~ oh ~ ~ ~ ~ ~ ~] [~ ~ ~ ~ ~ ~ ~ ~ ~ oh ~ ~ ~ ~ ~ ~]>',
+    perc: '<[~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ sh ~ ~ ~] [~ ~ ~ sh ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ sh ~]>',
+  },
+  pop: {
+    kick: '<[bd ~ ~ bd ~ ~ bd ~] [bd ~ ~ bd ~ bd ~ ~]>',
+    snare: '<[~ cp ~ cp] [~ cp ~ cp]>',
+    hihat: '<[hh hh hh hh hh hh hh hh] [hh hh hh hh hh hh hh hh]>',
+    hihat_rolls: '<[hh hh hh hh hh hh [hh*2] hh] [hh hh hh hh hh [hh*2] hh hh]>',
+    open_hat: '<[~ ~ ~ ~ ~ ~ ~ oh] [~ ~ ~ ~ ~ ~ ~ oh]>',
+    perc: '<[~ ~ sh ~ ~ ~ sh ~] [~ ~ sh ~ ~ ~ sh ~]>',
+  },
+  ambient: {
+    kick: '<[bd ~ ~ ~] [~ ~ ~ ~]>',
+    snare: '<[~ ~ ~ ~] [~ ~ cp ~]>',
+    hihat: '<[hh ~ hh ~] [hh ~ ~ hh]>',
+    hihat_rolls: '<[hh ~ hh ~] [hh ~ hh [hh*2]]>',
+    open_hat: '~ ~ ~ ~',
+    perc: '<[~ ~ ~ rim] [~ ~ ~ ~]>',
+  },
 };
 
 // Qualités d'accords -> intervalles depuis la fondamentale (pour snaper la basse sur la grille)
@@ -70,18 +121,49 @@ export function parseChordPcs(sym) {
   return q.map((i) => (root + i) % 12);
 }
 
-// Parse une séquence de degrés ("1 ~ [3 5] <7 1>") -> liste de tokens midi|null (rest)
+// Parse une séquence de degrés ("0 _ _ ~ 2@2 [3 5] <7 1>") -> liste de tokens {v: midi|null|number[], w: weight}
+// Supporte `_` (prolongation de la note précédente, essentiel pour phrasés mélodiques lents/expressifs)
+// et `@N` (durée N pas, ex. `0@3 ~ 2@2`).
+function parseDegToken(raw, tonic, scale) {
+  const m = /^(-?\d+)(?:@(\d+(?:\.\d+)?))?$/.exec(raw);
+  if (m) return { v: degToMidi(m[1], tonic, scale), w: m[2] ? Number(m[2]) : 1 };
+  return { v: degToMidi(raw, tonic, scale), w: 1 };
+}
+
 function parseDegSeq(src, tonic, scale) {
   const out = [];
   let i = 0;
   while (i < src.length) {
     const ch = src[i];
     if (/\s/.test(ch)) { i++; continue; }
-    if (ch === '~') { out.push(null); i++; continue; }
+    if (ch === '~') {
+      let j = i + 1;
+      let w = 1;
+      if (src[j] === '@') {
+        let k = j + 1;
+        while (k < src.length && /[\d.]/.test(src[k])) k++;
+        w = Number(src.slice(j + 1, k)) || 1;
+        j = k;
+      }
+      out.push({ v: null, w });
+      i = j;
+      continue;
+    }
+    if (ch === '_') {
+      // Prolonge la note précédente (ou silence si aucun token avant)
+      if (out.length) out[out.length - 1].w += 1;
+      else out.push({ v: null, w: 1 });
+      i++;
+      continue;
+    }
     if (ch === '<') {
       let j = src.indexOf('>', i);
       const inner = src.slice(i + 1, j < 0 ? src.length : j);
-      for (const t of inner.split(/\s+/).filter(Boolean)) out.push(t === '~' ? null : degToMidi(t, tonic, scale));
+      for (const t of inner.split(/\s+/).filter(Boolean)) {
+        if (t === '~') out.push({ v: null, w: 1 });
+        else if (t === '_') { if (out.length) out[out.length - 1].w += 1; else out.push({ v: null, w: 1 }); }
+        else out.push(parseDegToken(t, tonic, scale));
+      }
       i = (j < 0 ? src.length : j + 1);
       continue;
     }
@@ -89,25 +171,29 @@ function parseDegSeq(src, tonic, scale) {
       let j = src.indexOf(']', i);
       const inner = src.slice(i + 1, j < 0 ? src.length : j);
       const ms = inner.split(/\s+/).filter(Boolean).map((t) => degToMidi(t, tonic, scale));
-      out.push(ms); // accord (liste)
+      out.push({ v: ms, w: 1 }); // accord (liste)
       i = (j < 0 ? src.length : j + 1);
       continue;
     }
     let j = i;
-    while (j < src.length && !/[\s~\[\]<]/.test(src[j])) j++;
-    out.push(degToMidi(src.slice(i, j), tonic, scale));
+    while (j < src.length && !/[\s~\[\]<_]/.test(src[j])) j++;
+    out.push(parseDegToken(src.slice(i, j), tonic, scale));
     i = j;
   }
   return out;
 }
 
 function seqToNoteString(tokens) {
-  // tokens: (number|null|number[]) par pas ; rend une mini-notation note("...")
+  // tokens: ({v: number|null|number[], w: number}) ou legacy (number|null|number[])
   const parts = [];
-  for (const tk of tokens) {
-    if (tk === null) parts.push('~');
-    else if (Array.isArray(tk)) parts.push('[' + tk.map(midiToName).join(',') + ']');
-    else parts.push(midiToName(tk));
+  for (const item of tokens) {
+    const isObj = item !== null && typeof item === 'object' && !Array.isArray(item) && 'v' in item;
+    const tk = isObj ? item.v : item;
+    const w = isObj && item.w && item.w !== 1 ? item.w : 1;
+    const suffix = w !== 1 ? `@${w}` : '';
+    if (tk === null) parts.push('~' + suffix);
+    else if (Array.isArray(tk)) parts.push('[' + tk.map(midiToName).join(',') + ']' + suffix);
+    else parts.push(midiToName(tk) + suffix);
   }
   return parts.join(' ');
 }
@@ -173,6 +259,53 @@ export function installPrelude(core, meta) {
     return core.note(seqToNoteString(parseDegSeq(String(seq).trim(), tonic, scale)));
   };
 
+  // v4.4 — arpège harmonique synchronisé sur la grille courante (__strudel_grid) :
+  // indices 0=fondamentale, 1=tierce, 2=quinte, 3=septième, 4=octave ; supporte `~` et `_`.
+  // Produit 0 clash b2 garanti et enrichit immédiatement l'arrangement (couche $arp / $counter).
+  g.arp = (seq, octave = 4) => {
+    const m = g.__strudel_meta || {};
+    const gridSyms = Array.isArray(g.__strudel_grid) && g.__strudel_grid.length ? g.__strudel_grid : null;
+    const raw = String(seq || '0 ~ 2 ~ 1 ~ 2 ~').trim();
+    const tonic = keyToTonicMidi(m.key || 'C', octave);
+    const scale = SCALES[String(m.mode || 'minor').toLowerCase()] || SCALES.minor;
+    if (!gridSyms) return core.note(seqToNoteString(parseDegSeq(raw, tonic, scale)));
+    // Parse indices (0..7) + ~ + _
+    const rawSteps = [];
+    for (const tok of raw.replace(/[<>]/g, ' ').split(/\s+/).filter(Boolean)) {
+      if (tok === '~') rawSteps.push({ idx: null, w: 1 });
+      else if (tok === '_') { if (rawSteps.length) rawSteps[rawSteps.length - 1].w += 1; else rawSteps.push({ idx: null, w: 1 }); }
+      else {
+        const mm = /^(-?\d+)(?:@(\d+(?:\.\d+)?))?$/.exec(tok);
+        rawSteps.push({ idx: mm ? parseInt(mm[1], 10) : 0, w: mm && mm[2] ? Number(mm[2]) : 1 });
+      }
+    }
+    const baseOct = 12 * (Number(octave) + 1);
+    const barsPat = [];
+    for (const sym of gridSyms) {
+      const pcs = parseChordPcs(sym) || [tonic % 12, (tonic + 3) % 12, (tonic + 7) % 12];
+      // Construire une échelle montante des tons de l'accord à partir de la fondamentale
+      const rootPc = pcs[0];
+      const chordUp = [rootPc];
+      for (let k = 1; k < pcs.length; k++) {
+        let p = pcs[k];
+        while (p <= chordUp[chordUp.length - 1]) p += 12;
+        chordUp.push(p);
+      }
+      const barToks = rawSteps.map((st) => {
+        if (st.idx === null) return { v: null, w: st.w };
+        const n = chordUp.length;
+        const octShift = Math.floor(st.idx / n);
+        const ci = ((st.idx % n) + n) % n;
+        let midi = baseOct + chordUp[ci] + 12 * octShift;
+        while (midi > 74) midi -= 12;
+        while (midi < 48) midi += 12;
+        return { v: midi, w: st.w };
+      });
+      barsPat.push('[' + seqToNoteString(barToks) + ']');
+    }
+    return core.note('<' + barsPat.join(' ') + '>');
+  };
+
   // v4.1 — basse en degrés, snappée sur la grille __strudel_grid, pliée dans [31,48] à la source
   g.bassline = (seq, opts = {}) => {
     const m = g.__strudel_meta || {};
@@ -184,17 +317,24 @@ export function installPrelude(core, meta) {
     let tokens = parseDegSeq(String(seq).trim(), tonic, scale);
     if (mode === 'root' && gridSyms && gridSyms.length) {
       // chaque pas non-repos = fondamentale de l'accord de la mesure courante, pliée [31,48]
-      const nSteps = tokens.length || 1;
-      tokens = tokens.map((tk, idx) => {
-        if (tk === null) return null;
-        const barIdx = Math.floor((idx / Math.max(1, nSteps)) * gridSyms.length) % gridSyms.length;
+      const totalW = tokens.reduce((a, t) => a + (t.w || 1), 0) || 1;
+      let accW = 0;
+      tokens = tokens.map((tk) => {
+        const w = tk.w || 1;
+        const cur = accW;
+        accW += w;
+        if (tk.v === null) return { v: null, w };
+        const barIdx = Math.floor((cur / totalW) * gridSyms.length) % gridSyms.length;
         const pcs = parseChordPcs(gridSyms[barIdx]);
         const rootPc = pcs ? pcs[0] : tonic % 12;
-        let p = rootPc + 12 * 3; // octave 3 -> 36..47
-        return foldBass(p);
+        const p = rootPc + 12 * 3; // octave 3 -> 36..47
+        return { v: foldBass(p), w };
       });
     } else {
-      tokens = tokens.map((tk) => (tk === null ? null : Array.isArray(tk) ? tk.map(foldBass) : foldBass(tk)));
+      tokens = tokens.map((tk) => ({
+        v: tk.v === null ? null : Array.isArray(tk.v) ? tk.v.map(foldBass) : foldBass(tk.v),
+        w: tk.w || 1,
+      }));
     }
     let pat = core.note(seqToNoteString(tokens));
     const glideMs = Number(opts.glide || 0);
@@ -202,14 +342,47 @@ export function installPrelude(core, meta) {
     return pat;
   };
 
-  // v4.1 — kit atomique : enregistre $kick/$snare/$hihat/$perc séparés (1 piste = 1 rôle)
+  // v4.4 — kit atomique pro : enregistre $kick/$snare/$hihat/$open_hat/$perc séparés (1 piste = 1 rôle)
+  // avec vrai groove 2 mesures, rolls ponctuels, backbeat protégé et présence par section intelligente.
   g.kit = (name, opts = {}) => {
     const spec = KITS[String(name)] || KITS.trap_half;
-    for (const [role, patStr] of Object.entries(spec)) {
+    const m = g.__strudel_meta || {};
+    const secs = Array.isArray(m.sections) ? m.sections : [];
+    const secNames = new Set(secs.map((s) => String(s.name || '').toLowerCase()));
+    const hasMultiSec = secs.length >= 3 && (secNames.has('verse') || secNames.has('chorus') || secNames.has('drop'));
+    const kitSecMap = (g.__strudel_kit_sections = g.__strudel_kit_sections || {});
+    const rolesOrder = ['kick', 'snare', 'hihat', 'open_hat', 'perc'];
+
+    for (const role of rolesOrder) {
+      let patStr = role === 'hihat' && opts.hats === 'rolls' && spec.hihat_rolls ? spec.hihat_rolls : spec[role];
+      if (!patStr || /^[\s~]+$/.test(patStr)) continue;
       let p = core.s(patStr);
-      if (opts.hats === 'rolls' && role === 'hihat') p = core.s('hh*16').sometimesBy(0.3, (x) => x.degradeBy(0.4));
-      if (opts.var) p = p.sometimesBy(Math.min(0.5, Number(opts.var) / 10), (x) => x.degradeBy(0.5));
+      // Ne JAMAIS détruire le backbeat (kick/snare) par degradeBy ! Variation douce sur hats/perc/open_hat seuls.
+      if (opts.var && (role === 'hihat' || role === 'perc' || role === 'open_hat')) {
+        const prob = Math.min(0.28, Number(opts.var) * 0.08);
+        p = p.sometimesBy(prob, (x) => x.degradeBy(0.30));
+      }
       g.__strudel_kit[role] = p;
+      // Présence automatique par section (surchargeable via opts.full / opts.intro / opts.outro)
+      if (hasMultiSec && !opts.full) {
+        if (role === 'open_hat') {
+          const targets = ['chorus', 'drop', 'hook', 'climax'].filter((s) => secNames.has(s));
+          if (targets.length) kitSecMap[role] = { mode: 'in', names: targets };
+        } else if (role === 'perc') {
+          const muted = ['intro', 'outro'].filter((s) => secNames.has(s));
+          if (muted.length) kitSecMap[role] = { mode: 'mute', names: muted };
+        } else if (role === 'hihat') {
+          const muted = [opts.intro === 'hats' ? null : 'intro', 'outro'].filter((s) => s && secNames.has(s));
+          if (muted.length) kitSecMap[role] = { mode: 'mute', names: muted };
+        } else if (role === 'kick' || role === 'snare') {
+          const muted = [
+            opts.intro === 'drums' ? null : 'intro',
+            opts.outro === 'drums' ? null : 'outro',
+            role === 'kick' && opts.bridge !== 'drums' ? 'bridge' : null,
+          ].filter((s) => s && secNames.has(s));
+          if (muted.length) kitSecMap[role] = { mode: 'mute', names: muted };
+        }
+      }
     }
     // v4.3 (D5) — banque de grooves minés localement (listés par studio_prepare) :
     // kit("trap_half", { groove: "trap_dark_03", var: 2, hats: "rolls" })

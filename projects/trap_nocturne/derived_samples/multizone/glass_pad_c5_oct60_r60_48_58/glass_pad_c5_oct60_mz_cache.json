@@ -1,0 +1,36 @@
+{
+  "base_midi": 60,
+  "zones": [
+    [
+      48,
+      53
+    ],
+    [
+      54,
+      58
+    ]
+  ],
+  "src_mtime": 1795757282.6202958,
+  "entries": [
+    {
+      "wav_path": "/home/gamo/Bureau/musicamical/projects/trap_nocturne/derived_samples/multizone/glass_pad_c5_oct60_r60_48_58/glass_pad_c5_oct60_zone1_midi50.wav",
+      "zone": [
+        48,
+        53
+      ],
+      "base_midi": 50,
+      "shift_from_source_st": -10.0,
+      "tuning_ct": 0.0
+    },
+    {
+      "wav_path": "/home/gamo/Bureau/musicamical/projects/trap_nocturne/derived_samples/multizone/glass_pad_c5_oct60_r60_48_58/glass_pad_c5_oct60_zone2_midi56.wav",
+      "zone": [
+        54,
+        58
+      ],
+      "base_midi": 56,
+      "shift_from_source_st": -4.0,
+      "tuning_ct": -1.6
+    }
+  ]
+}

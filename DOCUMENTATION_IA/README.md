@@ -1,28 +1,32 @@
-# DOCUMENTATION_IA — Runbook Production v4.3 (2 documents, <= 750 tokens)
+# DOCUMENTATION_IA — Runbook Production v4.4 (2 documents, <= 750 tokens)
 
-Seule lecture pour produire un morceau (remplace les 5 docs dev [`docs/`](../docs/00_SOMMAIRE.md)) : **2 documents** — ce fichier (`README.md`, préfixe 100 % statique) + [01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md](01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md) (guide complet : Strudel, façade 3 outils, diagnostic timbres, bonnes pratiques).
+Seule lecture pour produire un morceau (remplace [`docs/`](../docs/00_SOMMAIRE.md)) : **2 documents** — ce `README.md` + [01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md](01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md) (architecture 8–10 pistes, phrasé Lead lent `_`, Strudel, façade 3 outils, qualité timbrale).
 
 ## Flux (1 appel `auto_prepare=true`, ou 2 si B/C/D)
-1. `studio_prepare(project_dir, intent)` — **Scénarios B/C/D seuls** (`Samples/`, `remix`, `lyrics`). Toujours `project_dir="projects/<nom>"`.
-2. `studio_compose(project_dir, strudel_code, palette_id="auto", intent="...", auto_master=true, auto_prepare=true, render_mode="full")` → eval Node → `ScoreIR` → **vrais samples `samples/` en priorité absolue** → boucle ascendante 4 niveaux (0 token) → master + `handoff.txt` (`palette=… samples=N/N`, `BU=PASS(4/4)`). `intent=` (ou `@meta intent="..."`) pilote la palette ; `render_mode="preview"` = validation complète + sonde 12 mesures, sans rendu full.
-3. Retouche : `studio_refine(project_dir, semantic_patch={"lead": {"oct": -1, "rests": "+15%"}})` ou `strudel_patch={"replace_track":"lead","code":"..."}`.
+1. `studio_prepare(project_dir, intent)` — **Scénarios B/C/D seuls** (`Samples/`, `remix`, `lyrics`). `project_dir="projects/<nom>"`.
+2. `studio_compose(project_dir, strudel_code, palette_id="auto", intent="...", auto_master=true, auto_prepare=true)` → Node → `ScoreIR` → **vrais samples** → multi-zone (`<= ±3 st`) → `BU=PASS(4/4)` → master + `handoff.txt`.
+3. Retouche : `studio_refine(project_dir, semantic_patch={"lead":{"oct":-1,"rests":"+15%"}})` ou `strudel_patch={"replace_track":"lead","code":"..."}`.
 
-## Contrat `composition.strudel` & syntaxe (NE PAS copier la mélodie/grille !)
-- En-tête 1 ligne : `// @meta 140 C:minor trap_rap V=-0.6 form=I4-V8-C8-O4 [seed=1337] [ts=4/4] [dur=180s] [intent="..."]` ; durée : `bars = round(dur_s * bpm / (60 * B_bar))`, `B_bar = num*4/den` (4/4→4, 3/4→3, 6/8→3).
-- **Originalité obligatoire** : varier tonalité, progression, BPM, `kit(...)`, motif Lead. Primitives seules : `grid(...)`, `sectionGrid({...})`, `deg(...)`, `bassline(...)`, `kit(...)`, `transition(...)`, `.in()/.only()/.muteIn()/.lift()`.
+## Contrat `composition.strudel` (8–10 pistes — varier tonalité, grille, BPM, motif !)
+- `// @meta 140 C:minor trap_rap V=-0.6 T=0.7 E=0.75 D=0.7 form=I4-V12-C8-V12-B4-C8-O4 [dur=120s] [intent="..."]`
+- `kit(...)` émet **5 pistes** (`kick` syncopé 2 mes., `snare`, `hihat` rolls ponctuels, `open_hat` refrain, `perc` — silencieux auto en intro/outro) + **4–5 tonales** (`$chords`, `$pad`, `$arp`, `$bass`, `$lead`) + `transition(...)`.
+- **Lead lent & aéré** : `_` (tenue) + `.slow(4)` (`0.7–1.8 notes/s`, silences `35–68 %`, `>= 5` hauteurs) — **JAMAIS** de croches `.slow(2)` en boucle !
 
 ```js
-// @meta 140 C:minor trap_rap V=-0.6 form=I4-V8-C8-O4
+// @meta 140 C:minor trap_rap V=-0.6 T=0.7 E=0.75 D=0.7 form=I4-V12-C8-V12-B4-C8-O4 intent="dark melodic trap 808 hypnotic bell pad"
 kit("trap_half", {var: 2, hats: "rolls"})
-$chords: grid("Cm7 Abmaj7 Fm7 G7").slow(2).gain(0.7).muteIn("intro,outro")
-$bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 40}).slow(4).in("verse,chorus,outro")
-$lead: deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.6).in("verse,chorus")
+transition("before:chorus", "drum_fill_and_riser", {style: "snare_roll"})
+$chords: sectionGrid({default: "Cm7 Abmaj7 Fm7 G7", bridge: "Abmaj7 Ebmaj7 Fm7 G7"}).slow(2).gain(0.68)
+$pad: sectionGrid({default: "Cm7 Abmaj7 Fm7 G7", bridge: "Abmaj7 Ebmaj7 Fm7 G7"}).slow(2).gain(0.42).in("intro,chorus,bridge,outro")
+$arp: arp("0 ~ 2 ~ 1 ~ 3 ~", 4).slow(2).gain(0.40).in("verse,chorus,bridge")
+$bass: bassline("<1 _ ~ 1 ~ 1 _ ~>", {mode: "root", glide: 45}).slow(2).in("verse,chorus")
+$lead: deg("0 _ _ ~ 3 _ 2 ~ 0 _ ~ ~ 2 _ 4 _ 3 _ 2 _ 0 _ ~ ~", 4).slow(4).gain(0.58).only("chorus")
 ```
 
 ## 6 règles absolues
-1. `1 piste $ = 1 rôle atomique` ; jamais de notes brutes.
-2. Toujours `project_dir="projects/<nom>"` et `@meta` avec `form=` + `.in()`/`.muteIn()`.
-3. **100 % vrais samples `samples/`** (`palette_id="auto"` ; `samples=N/N`, `BU=PASS(4/4)` dans `handoff.txt`) ; `clap=OFF(dsp_fallback)` = filtrage sémantique dégradé.
-4. Production = MCP `ai-studio-prod` seul (3 outils, < 1 800 tokens) ; jamais les 5 serveurs bas niveau.
-5. Pré-flight 0 rendu : `preflight_strudel_gate.py <projet>` (`gf>=0.60`, `sw>=0.65`, `rest 0.20-0.50`) ; lint ≤ 2 lignes `ERR L..:..`.
-6. v4.3 : **plus de redémarrage de session après `git pull`** (worker MCP éphémère) ; `RESTART session agent` ne survient plus que si la signature des 3 outils change.
+1. `8–10 pistes atomiques` (`1 $ = 1 rôle`, 0 note brute) ; intro/outro harmoniques, refrain enrichi (`$open_hat`+`$pad`+`$lead`).
+2. **Lead anti-mitraillette** : `_` + `.slow(4)`, `0.7–1.8 notes/s`, `rest ∈ [0.20, 0.72]`, `.only("chorus")` ou question-réponse.
+3. **Vrais samples `samples/`** (`palette_id="auto"`, `intent=` → `samples=N/N`, `BU=PASS(4/4)`, `safety=0err`).
+4. MCP `ai-studio-prod` seul (3 outils, < 1 800 tokens) ; `project_dir="projects/<nom>"`.
+5. Pré-flight 0 rendu : `preflight_strudel_gate.py <projet>` (`gf>=0.60`, `sw>=0.65`, `lead_not_frantic=PASS`).
+6. Worker MCP éphémère : pas de redémarrage après `git pull`.

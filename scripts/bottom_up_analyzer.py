@@ -307,6 +307,9 @@ def analyze_chords_level(
 
     for tk in harm_tracks:
         notes = tracks[tk].get("notes") or []
+        tr_bp = bp_by_name.get(tk) or {}
+        tk_root = int(tr_bp["root_note"]) if tr_bp.get("root_note") is not None else sample_center
+        tk_multizone = bool(tr_bp.get("multizone"))
         by_onset: dict[float, list[dict[str, Any]]] = {}
         for n in notes:
             beat_val = n.get("grid_beat", n.get("start", n.get("start_beat", 0.0)))
@@ -346,15 +349,15 @@ def analyze_chords_level(
             if probs:
                 issues.append({"track": tk, "beat": ons, "code": "chord_voicing_issue", "detail": probs})
 
-            # Distance au centre du sample chords/pad (vérification de placement sample <-> accord)
-            if pitches:
-                span_from_root = max(abs(p - sample_center) for p in pitches)
+            # Distance au centre du sample PROPRE à cette piste (ignorée si multizone actif <= ±3 st/zone)
+            if pitches and not tk_multizone:
+                span_from_root = max(abs(p - tk_root) for p in pitches)
                 if span_from_root > 12:
                     issues.append({
                         "track": tk,
                         "beat": ons,
                         "code": "chord_far_from_sample_root",
-                        "detail": f"max_shift={span_from_root}st vs sample_root={sample_center}",
+                        "detail": f"max_shift={span_from_root}st vs sample_root={tk_root}",
                     })
 
             if prev_voicing and pitches:
@@ -488,6 +491,35 @@ def analyze_tracks_level(
                 else:
                     tinfo["status"] = "FAIL"
                     issues.append({"track": tname, "code": "lead_apex_above_74", "detail": f"apex={apex}"})
+            # v4.4 : garde-fou anti-Lead mitraillette / monocorde (diagnostic qualité mélodique)
+            if role == "lead" and len(sorted_n) >= 16:
+                st_beats = sorted({round(float(n.get(start_k, 0.0)), 4) for n in sorted_n})
+                iois = [st_beats[i + 1] - st_beats[i] for i in range(len(st_beats) - 1) if st_beats[i + 1] - st_beats[i] > 0.01]
+                durs_l = [float(n.get(dur_k, 0.5)) for n in sorted_n]
+                bars_act = max(1, len({int(s // max(1, beats_per_bar)) for s in st_beats}))
+                rate_nps = len(st_beats) / max(0.25, bars_act * beats_per_bar * (60.0 / max(40.0, bpm)))
+                med_ioi = sorted(iois)[len(iois) // 2] if iois else 1.0
+                mean_d = sum(durs_l) / len(durs_l)
+                std_d = (sum((d - mean_d) ** 2 for d in durs_l) / len(durs_l)) ** 0.5
+                dur_cv = std_d / max(1e-6, mean_d)
+                uniq_p = len(set(pitches))
+                tinfo["notes_per_sec"] = round(rate_nps, 2)
+                tinfo["med_ioi_beats"] = round(med_ioi, 2)
+                tinfo["unique_pitches"] = uniq_p
+                if rate_nps > 2.8 and med_ioi <= 0.52 and dur_cv < 0.08:
+                    tinfo["status"] = "WARN"
+                    issues.append({
+                        "track": tname,
+                        "code": "lead_too_fast_robotic",
+                        "detail": f"rate={rate_nps:.2f}/s med_ioi={med_ioi:.2f}b dur_cv={dur_cv:.2f} (utiliser notes tenues '_' et .slow(4))",
+                    })
+                if uniq_p < 4:
+                    tinfo["status"] = "WARN"
+                    issues.append({
+                        "track": tname,
+                        "code": "lead_too_narrow",
+                        "detail": f"seulement {uniq_p} hauteurs uniques (viser >= 5 notes avec phrasé varié)",
+                    })
 
             # Frottements b2 contre l'accord courant
             b2_clashes = 0
@@ -561,12 +593,27 @@ def analyze_song_level(
     empty_secs = [s.get("name") or s.get("section") for s in sections if "active_roles" in s and not s["active_roles"]]
     if empty_secs:
         issues.append({"code": "empty_sections", "detail": empty_secs})
+    # 5 pistes batterie atomiques (kick/snare/hihat/open_hat/perc) = 1 foyer rythmique (Invariant #4) ;
+    # autoriser jusqu'à 10 pistes atomiques simultanées au refrain (<= 5 couches mélodico-harmoniques).
+    _DRUM_NAMES = {"kick", "snare", "clap", "hihat", "hat", "open_hat", "ohat", "perc", "rim"}
     max_simultaneous = max((len(s.get("active_roles") or []) for s in sections), default=0)
+    max_tonal_simultaneous = max(
+        (sum(1 for r in (s.get("active_roles") or []) if str(r).lower() not in _DRUM_NAMES) for s in sections),
+        default=0,
+    )
     metrics["max_simultaneous_tracks"] = max_simultaneous
-    if max_simultaneous > 8:
-        issues.append({"code": "cognitive_ceiling_exceeded", "detail": f"{max_simultaneous} > 8 pistes simultanées"})
+    metrics["max_tonal_simultaneous"] = max_tonal_simultaneous
+    if max_simultaneous > 10 or max_tonal_simultaneous > 5:
+        issues.append({
+            "code": "cognitive_ceiling_exceeded",
+            "detail": f"{max_simultaneous} pistes ({max_tonal_simultaneous} tonales) > plafond (10 total / 5 tonales)",
+        })
 
-    # 2) Cohérence timbrale inter-pistes (Bark24 + relais d'attaques)
+    # 2) Cohérence timbrale inter-pistes (Bark24 + relais d'attaques — uniquement sur les pistes actives !)
+    active_ir_tracks = {
+        str(k).lower() for k, v in ((score_ir or {}).get("tracks") or {}).items()
+        if isinstance(v, dict) and (v.get("notes") or [])
+    }
     cat_path = catalog_path or resolve_catalog_path(project_dir, bp=bp)
     cat_idx = _build_catalog_index(cat_path)
     pal_items: list[dict[str, Any]] = []
@@ -575,6 +622,8 @@ def analyze_song_level(
         if not isinstance(tr, dict):
             continue
         name = str(tr.get("name") or tr.get("role") or "").lower()
+        if active_ir_tracks and name not in active_ir_tracks:
+            continue  # ne jamais auditer une piste orpheline à 0 note
         slot = DEFAULT_SLOT_FOR.get(name, str(tr.get("role") or name).lower())
         sp = str(tr.get("sample_path") or "")
         if sp:

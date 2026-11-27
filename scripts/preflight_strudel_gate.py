@@ -121,7 +121,7 @@ def preflight_from_score(score, bpm: float = 120.0, tracks: dict | None = None,
     top = _extract_monophonic_topline(lead_notes)
     sw, gf, amb = _compute_stepwise_and_gap_fill(top, sec_per_beat=spb)
     end_time = max((n.end for n in lead_notes), default=0.0)
-    rr = _compute_rest_ratio(lead_notes, end_time)
+    rr = _compute_rest_ratio(lead_notes, end_time, sec_per_beat=spb)
     cor = _compute_contrary_oblique_ratio(top, bass_notes) if len(bass_notes) >= 2 else None
 
     diffs = [top[i + 1].pitch - top[i].pitch for i in range(len(top) - 1)]
@@ -150,6 +150,24 @@ def preflight_from_score(score, bpm: float = 120.0, tracks: dict | None = None,
                 remaining_b2 += 1
 
     th = MusicalityThresholds()
+    # v4.4 : métriques de densité & phrasé du Lead (détecte les leads mitraillette / monocordes)
+    lead_iois_b = [
+        (top[i + 1].start - top[i].start) / spb
+        for i in range(len(top) - 1)
+        if (top[i + 1].start - top[i].start) > 0.01
+    ]
+    lead_durs_b = [(n.end - n.start) / spb for n in top]
+    lead_med_ioi_b = sorted(lead_iois_b)[len(lead_iois_b) // 2] if lead_iois_b else 0.0
+    lead_bars_act = max(1, len({int(n.start / (spb * max(1, _bpb))) for n in top})) if top else 1
+    lead_nps = len(top) / max(0.25, lead_bars_act * _bpb * spb) if top else 0.0
+    lead_uniq_p = len({n.pitch for n in top})
+    lead_mean_d = (sum(lead_durs_b) / len(lead_durs_b)) if lead_durs_b else 0.0
+    lead_dur_cv = (
+        ((sum((d - lead_mean_d) ** 2 for d in lead_durs_b) / len(lead_durs_b)) ** 0.5) / max(1e-6, lead_mean_d)
+        if lead_durs_b else 0.0
+    )
+    lead_frantic = bool(len(top) >= 16 and lead_nps > 2.8 and lead_med_ioi_b <= 0.52 and lead_dur_cv < 0.08)
+
     checks = {
         "stepwise_ratio": {"value": sw, "min": th.stepwise_ratio_min, "pass": bool(sw >= th.stepwise_ratio_min)},
         "gap_fill": {"value": gf, "min": th.gap_fill_min, "pass": bool(gf >= th.gap_fill_min)},
@@ -158,11 +176,17 @@ def preflight_from_score(score, bpm: float = 120.0, tracks: dict | None = None,
         "contrary_or_oblique_ratio": {"value": cor, "min": th.contrary_oblique_min,
                                       "pass": True if cor is None else bool(cor >= th.contrary_oblique_min)},
         "b2_clashes_remaining": {"value": remaining_b2, "pass": remaining_b2 == 0},
+        "lead_not_frantic": {"value": round(lead_nps, 2), "med_ioi_beats": round(lead_med_ioi_b, 2),
+                             "dur_cv": round(lead_dur_cv, 2), "unique_pitches": lead_uniq_p,
+                             "pass": not lead_frantic},
     }
     return {
         "passed": all(c["pass"] for c in checks.values()),
         "n_lead_notes": len(top),
         "ambitus": amb,
+        "lead_notes_per_sec": round(lead_nps, 2),
+        "lead_med_ioi_beats": round(lead_med_ioi_b, 2),
+        "lead_unique_pitches": lead_uniq_p,
         "checks": checks,
         "bad_leaps": bad_leaps[:20],
         "n_bad_leaps": len(bad_leaps),

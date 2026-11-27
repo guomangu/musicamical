@@ -1,0 +1,5 @@
+// @meta 152 D:minor trap_rap V=-0.3 T=0.8 E=0.9 D=0.6 form=I4-V16-C8-V16-C8-B8-C8-O8 dur=120s seed=2022 intent="hard aggressive heavy 808 brass synth trap"
+kit("trap_full", {var: 3, hats: "rolls"})
+$chords: sectionGrid({default: "Dm7 Bb Gm7 Dm", bridge: "Gm7 Dm Bb Dm7"}).slow(2).gain(0.75).muteIn("intro,outro")
+$bass: bassline("<1 1 ~ 1 ~ 1 1 ~>", {mode: "root", glide: 30}).slow(4).in("verse,chorus,outro")
+$lead: deg("0 2 3 2 ~ 0 3 2 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.68).in("verse,chorus")

@@ -1,0 +1,374 @@
+{
+  "title": "trap_nocturne",
+  "genre": "trap_rap",
+  "mix_profile": "trap_rap",
+  "has_drums": true,
+  "seed": 1011,
+  "emotion_vector": {
+    "valence": -0.6,
+    "tension": 0.7,
+    "energy": 0.7,
+    "depth": 0.7
+  },
+  "intent": "dark nocturnal melodic trap piano bell 808",
+  "bpm": 136.0,
+  "time_signature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "key": "F",
+  "harmonic_core": {
+    "key": "F",
+    "mode": "minor",
+    "progression_bars": 1,
+    "chord_progression": [
+      {
+        "bar": 1,
+        "symbol": "Fm7",
+        "bass_midi": 41,
+        "voicing_midi": [
+          65,
+          68,
+          72
+        ]
+      },
+      {
+        "bar": 2,
+        "symbol": "Dbmaj7",
+        "bass_midi": 37,
+        "voicing_midi": [
+          61,
+          64,
+          68
+        ]
+      },
+      {
+        "bar": 3,
+        "symbol": "Bbm7",
+        "bass_midi": 46,
+        "voicing_midi": [
+          70,
+          73,
+          77
+        ]
+      },
+      {
+        "bar": 4,
+        "symbol": "C7",
+        "bass_midi": 36,
+        "voicing_midi": [
+          60,
+          63,
+          67
+        ]
+      }
+    ],
+    "motif_cell": {
+      "intervals_from_tonic": [
+        0,
+        3,
+        7
+      ],
+      "rhythm_beats": [
+        0,
+        2
+      ],
+      "apex_midi": 67
+    },
+    "phrase_plan": "A-A'-A''-B",
+    "section_progressions": {
+      "intro": [
+        "i7",
+        "bVImaj7",
+        "iv7",
+        "V7"
+      ],
+      "verse": [
+        "i7",
+        "bVImaj7",
+        "iv7",
+        "V7"
+      ],
+      "chorus": [
+        "i7",
+        "bVImaj7",
+        "iv7",
+        "V7"
+      ],
+      "bridge": [
+        "iv7",
+        "i7",
+        "bVImaj7",
+        "V7"
+      ],
+      "outro": [
+        "i7",
+        "bVImaj7",
+        "iv7",
+        "V7"
+      ]
+    }
+  },
+  "structure": [
+    {
+      "section": "intro",
+      "start_bar": 1,
+      "bars": 4,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 5,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 21,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 29,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "bridge",
+      "start_bar": 45,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 53,
+      "bars": 12,
+      "energy": 0.7
+    },
+    {
+      "section": "outro",
+      "start_bar": 65,
+      "bars": 4,
+      "energy": 0.7
+    }
+  ],
+  "tracks": [
+    {
+      "name": "chords",
+      "role": "chords",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 1,
+      "archetype": "trap_rap:chords",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/piano/headroom_piano_c4.wav",
+      "root_note": 60,
+      "multizone": true,
+      "fine_tune_ct": -5,
+      "plugin_params": {
+        "cutoff_hz": 5800.0,
+        "attack_ms": 8.0,
+        "release_ms": 180.0
+      }
+    },
+    {
+      "name": "pad",
+      "role": "chords",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 2,
+      "archetype": "trap_rap:pad",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/synth/glass_pad_c5.wav",
+      "root_note": 72,
+      "fine_tune_ct": -16,
+      "plugin_params": {
+        "cutoff_hz": 5800.0,
+        "attack_ms": 8.0,
+        "release_ms": 180.0
+      }
+    },
+    {
+      "name": "bass",
+      "role": "bass",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 3,
+      "archetype": "trap_rap:bass",
+      "sample_path": "/home/gamo/Bureau/musicamical/projects/trap_nocturne/derived_samples/808 Bass Am Warm_oct45.wav",
+      "root_note": 45,
+      "multizone": true,
+      "fine_tune_ct": -6,
+      "plugin_params": {
+        "attack_ms": 2.0,
+        "release_ms": 120.0
+      }
+    },
+    {
+      "name": "lead",
+      "role": "lead",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 4,
+      "archetype": "trap_rap:lead",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/piano/headroom_piano_lead_fs4.wav",
+      "root_note": 66,
+      "fine_tune_ct": -7,
+      "plugin_params": {
+        "cutoff_hz": 6500.0,
+        "attack_ms": 6.0,
+        "release_ms": 160.0
+      }
+    },
+    {
+      "name": "kick",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 5,
+      "archetype": "trap_rap:kick",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/JMizzy The Best Drum Kits/Nick Mira (Shows the Screen) Drumkit Re-Up to respect DMCA/Kicks/trapsylvania kick_2.wav",
+      "root_note": 36,
+      "fine_tune_ct": -4
+    },
+    {
+      "name": "snare",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 6,
+      "archetype": "trap_rap:snare",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/JMizzy The Best Drum Kits/Wheezy (Shows the Screen)  Drumkit/Percs/SUPAH_MARIO_percussion_digital_rim.wav",
+      "root_note": 38,
+      "fine_tune_ct": 0
+    },
+    {
+      "name": "hihat",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 7,
+      "archetype": "trap_rap:hihat",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/TriSamples_-_808_Trapstep_Pack_Vol_2/TriSamples - 808 Trapstep Pack Vol 2/Cymbals/HiHat Closed 014 Digi.wav",
+      "root_note": 42,
+      "fine_tune_ct": 0
+    },
+    {
+      "name": "perc",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 8,
+      "archetype": "trap_rap:perc",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/JMizzy The Best Drum Kits/Wheezy (Shows the Screen)  Drumkit/Percs/Poppin Perc_63.wav",
+      "root_note": 39,
+      "fine_tune_ct": 0
+    }
+  ],
+  "palette": {
+    "palette_id": "palette_C",
+    "score": 0.5863,
+    "quality_score": 0.6957,
+    "composite_score": {
+      "score": 0.5863,
+      "s_intent": 0.5862,
+      "s_coherence": 0.35,
+      "s_coverage": 1.0,
+      "p_fallback": 0.0,
+      "clap_off": false
+    },
+    "intent_score": 0.5862,
+    "intent": "dark nocturnal melodic trap piano bell 808",
+    "clap_coverage": 1.0,
+    "clap_off": false,
+    "sample_ratio": 1.0,
+    "theme": "hybrid",
+    "n_samples": 8,
+    "n_tracks_with_available_samples": 8,
+    "sample_coverage_ratio": 1.0,
+    "fallback_gate": "PASS",
+    "fallback_tracks": [],
+    "selection_trace": {
+      "mode": "db",
+      "user_samples_locked": false,
+      "roles": {},
+      "policy_excluded": {
+        "chord_keys": 8,
+        "pad_atmosphere": 7,
+        "bass_sub": 0,
+        "lead_melody": 0,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "range_excluded": {
+        "chord_keys": 2,
+        "pad_atmosphere": 0,
+        "bass_sub": 19,
+        "lead_melody": 3,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "pleasantness_excluded": {
+        "chord_keys": 0,
+        "pad_atmosphere": 14,
+        "bass_sub": 2,
+        "lead_melody": 11,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "gate_unmeasured": {
+        "chord_keys": 0,
+        "pad_atmosphere": 0,
+        "bass_sub": 0,
+        "lead_melody": 0,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "n_sample_candidates": {
+        "chord_keys": 10,
+        "pad_atmosphere": 11,
+        "bass_sub": 11,
+        "lead_melody": 15,
+        "kick": 32,
+        "snare_clap": 32,
+        "hihat_perc": 32
+      },
+      "total_excluded": 66
+    },
+    "timbre_coherence": {
+      "score": 0.35,
+      "max_bark_collision": 3.142738,
+      "pair_roughness": 0.0,
+      "notes": []
+    },
+    "project_samples_dir": null,
+    "user_samples_locked": false,
+    "sound_guard": {
+      "status": "OK",
+      "n_fixed": 0,
+      "summary_line": "sound_guard=OK"
+    },
+    "musical_safety": {
+      "ok": true,
+      "errors": 0,
+      "warnings": 1,
+      "catalog": "/home/gamo/Bureau/musicamical/samples_catalog.json",
+      "catalog_missing": false
+    }
+  },
+  "auto_prepared": true,
+  "phrase_length_bars": 8,
+  "expression_defaults": {
+    "bass_808": {
+      "articulation": "glide_to_next",
+      "glide_ms": 60,
+      "climax_bars": [
+        4,
+        8
+      ]
+    }
+  }
+}

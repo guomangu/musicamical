@@ -82,16 +82,23 @@ def validate_full_score_ir(
             clone_blocks.append(i + 1)
             issues.append({"severity": "error", "code": "clone_8bar", "block": i + 1, "similarity": round(sim, 3)})
 
-    # 2) charge cognitive par mesure (1..8 pistes actives)
+    # 2) charge cognitive par mesure : regrouper les pistes batterie atomiques (kick/snare/hihat/open_hat/perc,
+    # imposées par Invariant #4) en <= 2 foyers rythmiques afin de ne pas bloquer un refrain riche 8-10 pistes
+    # tout en bloquant strictement tout empilement tonal > plafond cognitif.
     overload_bars: list[int] = []
     n_bars = max(1, int(total_beats // bpb))
     for bar in range(n_bars):
         bs, be = bar * bpb, (bar + 1) * bpb
-        active = 0
+        active_tonal = 0
+        active_drums = 0
         for tir in score_ir.tracks.values():
             if any(float(n.grid_beat) < be and float(n.grid_beat) + float(n.duration_beats) > bs for n in tir.notes):
-                active += 1
-        if active > MAX_ACTIVE_TRACKS_PER_BAR:
+                if str(getattr(tir, "role", "")).lower() == "drums":
+                    active_drums += 1
+                else:
+                    active_tonal += 1
+        cognitive_focuses = active_tonal + min(2, active_drums)
+        if cognitive_focuses > MAX_ACTIVE_TRACKS_PER_BAR or (active_tonal + active_drums) > 10:
             overload_bars.append(bar + 1)
     if overload_bars:
         issues.append({"severity": "error", "code": "cognitive_load", "bars": overload_bars[:12],

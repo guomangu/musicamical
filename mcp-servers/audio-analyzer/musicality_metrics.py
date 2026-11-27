@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import product
+import math
 import re
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
@@ -21,7 +22,7 @@ class MusicalityThresholds:
     stepwise_ratio_min: float = 0.65
     gap_fill_min: float = 0.60
     rest_ratio_min: float = 0.20
-    rest_ratio_max: float = 0.50
+    rest_ratio_max: float = 0.72
     strong_beat_chord_ratio_min: float = 0.80
     voice_leading_max_st: float = 2.50
     lead_overlap_max: float = 0.15
@@ -249,7 +250,11 @@ def _compute_stepwise_and_gap_fill(
     return round(stepwise_ratio, 3), round(gap_fill, 3), int(ambitus)
 
 
-def _compute_rest_ratio(notes: List[pretty_midi.Note], total_duration: float) -> float:
+def _compute_rest_ratio(
+    notes: List[pretty_midi.Note],
+    total_duration: float,
+    sec_per_beat: Optional[float] = None,
+) -> float:
     if not notes or total_duration <= 0:
         return 1.0
     intervals = sorted((n.start, n.end) for n in notes)
@@ -260,7 +265,30 @@ def _compute_rest_ratio(notes: List[pretty_midi.Note], total_duration: float) ->
         else:
             merged[-1][1] = max(merged[-1][1], e)
     covered = sum(e - s for s, e in merged)
-    return round(float(max(0.0, min(1.0, 1.0 - covered / float(total_duration)))), 3)
+    eff_dur = float(total_duration)
+    # v4.4 : exclure les silences macro d'arrangement (intro/couplets/pont où le Lead est
+    # volontairement muet via `.only("chorus")`) : sinon tout Lead réservé au refrain est
+    # faussement pénalisé à rest_ratio > 0.75, ce qui forçait les IA à jouer le Lead non-stop !
+    if sec_per_beat is not None and sec_per_beat > 0 and len(merged) >= 4:
+        bar_s = 4.0 * float(sec_per_beat)
+        section_gap_s = 4.0 * bar_s  # >= 4 mesures complètes de silence = section sans Lead
+        # Découper en clusters de sections actives (>= 3 notes)
+        clusters: List[List[List[float]]] = [[merged[0]]]
+        for iv in merged[1:]:
+            if iv[0] - clusters[-1][-1][1] >= section_gap_s:
+                clusters.append([iv])
+            else:
+                clusters[-1].append(iv)
+        if any(len(cl) >= 3 for cl in clusters):
+            # Arrondir la fin de chaque cluster à la frontière de mesure (pour conserver les fins de phrase)
+            active_span = 0.0
+            for cl in clusters:
+                cl_start = math.floor(cl[0][0] / bar_s) * bar_s
+                cl_end = math.ceil(cl[-1][1] / bar_s) * bar_s
+                active_span += max(cl[-1][1] - cl[0][0], cl_end - cl_start)
+            if active_span > 0:
+                eff_dur = min(eff_dur, active_span)
+    return round(float(max(0.0, min(1.0, 1.0 - covered / max(1e-9, eff_dur)))), 3)
 
 
 def _extract_chord_slices(chord_notes: List[pretty_midi.Note], quantize_s: float = 0.08) -> List[Tuple[float, List[int]]]:
@@ -1127,11 +1155,12 @@ def evaluate_midi_musicality(
         inst not in roles["chords"] for inst in roles["lead"]
     )
 
+    _spb = (60.0 / float(pm.get_tempo_changes()[1][0])) if len(pm.get_tempo_changes()[1]) else None
     stepwise_ratio, gap_fill, ambitus = _compute_stepwise_and_gap_fill(
         topline,
-        sec_per_beat=(60.0 / float(pm.get_tempo_changes()[1][0])) if len(pm.get_tempo_changes()[1]) else None,
+        sec_per_beat=_spb,
     )
-    rest_ratio = _compute_rest_ratio(topline, total_dur)
+    rest_ratio = _compute_rest_ratio(topline, total_dur, sec_per_beat=_spb)
     slices = _extract_chord_slices(chord_notes)
     vl_avg = _compute_voice_leading(slices)
     strong_beat_ratio = _compute_strong_beat_chord_tone_ratio(

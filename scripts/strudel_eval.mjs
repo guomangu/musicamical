@@ -300,12 +300,15 @@ for (const st of stacks) {
     errors.push(`$${st.name}: ${err.message}`);
   }
 }
-// v4.1 : pistes atomiques enregistrées par kit() (1 rôle = 1 piste, hors piles $)
+// v4.1/v4.4 : pistes atomiques enregistrées par kit() (1 rôle = 1 piste, hors piles $)
+const kitSections = globalThis.__strudel_kit_sections || {};
 for (const [role, pat] of Object.entries(globalThis.__strudel_kit || {})) {
   if (tracks[role]) continue;
   try {
     seed(seedVal);
-    tracks[role] = eventsOf(pat);
+    const out = eventsOf(pat);
+    if (kitSections[role]) out.sections = kitSections[role];
+    if (out.events && out.events.length) tracks[role] = out;
   } catch (err) {
     errors.push(`kit:${role}: ${err.message}`);
   }

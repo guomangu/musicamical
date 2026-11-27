@@ -512,5 +512,74 @@ class TestBlueprintSafetyAndRealBankRegression(unittest.TestCase):
         self.assertEqual(len(pairs), 3, f"Les 3 genres doivent avoir des signatures tonales distinctes: {chosen}")
 
 
+class TestV44RichArrangementAndAntiFranticLead(unittest.TestCase):
+    """v4.4 — verrouille les correctifs issus du diagnostic trap_nocturne / trap_soul_wave :
+    - kit() 2 mesures riche (5 pistes : kick syncopé, snare, hihat rolls ponctuels, open_hat refrain, perc)
+      avec intro/outro harmoniques ;
+    - notes tenues `_` dans deg() + arp() harmonique ;
+    - détection anti-Lead mitraillette (`lead_not_frantic`) ;
+    - séparation stricte hihat fermé vs open_hat ;
+    - 10 pistes atomiques passant FullCoverage + BU(4/4) + preflight=PASS."""
+
+    def test_v44_frantic_lead_rejected_and_rich_10track_arrangement_passes(self):
+        import shutil
+        import prod_server
+        import preflight_strudel_gate as pfg
+        from strudel_to_score_ir import strudel_to_score_ir
+
+        if not shutil.which("node") or not os.path.isdir(os.path.join(SCRIPTS, "node_modules", "@strudel", "core")):
+            self.skipTest("node + @strudel/core requis")
+
+        # 1) Un Lead mitraillette 16 croches uniformes (.slow(2)) est bloqué par lead_not_frantic
+        frantic_code = (
+            '// @meta 136 F:minor trap_rap V=-0.6 form=I4-V8-C8-O4 seed=101\n'
+            'kit("trap_half", {var: 2, hats: "rolls"})\n'
+            '$chords: grid("Fm7 Dbmaj7 Bbm7 C7").slow(2).gain(0.7)\n'
+            '$bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 45}).slow(4).in("verse,chorus")\n'
+            '$lead: deg("0 3 2 0 ~ 0 3 2 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.65).in("verse,chorus")\n'
+        )
+        with tempfile.TemporaryDirectory() as td:
+            with open(os.path.join(td, "composition.strudel"), "w", encoding="utf-8") as fh:
+                fh.write(frantic_code)
+            strudel_to_score_ir(td, run_eval=True, emit_plan=True)
+            pf_bad = pfg.preflight(td)
+            self.assertFalse(pf_bad["checks"]["lead_not_frantic"]["pass"], pf_bad["checks"])
+
+        # 2) Un morceau v4.4 riche (10 pistes, notes tenues `_`, arp(), Lead .only("chorus")) passe tout !
+        rich_code = (
+            '// @meta 136 F:minor trap_rap V=-0.6 T=0.7 E=0.7 D=0.7 form=I4-V12-C8-V12-B4-C8-O4 '
+            'seed=1011 intent="dark nocturnal melodic trap bell pad 808"\n'
+            'kit("trap_half", {var: 2, hats: "rolls"})\n'
+            'transition("before:chorus", "drum_fill_and_riser", {style: "snare_roll"})\n'
+            '$chords: sectionGrid({default: "Fm7 Dbmaj7 Bbm7 C7", bridge: "Dbmaj7 Abmaj7 Fm7 C7"}).slow(2).gain(0.68)\n'
+            '$pad: sectionGrid({default: "Fm7 Dbmaj7 Bbm7 C7", bridge: "Dbmaj7 Abmaj7 Fm7 C7"}).slow(2).gain(0.42).in("intro,chorus,bridge,outro")\n'
+            '$arp: arp("0 ~ 2 ~ 1 ~ 3 ~", 4).slow(2).gain(0.40).in("verse,chorus,bridge")\n'
+            '$bass: bassline("<1 _ ~ 1 ~ 1 _ ~>", {mode: "root", glide: 45}).slow(2).in("verse,chorus")\n'
+            '$lead: deg("0 _ _ ~ 3 _ 2 ~ 0 _ ~ ~ 2 _ 4 _ 3 _ 2 _ 0 _ ~ ~", 4).slow(4).gain(0.58).only("chorus")\n'
+        )
+        with tempfile.TemporaryDirectory() as td:
+            rep = prod_server.compose_project(td, rich_code, palette_id="auto", auto_master=False, auto_prepare=True)
+            self.assertTrue(rep.get("ok"), rep)
+            self.assertTrue((rep.get("preflight") or {}).get("passed"), rep.get("preflight"))
+            self.assertTrue((rep.get("full_coverage") or {}).get("passed"), rep.get("full_coverage"))
+            self.assertTrue((rep.get("bottom_up") or {}).get("passed"), rep.get("bottom_up"))
+            with open(os.path.join(td, "song_blueprint.json"), encoding="utf-8") as fh:
+                bp = json.load(fh)
+            with open(os.path.join(td, "arrangement_plan.json"), encoding="utf-8") as fh:
+                plan = json.load(fh)
+            self.assertEqual(len(bp["tracks"]), 10)
+            # Closed hihat ne doit JAMAIS choisir un sample Open Hat
+            for tr in bp["tracks"]:
+                if tr["name"].lower() == "hihat" and tr.get("sample_path"):
+                    self.assertNotIn("open", os.path.basename(tr["sample_path"]).lower())
+            # Intro = harmonique sans batterie ; Chorus = 10 pistes riches
+            secs = {s["name"]: s["active_roles"] for s in plan["sections"]}
+            self.assertNotIn("kick", secs.get("intro", []))
+            self.assertIn("chords", secs.get("intro", []))
+            self.assertIn("open_hat", secs.get("chorus", []))
+            self.assertIn("lead", secs.get("chorus", []))
+            self.assertNotIn("lead", secs.get("verse", []))
+
+
 if __name__ == "__main__":
     unittest.main()

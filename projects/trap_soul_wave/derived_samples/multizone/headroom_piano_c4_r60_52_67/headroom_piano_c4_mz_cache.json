@@ -1,0 +1,50 @@
+{
+  "base_midi": 60,
+  "zones": [
+    [
+      52,
+      57
+    ],
+    [
+      58,
+      62
+    ],
+    [
+      63,
+      67
+    ]
+  ],
+  "src_mtime": 1795704465.1137671,
+  "entries": [
+    {
+      "wav_path": "/home/gamo/Bureau/musicamical/projects/trap_soul_wave/derived_samples/multizone/headroom_piano_c4_r60_52_67/headroom_piano_c4_zone1_midi54.wav",
+      "zone": [
+        52,
+        57
+      ],
+      "base_midi": 54,
+      "shift_from_source_st": -6.0,
+      "tuning_ct": -0.9
+    },
+    {
+      "wav_path": "/home/gamo/Bureau/musicamical/projects/trap_soul_wave/derived_samples/multizone/headroom_piano_c4_r60_52_67/headroom_piano_c4_zone2_midi60.wav",
+      "zone": [
+        58,
+        62
+      ],
+      "base_midi": 60,
+      "shift_from_source_st": 0.0,
+      "tuning_ct": 4.1
+    },
+    {
+      "wav_path": "/home/gamo/Bureau/musicamical/projects/trap_soul_wave/derived_samples/multizone/headroom_piano_c4_r60_52_67/headroom_piano_c4_zone3_midi65.wav",
+      "zone": [
+        63,
+        67
+      ],
+      "base_midi": 65,
+      "shift_from_source_st": 5.0,
+      "tuning_ct": -0.2
+    }
+  ]
+}

@@ -294,7 +294,8 @@ def _run_preview(proj: str) -> dict[str, Any]:
 
 
 ROLE_PLUGIN = {
-    "kick": "gl.kick", "snare": "gl.snare", "hihat": "gl.hat", "clap": "gl.clap", "perc": "gl.clap", "rim": "gl.clap",
+    "kick": "gl.kick", "snare": "gl.snare", "hihat": "gl.hat", "open_hat": "gl.hat", "ohat": "gl.hat",
+    "clap": "gl.clap", "perc": "gl.clap", "rim": "gl.clap",
     "bass": "gl.analog", "chords": "gl.keys", "pad": "gl.keys", "lead": "gl.warmsynth",
     "counter": "gl.keys", "arp": "gl.keys", "arpeggio": "gl.keys", "pluck": "gl.keys",
     "vocals": "gl.sampler", "fx": "gl.wavetable", "drums": "gl.kick", "remix_stem": "gl.sampler",
@@ -385,21 +386,66 @@ def upgrade_blueprint_tracks(bp: dict[str, Any]) -> dict[str, Any]:
 
 
 def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
-    """v4.1 — blueprint minimal VALIDE contre schemas/song_blueprint.schema.json, déduit du Strudel :
-    tracks = pistes `$` (rôle via classify_role, plugin gl.*), chord_progression = grille grid(),
-    motif_cell.apex_midi selon valence, structure = sections du @meta."""
+    """v4.1/v4.4 — blueprint minimal VALIDE contre schemas/song_blueprint.schema.json, déduit du Strudel :
+    tracks = pistes `$` réellement actives (jamais de piste orpheline à 0 note !), chord_progression =
+    grille grid(), motif_cell.apex_midi selon valence, structure = sections du @meta."""
     bp_path = os.path.join(proj, "song_blueprint.json")
-    if os.path.isfile(bp_path):
-        with open(bp_path, encoding="utf-8") as fh:
-            bp_old = json.load(fh)
-        # Mise à niveau des blueprints créés avant les correctifs qualité sonore
-        # (archétypes manquants, lead gl.fm métallique, perc cloné sur gl.hat, start_bar i+1)
-        return upgrade_blueprint_tracks(bp_old)
     haps_path = os.path.join(proj, "composition.strudel.haps.json")
     haps = {}
     if os.path.isfile(haps_path):
         with open(haps_path, encoding="utf-8") as fh:
             haps = json.load(fh)
+    active_haps_tracks = [
+        str(name) for name, td in (haps.get("tracks") or {}).items()
+        if isinstance(td, dict) and (td.get("events") or [])
+    ]
+    if os.path.isfile(bp_path):
+        with open(bp_path, encoding="utf-8") as fh:
+            bp_old = json.load(fh)
+        bp_up = upgrade_blueprint_tracks(bp_old)
+        # v4.4 : synchroniser les pistes du blueprint avec les pistes réellement actives de haps.json
+        # (prévient les pistes fantômes à 0 note comme `pad`/`perc` orphelines qui faussent L2/L4)
+        if active_haps_tracks:
+            from score_ir import classify_role
+            from timbre_pleasantness import pick_gl_plugin
+            prof0 = str(bp_up.get("mix_profile") or "trap_rap")
+            val0 = float((bp_up.get("emotion_vector") or {}).get("valence", 0.0))
+            by_name = {str(t.get("name") or "").lower(): t for t in (bp_up.get("tracks") or []) if isinstance(t, dict)}
+            synced = []
+            used_mixers: set[int] = set()
+            next_m = 1
+            for nm in active_haps_tracks:
+                if nm.lower() in by_name:
+                    tr = by_name[nm.lower()]
+                    m = int(tr.get("mixer_track") or 0)
+                    if m <= 0 or m in used_mixers:
+                        while next_m in used_mixers:
+                            next_m += 1
+                        tr["mixer_track"] = min(16, next_m)
+                    used_mixers.add(int(tr["mixer_track"]))
+                    synced.append(tr)
+                else:
+                    role = classify_role(nm)
+                    plug = {"plugin": "gl.sampler", "params": {}} if role == "vocals" else pick_gl_plugin(nm.lower(), prof0, val0)
+                    while next_m in used_mixers:
+                        next_m += 1
+                    tr = {
+                        "name": nm, "role": role,
+                        "source_type": "vocaloid" if role == "vocals" else "gridline_native",
+                        "plugin": plug["plugin"], "plugin_params": plug.get("params") or {},
+                        "mixer_track": min(16, next_m),
+                    }
+                    if plug.get("preset"):
+                        tr["preset"] = str(plug["preset"])
+                    used_mixers.add(int(tr["mixer_track"]))
+                    synced.append(tr)
+            # Conserver éventuelle piste vocals/remix_stem ajoutée hors Strudel
+            for t in (bp_up.get("tracks") or []):
+                if isinstance(t, dict) and str(t.get("role") or "") in ("vocals", "remix_stem"):
+                    if str(t.get("name") or "").lower() not in {x["name"].lower() for x in synced}:
+                        synced.append(t)
+            bp_up["tracks"] = synced
+        return bp_up
     meta = haps.get("meta") or {}
     from score_ir import classify_role
     from timbre_pleasantness import pick_gl_plugin
@@ -409,13 +455,14 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
     mixer_track = 1
     # rôle fin par NOM de piste pour les archétypes (kick/snare/hihat/perc ont le rôle
     # générique "drums" via classify_role mais leur archétype est par nom de kit)
-    _ARCH_ROLE = {"kick": "kick", "snare": "snare", "clap": "snare", "hihat": "hihat", "hat": "hihat",
+    _ARCH_ROLE = {"kick": "kick", "snare": "snare", "clap": "snare", "open_hat": "hihat", "ohat": "hihat",
+                  "hihat": "hihat", "hat": "hihat",
                   "perc": "perc", "rim": "perc", "bass": "bass", "808": "bass", "sub": "bass",
                   "chords": "chords", "keys": "chords", "piano": "chords", "pad": "pad", "strings": "pad",
                   "lead": "lead", "melody": "lead", "counter": "counter", "arp": "counter", "arpeggio": "counter",
                   "pluck": "counter", "fx": "fx", "vocal": "lead", "vocals": "lead"}
     from gl_dsl import resolve_archetype
-    for name in (haps.get("tracks") or {}):
+    for name in (active_haps_tracks or list((haps.get("tracks") or {}).keys())):
         role = classify_role(name)
         # v4.1 : archetype calibré (profil, rôle, valence) pour TOUTES les pistes, y compris percussions
         if role == "vocals":
@@ -507,7 +554,8 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
 
 
 _SLOT_FOR = {"kick": "kick", "snare": "snare_clap", "clap": "snare_clap", "hihat": "hihat_perc",
-             "hat": "hihat_perc", "open_hat": "hihat_perc", "perc": "hihat_perc", "rim": "hihat_perc",
+             "hat": "hihat_perc", "open_hat": "hihat_perc", "ohat": "hihat_perc", "openhat": "hihat_perc",
+             "perc": "hihat_perc", "rim": "hihat_perc",
              "bass": "bass_sub", "808": "bass_sub", "sub": "bass_sub",
              "chords": "chord_keys", "keys": "chord_keys", "piano": "chord_keys",
              "pad": "pad_atmosphere", "strings": "pad_atmosphere",
@@ -654,10 +702,11 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
             if ps:
                 notated[str(tname).lower()] = max(set(ps), key=ps.count)
 
-        GM_DRUM = {"kick": 36, "snare": 38, "clap": 39, "hihat": 42, "hat": 42, "perc": 39, "rim": 39}
+        GM_DRUM = {"kick": 36, "snare": 38, "clap": 39, "hihat": 42, "hat": 42, "open_hat": 46, "ohat": 46, "openhat": 46, "perc": 39, "rim": 37}
         PERC_SLOT_ROLES = {"kick", "snare_clap", "hihat_perc"}
 
         used_paths: set[str] = set()
+        used_centroids: dict[str, float] = {}
         proj_seed = int(bp.get("seed") or 0)
         eff_intent_l = str(intent or bp.get("intent") or "").lower()
         import re as _re_int
@@ -702,15 +751,42 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                     return (is_dirty, -sc)
 
                 pool_cands.sort(key=_snare_rank)
-            elif track_key in ("hihat", "hat", "open_hat"):
-                # Un hi-hat doit venir de hat/ ou open_hat/ (jamais un tom grave perc/ comme dnb_perc_ghost !)
-                hat_only = [
+            elif track_key in ("hihat", "hat"):
+                # Un closed hi-hat rapide (croches/rolls) ne doit JAMAIS choisir un Open Hat (long decay métallique !)
+                def _is_open_hat(c: dict[str, Any]) -> bool:
+                    cat_c = infer_sample_category(c.get("category"), c.get("filepath"))
+                    bn = os.path.basename(str(c.get("filepath") or "")).lower()
+                    return cat_c == "open_hat" or any(w in bn for w in ("open", "ohat", "crash", "ride", " oh", "_oh", "(oh)"))
+
+                closed_only = [
+                    c for c in pool_cands
+                    if infer_sample_category(c.get("category"), c.get("filepath")) == "hat" and not _is_open_hat(c)
+                ]
+                pool_cands = closed_only or [
                     c for c in pool_cands
                     if infer_sample_category(c.get("category"), c.get("filepath")) in ("hat", "open_hat")
                 ]
-                pool_cands = hat_only
                 pool_cands.sort(
                     key=lambda c: (
+                        1 if _is_open_hat(c) else 0,
+                        -(float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4),
+                    )
+                )
+            elif track_key in ("open_hat", "ohat", "openhat"):
+                # Un open hat dédié privilégie strictement `open_hat/` (jamais un closed hat sec)
+                def _is_open_hat2(c: dict[str, Any]) -> bool:
+                    cat_c = infer_sample_category(c.get("category"), c.get("filepath"))
+                    bn = os.path.basename(str(c.get("filepath") or "")).lower()
+                    return cat_c == "open_hat" or "open" in bn or "ohat" in bn
+
+                open_only = [c for c in pool_cands if _is_open_hat2(c)]
+                pool_cands = open_only or [
+                    c for c in pool_cands
+                    if infer_sample_category(c.get("category"), c.get("filepath")) in ("open_hat", "hat")
+                ]
+                pool_cands.sort(
+                    key=lambda c: (
+                        0 if _is_open_hat2(c) else 1,
                         -(float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4),
                     )
                 )
@@ -748,12 +824,15 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                         else:
                             pref = 0 if cat_c in ("808", "bass") else 1
                     elif "pad" in track_key or "string" in track_key:
+                        ch_cent = used_centroids.get("chords") or used_centroids.get("keys") or 0.0
+                        c_cent = float(c.get("centroid_hz") or 0.0)
+                        same_band = bool(ch_cent > 0 and c_cent > 0 and abs(c_cent - ch_cent) < 150.0)
                         if is_loop_name:
                             pref = 4
                         elif ("pad" in fp_l or "cloud" in fp_l or "sustain" in fp_l or "hi str" in fp_l or "string" in fp_l or cat_c == "pad") and not is_swell_rev:
-                            pref = 0
+                            pref = 1 if same_band else 0
                         elif cat_c in ("synth", "vocal", "piano") and not is_swell_rev:
-                            pref = 1
+                            pref = 2 if same_band else 1
                         elif "pluck" in fp_l or "bell" in fp_l:
                             pref = 3
                     elif "chord" in track_key or "key" in track_key or "piano" in track_key:
@@ -775,7 +854,18 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                                 pref = 1
                             elif "pad" in fp_l or cat_c == "synth":
                                 pref = 1 if wants_pad else 2
-                    elif any(k in track_key for k in ("lead", "arp", "counter", "melody")):
+                    elif any(k in track_key for k in ("arp", "counter", "pluck")):
+                        if is_swell_rev or is_loop_name or att > 1500.0:
+                            pref = 4
+                        elif is_bell_pluck and att <= 220.0:
+                            pref = 0
+                        elif is_synth_pad and not is_rhodes and att <= 220.0:
+                            pref = 1
+                        elif cat_c in ("piano", "guitar") and not is_rhodes and att <= 80.0:
+                            pref = 1
+                        else:
+                            pref = 2
+                    elif any(k in track_key for k in ("lead", "melody")):
                         if is_swell_rev or is_loop_name or att > 1500.0:
                             pref = 4
                         elif wants_synth_modern and not wants_keys_organic:
@@ -975,6 +1065,8 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                 else:
                     tr.pop("fine_tune_ct", None)
                 used_paths.add(os.path.normpath(os.path.abspath(rpath)).lower())
+                if chosen_slot.get("centroid_hz") is not None:
+                    used_centroids[key] = float(chosen_slot["centroid_hz"])
             else:
                 pg = pick_gl_plugin(key, prof, valence)
                 tr["source_type"] = "gridline_native"

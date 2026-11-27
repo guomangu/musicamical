@@ -71,7 +71,7 @@ def apex_bounds(valence: float) -> tuple[int, int]:
 
 DRUM_PITCH_BY_NAME = (
     ("kick", 36), ("bd", 36), ("snare", 38), ("cp", 39), ("clap", 39), ("sidestick", 37),
-    ("rim", 37), ("openhat", 46), ("ohat", 46), ("hat", 42), ("hh", 42), ("perc", 44),
+    ("rim", 37), ("open_hat", 46), ("openhat", 46), ("ohat", 46), ("hat", 42), ("hh", 42), ("perc", 44),
     ("tom", 45), ("crash", 49), ("ride", 51), ("shaker", 70), ("fx", 60), ("riser", 60),
 )
 
@@ -175,10 +175,37 @@ def haps_to_tracks(haps: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]
     while len(progression) < bars:
         progression.append(progression[-1] if progression else None)
     progression = progression[:bars]
+    # v4.4 : appliquer le filtrage de sections (.in()/.only()/.muteIn() + kit() sections auto)
+    # dès haps_to_tracks() pour que score_ir.json, preflight, bottom_up et full_coverage voient
+    # EXACTEMENT les notes réellement jouées dans chaque section (pas de batterie fantôme en intro !).
+    norm_secs = normalize_sections(haps)
+    sec_bar_ranges: list[tuple[str, str, int, int]] = [
+        (str(sn).lower(), str(sk).lower(), int(sb), int(sb) + int(nb))
+        for sn, sb, nb, sk in norm_secs
+    ]
+
+    def _allowed_bar_set(sec_dir: dict[str, Any] | None) -> set[int] | None:
+        if not sec_dir or not sec_bar_ranges:
+            return None
+        mode_s = str(sec_dir.get("mode") or "in").lower()
+        names_s = {str(x).lower() for x in (sec_dir.get("names") or [])}
+        if not names_s:
+            return None
+        ok_bars: set[int] = set()
+        for sn, sk, b0, b1 in sec_bar_ranges:
+            hit = (sn in names_s) or (sk in names_s)
+            if (mode_s in ("in", "only") and hit) or (mode_s == "mute" and not hit):
+                ok_bars.update(range(b0, b1))
+        return ok_bars
+
     for name, tr in (haps.get("tracks") or {}).items():
+        allowed_bars = _allowed_bar_set(tr.get("sections") if isinstance(tr, dict) else None)
         notes: list[dict[str, Any]] = []
         for ev in tr.get("events") or []:
-            start_beats = float(ev.get("start", 0.0)) * bpb
+            start_cyc = float(ev.get("start", 0.0))
+            if allowed_bars is not None and int(start_cyc + 1e-6) not in allowed_bars:
+                continue
+            start_beats = start_cyc * bpb
             dur_beats = max(0.02, (float(ev.get("end", 0.0)) - float(ev.get("start", 0.0))) * bpb)
             gain = float(ev.get("gain", 1.0) or 1.0)
             vel = max(20, _clamp_vel(gain * 110.0))
@@ -898,6 +925,23 @@ def build_arrangement_plan(haps: dict[str, Any], score: ScoreIR, info: dict[str,
         if prog_by_kind:
             plan["harmonic_core"]["section_progressions"] = prog_by_kind
     plan["transitions"] = _narrative_transitions_to_plan(narr.get("transitions") or [], sections)
+    # v4.4 : transitions musicales automatiques (0 token LLM) si le morceau a >= 3 sections
+    # et aucune transition déclarée manuellement -> évite les enchaînements plats sans fill ni drop.
+    if not plan["transitions"] and len(sections) >= 3:
+        auto_tr: list[dict[str, Any]] = []
+        seen_bars: set[int] = set()
+        for idx_s, (s_name, sb, _nb, s_kind) in enumerate(sections):
+            bar_1 = int(sb) + 1
+            if idx_s == 0 or bar_1 in seen_bars:
+                continue
+            if s_kind in ("chorus", "drop", "climax"):
+                auto_tr.append({"bar": bar_1, "type": "drum_fill_and_riser", "style": "snare_roll"})
+                seen_bars.add(bar_1)
+            elif s_kind == "verse" and idx_s == 1:
+                auto_tr.append({"bar": bar_1, "type": "drum_fill", "style": "pickup"})
+                seen_bars.add(bar_1)
+        if auto_tr:
+            plan["transitions"] = auto_tr
     if narr.get("groove_id"):
         plan["groove_preference"] = {"groove_id": str(narr["groove_id"]), "source": "composition.strudel:kit()"}
     if narr.get("comping_by_section"):

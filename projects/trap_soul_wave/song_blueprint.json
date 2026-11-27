@@ -1,0 +1,358 @@
+{
+  "title": "trap_soul_wave",
+  "genre": "trap_rap",
+  "mix_profile": "trap_rap",
+  "has_drums": true,
+  "seed": 3033,
+  "emotion_vector": {
+    "valence": 0.2,
+    "tension": 0.4,
+    "energy": 0.55,
+    "depth": 0.8
+  },
+  "intent": "atmospheric soulful chill rhodes guitar pad trap",
+  "bpm": 124.0,
+  "time_signature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "key": "E",
+  "harmonic_core": {
+    "key": "E",
+    "mode": "minor",
+    "progression_bars": 1,
+    "chord_progression": [
+      {
+        "bar": 1,
+        "symbol": "Em7",
+        "bass_midi": 40,
+        "voicing_midi": [
+          64,
+          67,
+          71
+        ]
+      },
+      {
+        "bar": 2,
+        "symbol": "C",
+        "bass_midi": 36,
+        "voicing_midi": [
+          60,
+          63,
+          67
+        ]
+      },
+      {
+        "bar": 3,
+        "symbol": "Am7",
+        "bass_midi": 45,
+        "voicing_midi": [
+          69,
+          72,
+          76
+        ]
+      },
+      {
+        "bar": 4,
+        "symbol": "Em",
+        "bass_midi": 40,
+        "voicing_midi": [
+          64,
+          67,
+          71
+        ]
+      }
+    ],
+    "motif_cell": {
+      "intervals_from_tonic": [
+        0,
+        3,
+        7
+      ],
+      "rhythm_beats": [
+        0,
+        2
+      ],
+      "apex_midi": 72
+    },
+    "phrase_plan": "A-A'-A''-B",
+    "section_progressions": {
+      "intro": [
+        "i7",
+        "bVI",
+        "iv7",
+        "i"
+      ],
+      "verse": [
+        "i7",
+        "bVI",
+        "iv7",
+        "i"
+      ],
+      "chorus": [
+        "i7",
+        "bVI",
+        "iv7",
+        "i"
+      ],
+      "bridge": [
+        "iv7",
+        "i",
+        "bVI",
+        "iv7"
+      ],
+      "outro": [
+        "i7",
+        "bVI",
+        "iv7",
+        "i"
+      ]
+    }
+  },
+  "structure": [
+    {
+      "section": "intro",
+      "start_bar": 1,
+      "bars": 4,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 5,
+      "bars": 12,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 17,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 25,
+      "bars": 12,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 37,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "bridge",
+      "start_bar": 45,
+      "bars": 6,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 51,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "outro",
+      "start_bar": 59,
+      "bars": 4,
+      "energy": 0.7
+    }
+  ],
+  "tracks": [
+    {
+      "name": "chords",
+      "role": "chords",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 1,
+      "archetype": "trap_rap:chords",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/piano/headroom_piano_c4.wav",
+      "root_note": 60,
+      "multizone": true,
+      "fine_tune_ct": -5,
+      "plugin_params": {
+        "cutoff_hz": 6500.0,
+        "attack_ms": 8.0,
+        "release_ms": 180.0
+      }
+    },
+    {
+      "name": "bass",
+      "role": "bass",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 2,
+      "archetype": "trap_rap:bass",
+      "sample_path": "/home/gamo/Bureau/musicamical/projects/trap_soul_wave/derived_samples/808 luger_oct36.wav",
+      "root_note": 36,
+      "multizone": true,
+      "fine_tune_ct": -14,
+      "plugin_params": {
+        "attack_ms": 2.0,
+        "release_ms": 120.0
+      }
+    },
+    {
+      "name": "lead",
+      "role": "lead",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 3,
+      "archetype": "trap_rap:lead",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/piano/rhodes_tine_lead_f4.wav",
+      "root_note": 65,
+      "plugin_params": {
+        "cutoff_hz": 9000.0,
+        "attack_ms": 6.0,
+        "release_ms": 160.0
+      }
+    },
+    {
+      "name": "kick",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 4,
+      "archetype": "trap_rap:kick",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/JMizzy The Best Drum Kits/FM Drum Kit/Kicks/Completely Normal/Kick [ Molly ].wav",
+      "root_note": 36,
+      "fine_tune_ct": -47
+    },
+    {
+      "name": "snare",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 5,
+      "archetype": "trap_rap:snare",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/Lofi/Clap/BVKER - Lunar Clap - 07.wav",
+      "root_note": 38,
+      "fine_tune_ct": 0
+    },
+    {
+      "name": "hihat",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 6,
+      "archetype": "trap_rap:hihat",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/JMizzy The Best Drum Kits/Wheezy (Shows the Screen)  Drumkit/Open Hats/Open Hat (Slime).wav",
+      "root_note": 42,
+      "fine_tune_ct": 0
+    },
+    {
+      "name": "perc",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 7,
+      "archetype": "trap_rap:perc",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/JMizzy The Best Drum Kits/Pi'erre (Shows the Screen) Drumkit/Percs/DIPSET Tambourine.wav",
+      "root_note": 39,
+      "fine_tune_ct": 0
+    }
+  ],
+  "palette": {
+    "palette_id": "palette_A",
+    "score": 0.5833,
+    "quality_score": 0.6799,
+    "composite_score": {
+      "score": 0.5833,
+      "s_intent": 0.5796,
+      "s_coherence": 0.35,
+      "s_coverage": 1.0,
+      "p_fallback": 0.0,
+      "clap_off": false
+    },
+    "intent_score": 0.5796,
+    "intent": "atmospheric soulful chill rhodes guitar pad trap",
+    "clap_coverage": 1.0,
+    "clap_off": false,
+    "sample_ratio": 1.0,
+    "theme": "organic",
+    "n_samples": 7,
+    "n_tracks_with_available_samples": 7,
+    "sample_coverage_ratio": 1.0,
+    "fallback_gate": "PASS",
+    "fallback_tracks": [],
+    "selection_trace": {
+      "mode": "db",
+      "user_samples_locked": false,
+      "roles": {},
+      "policy_excluded": {
+        "chord_keys": 8,
+        "bass_sub": 0,
+        "lead_melody": 0,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "range_excluded": {
+        "chord_keys": 2,
+        "bass_sub": 3,
+        "lead_melody": 4,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "pleasantness_excluded": {
+        "chord_keys": 0,
+        "bass_sub": 2,
+        "lead_melody": 11,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "gate_unmeasured": {
+        "chord_keys": 0,
+        "bass_sub": 0,
+        "lead_melody": 0,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "n_sample_candidates": {
+        "chord_keys": 10,
+        "bass_sub": 27,
+        "lead_melody": 14,
+        "kick": 32,
+        "snare_clap": 32,
+        "hihat_perc": 32
+      },
+      "total_excluded": 30
+    },
+    "timbre_coherence": {
+      "score": 0.35,
+      "max_bark_collision": 1.895914,
+      "pair_roughness": 0.0,
+      "notes": []
+    },
+    "project_samples_dir": null,
+    "user_samples_locked": false,
+    "sound_guard": {
+      "status": "OK",
+      "n_fixed": 0,
+      "summary_line": "sound_guard=OK"
+    },
+    "musical_safety": {
+      "ok": true,
+      "errors": 0,
+      "warnings": 1,
+      "catalog": "/home/gamo/Bureau/musicamical/samples_catalog.json",
+      "catalog_missing": false
+    }
+  },
+  "auto_prepared": true,
+  "phrase_length_bars": 8,
+  "expression_defaults": {
+    "bass_808": {
+      "articulation": "glide_to_next",
+      "glide_ms": 60,
+      "climax_bars": [
+        4,
+        8
+      ]
+    }
+  }
+}
