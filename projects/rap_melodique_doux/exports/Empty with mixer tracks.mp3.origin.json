@@ -1,0 +1,19 @@
+{
+  "end": -1,
+  "gridlineOrigin": 1,
+  "kind": "render",
+  "rangeKnown": false,
+  "reverse": false,
+  "source": "/home/gamo/Bureau/musicamical/samples/piano/rhodes_mk1_d4.wav",
+  "sources": [
+    "/home/gamo/Bureau/musicamical/samples/piano/rhodes_mk1_d4.wav",
+    "/home/gamo/Bureau/musicamical/samples/kick/kick_tight.wav",
+    "/home/gamo/Bureau/musicamical/samples/clap/clap_dark_alt.wav",
+    "/home/gamo/Bureau/musicamical/projects/rap_melodique_doux/derived_samples/808_5_sat_alt_oct36.wav",
+    "/home/gamo/Bureau/musicamical/samples/piano/rhodes_tine_lead_f4.wav",
+    "/home/gamo/Bureau/musicamical/samples/hat/MZ Hi Hat [Fast].wav"
+  ],
+  "speed": 1,
+  "start": 0
+}
+

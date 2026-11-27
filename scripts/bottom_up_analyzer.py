@@ -93,7 +93,10 @@ def _audit_tonal_sample_waveform(filepath: str, slot: str) -> list[str]:
             m_sl = m[:max_len]
             f0 = librosa.yin(m_sl, fmin=65.0, fmax=2000.0, sr=sr, frame_length=2048, hop_length=256)
             rms = librosa.feature.rms(y=m_sl, frame_length=2048, hop_length=256)[0]
-            vf0 = f0[(rms > float(np.max(rms)) * 0.15) & (f0 > 68.0) & (f0 < 1950.0)]
+            rms_pk = float(np.max(rms))
+            vf0 = f0[(rms > rms_pk * 0.22) & (f0 > 68.0) & (f0 < 1950.0)]
+            if len(vf0) < 5:
+                vf0 = f0[(rms > rms_pk * 0.15) & (f0 > 68.0) & (f0 < 1950.0)]
             if len(vf0) >= 5:
                 # Ignorer les 45 premières ms de transitoire d'attaque
                 skip = min(len(vf0) // 3, int(0.045 * sr / 256))
@@ -203,7 +206,8 @@ def analyze_sounds_level(
                     rf = register_fit(tr.get("root_note"), trk_notes, {**(entry or {}), "filepath": sp}, role=slot)
                     info["s_max_st"] = rf.get("s_max")
                     info["cap_st"] = rf.get("cap")
-                    if trk_notes and not rf["ok"]:
+                    mz_ok = bool(tr.get("multizone") and rf.get("multizone_viable"))
+                    if trk_notes and not (rf["ok"] or mz_ok):
                         info["status"] = "FAIL"
                         issues.append({
                             "track": name,

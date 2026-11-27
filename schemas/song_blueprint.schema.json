@@ -408,6 +408,10 @@
             "minimum": -1200,
             "maximum": 1200,
             "description": "Fine tune in cents applied on top of root_note (A4=440 Hz +/-5 ct target)."
+          },
+          "multizone": {
+            "type": "boolean",
+            "description": "When true, song_builder automatically splits the tonal gl.sampler track into 2-3 pre-transposed formant-preserved pitch zones (<= +/-4 st varispeed per zone)."
           }
         },
         "allOf": [

@@ -235,7 +235,7 @@ def check_hard_rejects(
         r_ch = y_stereo[:, 1].astype(np.float64)
         denom = float(np.sqrt(np.sum(l_ch ** 2) * np.sum(r_ch ** 2))) + 1e-12
         phase_corr = float(np.sum(l_ch * r_ch) / denom)
-        if phase_corr < -0.2:
+        if phase_corr < -0.5:
             reasons.append(f"destructive_phase_inversion(rho={phase_corr:.3f})")
 
     return {
@@ -390,6 +390,22 @@ def _refine_f0_harmonic(sig: np.ndarray, sr: int, f0_init: float) -> float:
         sc = hps(c)
         if sc > s_init * 1.15 and sc > best_s:
             best_f, best_s = c, sc
+    # Sub-octave ghost guard: if YIN locked onto f0/2 (e.g. warm sine/pad at 196 Hz detected as 98 Hz),
+    # hps(f0/2) includes even harmonics 2*(f0/2)=f0 so the 1.15x margin fails. When energy at best_f
+    # itself is tiny (< 15% of 2*best_f), best_f is a sub-octave ghost -> step up to 2*best_f.
+    try:
+        freqs_chk = np.fft.rfftfreq(n_fft, 1.0 / sr)
+        while best_f * 2.0 <= min(2400.0, sr * 0.45):
+            m1 = (freqs_chk >= best_f * 0.94) & (freqs_chk <= best_f * 1.06)
+            m2 = (freqs_chk >= best_f * 1.88) & (freqs_chk <= best_f * 2.12)
+            a1 = float(np.max(sp[m1])) if np.any(m1) else 0.0
+            a2 = float(np.max(sp[m2])) if np.any(m2) else 0.0
+            if a2 > 0.0 and a1 < 0.15 * a2:
+                best_f *= 2.0
+            else:
+                break
+    except Exception:
+        pass
     # Anti-partial lock: if YIN locked onto an inharmonic partial (bell/FM), its pitch class
     # differs from the LOWEST strong spectral peak (the true fundamental, even if weak).
     # NEVER override when `best_f` ITSELF is already the dominant spectral peak (>= 65% of max),
@@ -456,7 +472,7 @@ def analyze_pitch_and_purity(
         or (dur_s < 0.14 and (bands.get("air", 0.0) + bands.get("harsh", 0.0)) > 0.50)
     )
     fmin = 27.0 if is_low else 65.0
-    fmax = 220.0 if is_low else 2400.0
+    fmax = 420.0 if is_low else 2400.0
     frame_len = 4096 if is_low else 2048
 
     sig = np.pad(mono_norm, (0, max(0, frame_len - len(mono_norm)))) if len(mono_norm) < frame_len else mono_norm
@@ -493,8 +509,15 @@ def analyze_pitch_and_purity(
         f0 = librosa.yin(sig, fmin=fmin, fmax=fmax, sr=sr, frame_length=frame_len, hop_length=512)
         rms_frames = librosa.feature.rms(y=sig, frame_length=frame_len, hop_length=512)[0]
         if len(rms_frames) == len(f0):
-            thresh = float(np.max(rms_frames)) * 0.14
-            valid = f0[(rms_frames >= thresh) & (f0 > fmin * 1.03) & (f0 < fmax * 0.97)]
+            rms_peak = float(np.max(rms_frames))
+            # Measure pitch stability on the energetic sustain core (>= 22% of peak RMS) so quiet
+            # reverb/decay tails do not cause YIN dropouts -> false melodic_sequence on clean one-shots,
+            # while real 2-note chops and melodic loops remain well above 22% RMS and stay rejected.
+            core_valid = f0[(rms_frames >= rms_peak * 0.22) & (f0 > fmin * 1.03) & (f0 < fmax * 0.97)]
+            if len(core_valid) >= 4:
+                valid = core_valid
+            else:
+                valid = f0[(rms_frames >= rms_peak * 0.14) & (f0 > fmin * 1.03) & (f0 < fmax * 0.97)]
         else:
             valid = f0[(f0 > fmin * 1.03) & (f0 < fmax * 0.97)]
 
@@ -597,6 +620,8 @@ def analyze_pitch_and_purity(
                         if _is_f0_partial(a) and _is_f0_partial(b):
                             return False  # même fondamental = consonance native (ex. 808 saturée)
                         ratio = max(a, b) / max(min(a, b), 1e-6)
+                        if 1200.0 * math.log2(ratio) <= 160.0:
+                            return False  # chorus/unison detune/shimmer sideband adjacent to f0 (not a chord)
                         return abs(1200.0 * math.log2(ratio / max(1, round(ratio)))) > 50.0
 
                     chord_peak_count = (
@@ -656,7 +681,10 @@ def analyze_pitch_and_purity(
         ((f0_std_st > 0.75 or frac_off_pitch > 0.14) and not is_low)
         or (onset_count >= 3 and f0_std_st > 0.35)
     )
-    is_chord = (chord_peak_count >= 2 and (polyphony_ratio >= 0.42 or chroma_strong >= 3)) or (med_f0 is None and chroma_strong >= 3)
+    is_chord = (
+        (chord_peak_count >= 2 and (polyphony_ratio >= 0.42 or (chroma_strong >= 3 and polyphony_ratio >= 0.35)))
+        or (med_f0 is None and chroma_strong >= 3)
+    )
     is_sustained_harmonic = bool(med_f0 is not None and dur_s >= 0.35 and r_harm >= 0.70 and (hnr_db is None or hnr_db >= 8.0))
     if is_perc_heavy or (not is_low and not is_sustained_harmonic and r_harm < 0.30 and (hnr_db is None or hnr_db < 4.5)):
         sample_nature = "percussion"

@@ -659,6 +659,27 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
 
         used_paths: set[str] = set()
         proj_seed = int(bp.get("seed") or 0)
+        eff_intent_l = str(intent or bp.get("intent") or "").lower()
+        import re as _re_int
+        eff_intent_toks = set(_re_int.findall(r"[a-zàâäéèêëîïôöùûüç0-9]+", eff_intent_l))
+        wants_keys_organic = bool(
+            eff_intent_toks & {"piano", "rhodes", "keys", "boombap", "boom", "bap", "soul", "soulful", "jazz", "lofi", "felt"}
+        ) or (prof in ("lofi_chill", "jazz_acoustic") and not (eff_intent_toks & {"synth", "bell", "pad", "electronic", "drill", "trap"}))
+        wants_synth_modern = bool(
+            eff_intent_toks & {"trap", "drill", "synth", "synthe", "synthé", "pad", "bell", "cloche", "pluck", "edm", "house", "club", "electronic", "tense", "atmospheric", "strings", "cordes", "ambient", "cinematic", "orchestral"}
+        ) or (prof in ("edm_club", "classical_ambient") and not wants_keys_organic)
+        wants_bell = bool(eff_intent_toks & {"bell", "cloche", "chime", "glassy", "crystal", "hypnotic"})
+        wants_pad = bool(eff_intent_toks & {"pad", "nappe", "atmospheric", "atmosphérique", "ambient", "ethereal", "dreamy", "cloud"})
+        wants_strings = bool(eff_intent_toks & {"strings", "cordes", "orchestral", "cinematic", "classical", "epic"}) or (
+            prof == "classical_ambient" and not wants_keys_organic
+        )
+        wants_acoustic_bass = bool(
+            (eff_intent_toks & {"acoustic", "jazz", "boombap", "boom", "bap", "soul", "soulful", "finger", "upright", "rock"})
+            and not (eff_intent_toks & {"808", "trap", "drill", "slide"})
+        )
+        wants_808 = bool(eff_intent_toks & {"808", "trap", "drill", "slide", "sub"}) or (
+            prof == "trap_rap" and not wants_acoustic_bass
+        )
 
         def _pick_unique_from_pool(slot_role: str, track_key: str) -> dict[str, Any] | None:
             pool_cands = list(candidate_pool.get(slot_role) or [])
@@ -677,7 +698,7 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                 def _snare_rank(c: dict[str, Any]) -> tuple[int, float]:
                     fp_l = os.path.basename(str(c.get("filepath") or "")).lower()
                     is_dirty = 1 if any(w in fp_l for w in ("distort", "crunch", "clip", "noisy", "bitcrush")) else 0
-                    sc = float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4
+                    sc = float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4 + float(c.get("intent_match") or 0.0)
                     return (is_dirty, -sc)
 
                 pool_cands.sort(key=_snare_rank)
@@ -694,56 +715,95 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                     )
                 )
             elif slot_role in TONAL_SLOTS:
-                # Préférer un vrai clavier/piano/rhodes pour `chords`, un pad soutenu pour `pad`,
-                # et un instrument lead/tine/piano/guitare propre (jamais un swell/reverse ni loop chop)
-                # pour `lead`/`arp`.
+                # Classement tonal conscient de l'intention, du genre et de `intent_match` (CLAP + lexical) :
+                # jamais de Rhodes/piano imposé de force sur Trap/Drill/EDM quand des synthés/bells/pads existent !
                 def _tonal_rank(c: dict[str, Any]) -> tuple[int, float]:
                     fp_l = os.path.basename(str(c.get("filepath") or "")).lower()
                     cat_c = infer_sample_category(c.get("category"), c.get("filepath"))
                     att = float(c.get("attack_ms") or 20.0)
+                    im = float(c.get("intent_match") or 0.0)
                     is_swell_rev = any(w in fp_l for w in ("swell", "_rev", "reverse"))
                     is_loop_name = (
                         "8bar" in fp_l
                         or "loop" in fp_l
                         or (bool(c.get("is_loop")) and str(c.get("sample_nature") or "") != "mono_oneshot")
                     )
+                    is_rhodes = "rhodes" in fp_l
+                    is_synth_pad = cat_c in ("synth", "pad") or any(w in fp_l for w in ("synth", "pad", "cloud", "hi str", "string", "pluck", "bell"))
+                    is_bell_pluck = any(w in fp_l for w in ("bell", "pluck", "kalimba", "mallet", "chime"))
                     pref = 2
-                    if "pad" in track_key or "string" in track_key:
+                    if slot_role == "bass_sub":
+                        if wants_acoustic_bass:
+                            if cat_c == "bass" or "bass guitar" in fp_l or "finger" in fp_l:
+                                pref = 0
+                            else:
+                                pref = 2
+                        elif wants_808:
+                            if cat_c == "808" or "808" in fp_l:
+                                pref = 0
+                            elif cat_c == "bass" and "bass guitar" not in fp_l:
+                                pref = 1
+                            else:
+                                pref = 2
+                        else:
+                            pref = 0 if cat_c in ("808", "bass") else 1
+                    elif "pad" in track_key or "string" in track_key:
                         if is_loop_name:
                             pref = 4
-                        elif ("pad" in fp_l or "cloud" in fp_l or "sustain" in fp_l or cat_c == "pad") and not is_swell_rev:
+                        elif ("pad" in fp_l or "cloud" in fp_l or "sustain" in fp_l or "hi str" in fp_l or "string" in fp_l or cat_c == "pad") and not is_swell_rev:
                             pref = 0
-                        elif cat_c in ("piano", "vocal") and not is_swell_rev:
+                        elif cat_c in ("synth", "vocal", "piano") and not is_swell_rev:
                             pref = 1
                         elif "pluck" in fp_l or "bell" in fp_l:
                             pref = 3
                     elif "chord" in track_key or "key" in track_key or "piano" in track_key:
-                        if is_swell_rev or is_loop_name:
+                        if is_swell_rev or is_loop_name or att > 1500.0:
                             pref = 4
-                        elif ("rhodes" in fp_l or "piano" in fp_l) and "lead" not in fp_l and "pizz" not in fp_l:
+                        elif wants_strings and ("hi str" in fp_l or "string" in fp_l or "pad" in fp_l):
                             pref = 0
-                        elif cat_c in ("piano", "guitar"):
-                            pref = 1
-                        elif "pad" in fp_l:
-                            pref = 2
-                    elif any(k in track_key for k in ("lead", "arp", "counter", "melody")):
-                        if is_swell_rev or is_loop_name:
-                            pref = 4
-                        elif "headroom_piano_lead" in fp_l or "lead" in fp_l or "tine" in fp_l or "pizz" in fp_l or cat_c == "guitar":
-                            # Éviter d'empiler 2 Rhodes (chords=rhodes + lead=rhodes -> 86 % lowmid) :
-                            # si un Rhodes est déjà utilisé par `chords`, préférer un vrai piano lead (500-2000 Hz)
-                            chords_has_rhodes = any("rhodes" in p for p in used_paths)
-                            if chords_has_rhodes and "rhodes" in fp_l:
-                                pref = 1
-                            else:
+                        elif wants_synth_modern and not wants_keys_organic:
+                            if is_synth_pad and not is_rhodes:
                                 pref = 0
-                        elif cat_c == "piano" and "pad" not in fp_l and att <= 80.0:
-                            pref = 1
-                        elif ("pluck" in fp_l or cat_c == "synth") and "pad" not in fp_l and att <= 80.0:
-                            pref = 2
-                        elif cat_c == "vocal" and not is_swell_rev:
-                            pref = 3
-                    sc = float(c.get("role_score", 0.5)) * 0.55 + float(c.get("comfort_score", 0.5)) * 0.45
+                            elif cat_c in ("piano", "guitar") and not is_rhodes and "lead" not in fp_l and "pizz" not in fp_l:
+                                pref = 1
+                            elif is_rhodes:
+                                pref = 2
+                        else:
+                            if ("rhodes" in fp_l or "piano" in fp_l) and "lead" not in fp_l and "pizz" not in fp_l:
+                                pref = 0
+                            elif cat_c in ("piano", "guitar"):
+                                pref = 1
+                            elif "pad" in fp_l or cat_c == "synth":
+                                pref = 1 if wants_pad else 2
+                    elif any(k in track_key for k in ("lead", "arp", "counter", "melody")):
+                        if is_swell_rev or is_loop_name or att > 1500.0:
+                            pref = 4
+                        elif wants_synth_modern and not wants_keys_organic:
+                            if (wants_bell and is_bell_pluck) or (is_synth_pad and not is_rhodes and att <= 220.0):
+                                pref = 0
+                            elif "headroom_piano_lead" in fp_l or (cat_c in ("piano", "guitar") and not is_rhodes and att <= 80.0):
+                                pref = 1
+                            elif is_rhodes:
+                                pref = 2
+                            elif cat_c == "vocal" and not is_swell_rev:
+                                pref = 2
+                        else:
+                            if "headroom_piano_lead" in fp_l or "lead" in fp_l or "tine" in fp_l or "pizz" in fp_l or cat_c == "guitar":
+                                # Éviter d'empiler 2 Rhodes (chords=rhodes + lead=rhodes -> 86 % lowmid)
+                                chords_has_rhodes = any("rhodes" in p for p in used_paths)
+                                if chords_has_rhodes and is_rhodes:
+                                    pref = 1
+                                else:
+                                    pref = 0
+                            elif cat_c == "piano" and "pad" not in fp_l and att <= 80.0:
+                                pref = 1
+                            elif (is_bell_pluck or cat_c == "synth") and "pad" not in fp_l and att <= 80.0:
+                                pref = 1 if wants_bell else 2
+                            elif cat_c == "vocal" and not is_swell_rev:
+                                pref = 3
+                    bell_bonus = 0.14 if (wants_bell and any(w in fp_l for w in ("bell", "chime"))) else 0.0
+                    str_bonus = 0.12 if (wants_strings and any(w in fp_l for w in ("hi str", "string", "pad", "cloud"))) else 0.0
+                    sc = float(c.get("role_score", 0.5)) * 0.45 + float(c.get("comfort_score", 0.5)) * 0.30 + im + bell_bonus + str_bonus
                     return (pref, -sc)
 
                 pool_cands.sort(key=_tonal_rank)
@@ -766,8 +826,10 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                 if slot_role in TONAL_SLOTS:
                     if c.get("midi_root") is None:
                         continue
-                    if trk_notes and not register_fit(c.get("midi_root"), trk_notes, c, role=slot_role)["ok"]:
-                        continue
+                    if trk_notes:
+                        _rf_c = register_fit(c.get("midi_root"), trk_notes, c, role=slot_role)
+                        if not (_rf_c["ok"] or _rf_c.get("multizone_viable")):
+                            continue
                     # Garde audio directe sur la forme d'onde (bloque tout chop multi-notes)
                     if _audit_tonal_sample_waveform is not None and _audit_tonal_sample_waveform(rp, slot_role):
                         continue
@@ -820,19 +882,23 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                     chosen_slot = alt_drum
 
             # Priorité absolue aux vrais samples du dossier `samples/` sur les pistes tonales :
-            # utiliser le classement musical dédié du pool (piano/rhodes pour chords, pad soutenu pour pad,
-            # guitare/pluck/piano à attaque nette pour lead/arp — jamais un swell/reverse sur lead/arp).
-            if slot_role in ("chord_keys", "pad_atmosphere", "lead_melody") and candidate_pool.get(slot_role):
+            # utiliser le classement musical dédié du pool (808 vs basse acoustique, Rhodes/piano sur
+            # boom bap/jazz, synthé/pad/bell/strings sur trap/drill/edm/ambient).
+            if slot_role in ("bass_sub", "chord_keys", "pad_atmosphere", "lead_melody") and candidate_pool.get(slot_role):
                 alt_ranked = _pick_unique_from_pool(slot_role, key)
                 if alt_ranked is not None:
                     chosen_slot = alt_ranked
 
             need_real_pick = not chosen_slot or chosen_slot.get("source_type") not in ("sample", "project_sample")
             if (not need_real_pick) and slot_role in TONAL_SLOTS and notes_by_track.get(key):
-                if chosen_slot.get("midi_root") is None or not register_fit(
-                    chosen_slot.get("midi_root"), notes_by_track.get(key), chosen_slot, role=slot_role
-                )["ok"]:
+                if chosen_slot.get("midi_root") is None:
                     need_real_pick = True
+                else:
+                    _rf_sel = register_fit(
+                        chosen_slot.get("midi_root"), notes_by_track.get(key), chosen_slot, role=slot_role
+                    )
+                    if not (_rf_sel["ok"] or _rf_sel.get("multizone_viable")):
+                        need_real_pick = True
             if need_real_pick and candidate_pool.get(slot_role):
                 alt_real = _pick_unique_from_pool(slot_role, key)
                 if alt_real is not None:
@@ -878,9 +944,15 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                 # de `samples/` décalé d'une octave (808 C1 -> C2, synth/pad/vocal C5 -> C4, etc.)
                 eff_path = rpath
                 eff_rn = int(max(0, min(127, int(rn))))
+                use_multizone = False
                 if not is_perc_track and slot_role in TONAL_SLOTS:
                     rf_t = register_fit(eff_rn, notes_by_track.get(key), chosen_slot, role=slot_role)
                     shift_st = int(rf_t.get("octave_shift_st") or 0)
+                    if not rf_t["ok"] and rf_t.get("multizone_viable"):
+                        shift_st = int(rf_t.get("multizone_octave_shift_st") or 0)
+                        use_multizone = True
+                    elif rf_t.get("needs_multizone"):
+                        use_multizone = True
                     if shift_st in (-12, 12):
                         derived = prepare_octave_shifted_sample(rpath, proj, eff_rn, shift_st // 12)
                         if derived is not None:
@@ -891,6 +963,10 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                 tr.pop("preset", None)
                 tr.pop("plugin_params", None)
                 tr["root_note"] = eff_rn
+                if use_multizone:
+                    tr["multizone"] = True
+                else:
+                    tr.pop("multizone", None)
                 # Ne JAMAIS appliquer fine_tune_ct mélodique sur les percussions non-kick (snare/clap/hihat/perc)
                 if is_perc_track and key != "kick":
                     tr["fine_tune_ct"] = 0

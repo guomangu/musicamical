@@ -16,6 +16,7 @@ import copy
 import json
 import math
 import os
+import re
 import shutil
 import sys
 from dataclasses import dataclass, field
@@ -413,10 +414,15 @@ def _apply_auto_gain_staging(
     meas_for_plan: dict[str, dict[str, Any]] = {}
     ch_by_key: dict[str, ChannelSpec] = {}
     for ch in eff_channels:
+        base_tk = re.sub(r"__z\d+$", "", ch.track_key).lower()
+        base_nm = re.sub(r"\s+Z\d+$", "", ch.name).strip().lower()
         cands = [
             ch.track_key.lower(),
+            base_tk,
             ch.name.lower(),
+            base_nm,
             ch.name.lower().replace(" ", "_"),
+            base_nm.replace(" ", "_"),
         ]
         hit = next((sc_metrics[c] for c in cands if c in sc_metrics), None)
         if hit and hit.get("active_lufs") is not None:
@@ -468,8 +474,10 @@ def _apply_auto_gain_staging(
             status = "NOMINAL_APPLIED"
 
         # Apply persisted Q2 ADJUST_TRACK_FADER overrides (`volume_trim_db`) if present
+        base_tk_ov = re.sub(r"__z\d+$", "", ch.track_key)
+        base_nm_ov = re.sub(r"\s+Z\d+$", "", ch.name).strip()
         ov_entry = None
-        for cand in (ch.track_key, ch.name, ch.name.lower(), ch.track_key.lower(), str(ch.mixer)):
+        for cand in (ch.track_key, base_tk_ov, ch.name, base_nm_ov, ch.name.lower(), base_nm_ov.lower(), ch.track_key.lower(), base_tk_ov.lower(), str(ch.mixer)):
             if cand in overrides and isinstance(overrides[cand], dict):
                 ov_entry = overrides[cand]
                 break
@@ -676,22 +684,29 @@ def build_gridline_project(
         if param_changes:
             mcp.set_params(param_changes)
 
-        # Route each insert to its bus (17=Drums, 18=Bass, 19=Music)
-        mcp.batch([
-            {
+        # Route each unique mixer insert to its bus (17=Drums, 18=Bass, 19=Music)
+        # (multi-zone sub-channels share the same mixer insert -> deduplicate by ch.mixer)
+        seen_route_mixers: set[int] = set()
+        route_calls: list[dict[str, Any]] = []
+        for ch in channels:
+            if ch.mixer in seen_route_mixers:
+                continue
+            seen_route_mixers.add(ch.mixer)
+            base_mx_name = re.sub(r"\s+Z\d+$", "", str(ch.name or "")).strip() or ch.name
+            route_calls.append({
                 "tool": "edit_mixer_track",
                 "arguments": {
                     "mixer": ch.mixer,
-                    "name": ch.name,
+                    "name": base_mx_name,
                     "routeTo": _resolve_bus(ch.bus),
                     **({"volume": insert_vol_overrides[ch.mixer]} if ch.mixer in insert_vol_overrides else {}),
                 },
-            }
-            for ch in channels
-        ])
+            })
+        if route_calls:
+            mcp.batch(route_calls)
 
         # Add insert gl.eq plugins & apply all insert + bus EQ parameters
-        eq_mixers = list(insert_eq_mixers or [])
+        eq_mixers = list(dict.fromkeys(insert_eq_mixers or []))
         if not eq_mixers and insert_eq_params:
             seen_m: set[int] = set()
             for p_str, _ in insert_eq_params:
@@ -728,19 +743,25 @@ def build_gridline_project(
         if all_eq:
             mcp.set_params(all_eq)
 
-        # Sends (Sidechain + FX Room)
+        # Sends (Sidechain + FX Room) — deduplicate per (mixer, target_bus) for shared multi-zone inserts
         sends: list[dict[str, Any]] = []
+        seen_send_keys: set[tuple[int, int]] = set()
         for ch in channels:
             for sc_bus, sc_lvl in ch.sidechain_buses:
-                sends.append({
-                    "tool": "set_send",
-                    "arguments": sidechain_send(ch.mixer, sc_bus, sc_lvl),
-                })
-            if ch.fx_send > 0.0:
+                if (ch.mixer, int(sc_bus)) not in seen_send_keys:
+                    seen_send_keys.add((ch.mixer, int(sc_bus)))
+                    sends.append({
+                        "tool": "set_send",
+                        "arguments": sidechain_send(ch.mixer, sc_bus, sc_lvl),
+                    })
+            if ch.fx_send > 0.0 and (ch.mixer, 20) not in seen_send_keys:
+                seen_send_keys.add((ch.mixer, 20))
                 sends.append({"tool": "set_send", "arguments": {"mixer": ch.mixer, "to": 20, "level": ch.fx_send}})
-            if ch.delay_send > 0.0:
+            if ch.delay_send > 0.0 and (ch.mixer, 21) not in seen_send_keys:
+                seen_send_keys.add((ch.mixer, 21))
                 sends.append({"tool": "set_send", "arguments": {"mixer": ch.mixer, "to": 21, "level": min(0.18, float(ch.delay_send))}})
-            if ch.hall_send > 0.0:
+            if ch.hall_send > 0.0 and (ch.mixer, 22) not in seen_send_keys:
+                seen_send_keys.add((ch.mixer, 22))
                 sends.append({"tool": "set_send", "arguments": {"mixer": ch.mixer, "to": 22, "level": min(0.30, float(ch.hall_send))}})
         if sends:
             mcp.batch(sends)
@@ -1462,6 +1483,133 @@ def split_notes_by_pitch_zones(
     for k in out:
         out[k].sort(key=lambda e: (float(e["start"]), int(e["pitch"])))
     return out
+
+
+def _expand_multizone_sampler_channels(
+    channels: list[ChannelSpec],
+    tracks: dict[str, list[dict[str, Any]]],
+    automations: list[dict[str, Any]],
+    proj_dir: str,
+) -> tuple[list[ChannelSpec], dict[str, list[dict[str, Any]]], list[dict[str, Any]], dict[str, Any]]:
+    """v4.3+ (D4 / Cause #4) — Active automatiquement le multi-zone pitch-split
+    (`sample_prep_lib.build_multizone_samples` + `split_notes_by_pitch_zones`) sur tout canal
+    tonal `gl.sampler` (hors batterie et hors basse/808 < 80 Hz) dont l'écart `S_max` dépasse le
+    plafond mono-zone (`max_semitone_shift_single_zone`, 7 st) ou dont l'ambitus dépasse 10 st.
+    Chaque zone (<= 7 st de large, max ±3–4 st de varispeed) route vers le MÊME insert mixeur
+    (même EQ, volume, pan, sends et stems)."""
+    try:
+        from mix_config import max_semitone_shift_single_zone
+        from sample_prep_lib import build_multizone_samples
+    except Exception:
+        return channels, tracks, automations, {"enabled": False}
+
+    new_channels: list[ChannelSpec] = []
+    new_tracks: dict[str, list[dict[str, Any]]] = dict(tracks)
+    report: dict[str, Any] = {"expanded": []}
+
+    for ch in channels:
+        rl = ch.track_key.lower()
+        is_perc = any(k in rl for k in ("kick", "snare", "clap", "hat", "perc", "rim", "drum"))
+        is_bass = any(k in rl for k in ("bass", "808", "sub"))
+        is_tonal_mid = any(k in rl for k in ("chord", "pad", "key", "piano", "string", "lead", "melody", "counter", "arp", "pluck", "bell", "vocal"))
+        evs = list(tracks.get(ch.track_key) or [])
+        src_wav = str(ch.sample_file or "")
+        if (
+            ch.plugin != "gl.sampler"
+            or is_perc
+            or is_bass
+            or not is_tonal_mid
+            or not src_wav
+            or not os.path.isfile(src_wav)
+            or ch.root_note is None
+            or len(evs) < 2
+        ):
+            new_channels.append(ch)
+            continue
+
+        pitches = [int(e["pitch"]) for e in evs if e.get("pitch") is not None]
+        if not pitches:
+            new_channels.append(ch)
+            continue
+        lo, hi = min(pitches), max(pitches)
+        ambitus = hi - lo
+        rn = int(ch.root_note)
+        s_max = max(abs(lo - rn), abs(hi - rn))
+        slot = "pad_atmosphere" if any(k in rl for k in ("pad", "string")) else (
+            "chord_keys" if any(k in rl for k in ("chord", "key", "piano")) else "lead_melody"
+        )
+        cap_single = int(max_semitone_shift_single_zone(slot) or 7)
+
+        # Déclencher le multi-zone si varispeed > cap_single (7 st) ou ambitus large (> 10 st)
+        if not ((s_max > cap_single and ambitus >= 6) or ambitus > 10):
+            new_channels.append(ch)
+            continue
+
+        # Construire 2 ou 3 zones couvrant [lo, hi] sans repliement d'octave (<= 7 st/zone)
+        n_zones = 2 if ambitus <= 13 else 3
+        zones: list[tuple[int, int]] = []
+        cur = lo
+        for zi in range(n_zones):
+            rem_z = n_zones - zi
+            span = (hi - cur) // rem_z
+            z_hi = hi if zi == n_zones - 1 else cur + span
+            zones.append((cur, z_hi))
+            cur = z_hi + 1
+
+        try:
+            stem = os.path.splitext(os.path.basename(src_wav))[0]
+            mz_dir = os.path.join(os.path.abspath(proj_dir), "derived_samples", "multizone", f"{stem}_r{rn}_{lo}_{hi}")
+            mz_descs = build_multizone_samples(src_wav, mz_dir, base_midi=rn, zones=zones)
+            z_notes_map = split_notes_by_pitch_zones(evs, zones=zones)
+        except Exception:
+            new_channels.append(ch)
+            continue
+
+        zone_specs: list[ChannelSpec] = []
+        for zi, desc in enumerate(mz_descs, start=1):
+            z_evs = z_notes_map.get(f"zone_{zi}") or []
+            if not z_evs:
+                continue
+            z_key = f"{ch.track_key}__z{zi}"
+            z_ch = copy.deepcopy(ch)
+            z_ch.name = f"{ch.name} Z{zi}"
+            z_ch.track_key = z_key
+            z_ch.sample_file = str(desc["wav_path"])
+            z_ch.root_note = int(desc["base_midi"])
+            z_ch.fine_tune = 0  # déjà accordé < 3 ct par build_multizone_samples
+            zone_specs.append(z_ch)
+            new_tracks[z_key] = z_evs
+
+        if len(zone_specs) >= 2:
+            new_tracks.pop(ch.track_key, None)
+            new_channels.extend(zone_specs)
+            report["expanded"].append({
+                "track": ch.track_key,
+                "source": os.path.basename(src_wav),
+                "orig_root": rn,
+                "pitch_range": [lo, hi],
+                "orig_s_max": s_max,
+                "zones": [
+                    {"zone": d["zone"], "base_midi": d["base_midi"], "file": os.path.basename(d["wav_path"])}
+                    for d in mz_descs
+                ],
+                "n_active_zones": len(zone_specs),
+            })
+        else:
+            for z_ch in zone_specs:
+                new_tracks.pop(z_ch.track_key, None)
+            new_channels.append(ch)
+
+    # Décaler les pistes Playlist des automations si l'expansion multi-zone a ajouté des canaux
+    eff_autos = [dict(a) for a in (automations or [])]
+    if eff_autos and len(new_channels) > len(channels):
+        min_auto_tr = min(int(a.get("track", 1)) for a in eff_autos)
+        if min_auto_tr <= len(new_channels):
+            delta = (len(new_channels) + 1) - min_auto_tr
+            for a in eff_autos:
+                a["track"] = min(63, int(a.get("track", 1)) + delta)
+
+    return new_channels, new_tracks, eff_autos, report
 
 
 def _default_channels_for_plan(
@@ -2318,6 +2466,13 @@ def compile_arrangement_plan(
             auto_fix=auto_fix_midi,
         )
 
+    # v4.3+ (D4) : expansion automatique multi-zone sur pistes tonales gl.sampler à large ambitus
+    # (après export master_sketch.mid et verify_midi_gate pour garder un MIDI propre à 1 piste/rôle)
+    build_channels, build_tracks, build_autos, mz_report = _expand_multizone_sampler_channels(
+        eff_channels, tracks, autos, abs_proj
+    )
+    post_groove_check["multizone"] = mz_report
+
     abs_out = os.path.abspath(os.path.expanduser(out_gridline))
     if core_only:
         core_info = build_core_loop_project(
@@ -2326,8 +2481,8 @@ def compile_arrangement_plan(
             samples_dir=os.path.join(abs_proj, samples_subdir),
             meta=meta,
             sections=sections_tuples,
-            channels=eff_channels,
-            tracks=tracks,
+            channels=build_channels,
+            tracks=build_tracks,
             max_bars=max(4, min(8, int(core_bars))),
             insert_eq_params=insert_eq_params or None,
             insert_eq_mixers=insert_eq_mixers or None,
@@ -2355,12 +2510,12 @@ def compile_arrangement_plan(
         samples_dir=os.path.join(abs_proj, samples_subdir),
         meta=meta,
         sections=sections_tuples,
-        channels=eff_channels,
-        tracks=tracks,
+        channels=build_channels,
+        tracks=build_tracks,
         markers=markers,
         insert_eq_params=insert_eq_params or None,
         insert_eq_mixers=insert_eq_mixers or None,
-        automations=autos,
+        automations=build_autos,
         limiter_ceiling_db=limiter_ceiling_db,
         limiter_gain_db=limiter_gain_db,
         fx_room_vol=fx_room_vol,

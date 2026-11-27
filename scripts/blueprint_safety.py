@@ -273,7 +273,11 @@ def bpm_compatibility(bpm_proj: float | None, bpm_loop: float | None) -> dict[st
 
 
 def is_melodic_loop(entry: dict[str, Any] | None, track: dict[str, Any]) -> bool:
-    """A loop is melodic (key-fit applies) unless classified percussive."""
+    """A loop is melodic (key-fit applies) unless classified percussive.
+    Un one-shot tonal soutenu (`sample_nature == 'mono_oneshot'`) joué en `gl.sampler`
+    n'est JAMAIS une boucle mélodique (même si > 1,8 s)."""
+    if not track.get("is_loop") and str((entry or {}).get("sample_nature") or "").lower() == "mono_oneshot":
+        return False
     if not (track.get("is_loop") or (entry or {}).get("is_loop")):
         return False
     nature = str((entry or {}).get("loop_nature") or "").lower()
@@ -528,9 +532,13 @@ def blueprint_musical_safety_issues(
                             "recommended_transposition_st": int(shift),
                             "fix": f"melodic loop root pc {pc} far outside '{key_label}' scale; repitch by {int(shift):+d} st or reject",
                         })
-            # v3.0 BPM lock for loops
+            # v3.0 BPM lock for loops (jamais sur un mono_oneshot soutenu joué en gl.sampler)
             loop_bpm = tr.get("bpm") or (entry or {}).get("bpm")
-            if (tr.get("is_loop") or (entry or {}).get("is_loop")) and loop_bpm and proj_bpm:
+            is_true_loop = bool(tr.get("is_loop")) or (
+                bool((entry or {}).get("is_loop"))
+                and str((entry or {}).get("sample_nature") or "").lower() != "mono_oneshot"
+            )
+            if is_true_loop and loop_bpm and proj_bpm:
                 comp = bpm_compatibility(float(proj_bpm), float(loop_bpm))
                 if not comp["ok"]:
                     issues.append({
@@ -579,6 +587,8 @@ def blueprint_musical_safety_issues(
                 action = "ok" if s_max <= cap else (
                     "multizone" if ambitus <= MULTIZONE_MAX_AMBITUS_ST.get(cat, 20) else "swap"
                 )
+                if action == "multizone" and bool(tr.get("multizone")) and s_max <= 15:
+                    action = "ok"  # song_builder expand automatiquement en 2-3 zones <= +/-4 st/zone
                 if action != "ok":
                     issues.append({
                         **base,

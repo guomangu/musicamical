@@ -1,0 +1,5 @@
+// @meta 90 D:minor lofi_chill V=-0.25 T=0.4 E=0.6 D=0.6 form=I4-V8-C8-V8-C8-B4-O5 dur=120s seed=1001 intent="warm soulful boom bap jazz rap rhodes piano acoustic bass"
+kit("boom_bap", {var: 2, hats: "rolls"})
+$chords: sectionGrid({default: "Dm7 Gm7 Bbmaj7 Gm7", chorus: "Gm7 Bbmaj7 Dm7 Gm7", bridge: "Gm7 Dm7 Bbmaj7 Dm7"}).slow(2).gain(0.72).muteIn("intro")
+$bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 20}).slow(4).in("verse,chorus,bridge,outro")
+$lead: deg("0 2 3 2 ~ 0 2 3 ~ 2 0 ~ 2 3 2 0", 4).slow(2).gain(0.62).lift("chorus", {energy: "+1.5dB"}).in("verse,chorus,bridge")

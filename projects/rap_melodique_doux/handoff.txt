@@ -1,0 +1,14 @@
+HANDOFF v4 rap_melodique_doux
+strudel=composition.strudel#cd3be69af5 seed=8804
+bridge_ok=True tracks=6 notes=853
+sections=intro,verse,pre_chorus,chorus,verse,chorus,outro
+eval_passed=True compile_passed=True fc_passed=True
+guards={"bass_register_clamped":0,"bass_root_locked":66,"lead_apex_clamped":0,"chords_revoiced":54,"mono_onset_dedup":0,"chord_symbols_expanded":85}
+preflight=PASS gf=1.0 sw=0.846 rest=0.25 bad_leaps=0 (0 rendu: scripts/preflight_strudel_gate.py <projet>)
+palette=palette_A samples=6/6 rej=29 theme=organic safety=0err/0warn
+sound_guard=OK
+BU=PASS(4/4,fix=0)
+!! RESTART session agent : prod_server.py a changé depuis le démarrage du serveur MCP -> fermer/rouvrir la session (Zed/Antigravity)
+score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json
+master=renders/master.wav
+next: studio_refine(delta_json=...) ou strudel_patch={{"replace_track":"lead","code":"..."}}

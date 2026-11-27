@@ -77,9 +77,11 @@ CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [
     ("hat", ("hihat", "hi-hat", "hi_hat", "hat", "hh", "ch")),
     ("perc", ("perc", "shaker", "tamb", "conga", "bongo", "tom", "cowbell", "crash", "ride", "cymbal")),
     ("vocal", ("vocal", "acapella", "voice", "vox", "chant", "choir")),
+    ("bass", ("bass guitar", "bass_guitar", "bassguitar", "finger bass", "electric bass", "acoustic bass", "upright bass", "slap bass")),
     ("guitar", ("guitar", "guit", "gtr")),
-    ("piano", ("piano", "keys", "rhodes", "epiano", "organ", "chord")),
+    ("piano", ("piano", "keys", "rhodes", "epiano", "organ")),
     ("synth", ("synth", "pad", "lead", "pluck", "arp", "bell", "mallet", "brass", "strings")),
+    ("piano", ("chord",)),
     ("fx", ("fx", "riser", "sweep", "impact", "downlifter", "uplifter", "glitch", "noise", "transition")),
     ("bass", ("bass",)),
     ("loop", ("loop", "stem", "drumless", "instrumental", "full")),
@@ -100,7 +102,8 @@ NOTE_TO_PC = {
 }
 
 
-DB_SCHEMA_VERSION = 3  # v3.3 #5 : version de schéma samples.db (PRAGMA user_version)
+DB_SCHEMA_VERSION = 4  # v4.3+ : version de schéma samples.db (PRAGMA user_version)
+DSP_METRICS_VERSION = 2  # incrémenter quand audio_metrics / sample_quality_v2 change pour rafraîchir le DSP auto
 
 
 def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
@@ -232,6 +235,14 @@ def init_db(db_path: str = DEFAULT_DB_PATH) -> sqlite3.Connection:
         """
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_q2_status ON sample_quality_v2(status);")
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS db_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """
+    )
     conn.commit()
     return conn
 
@@ -1153,8 +1164,9 @@ def index_directory(
     if limit > 0:
         files = files[:limit]
 
-    # v4.0 hotfix : purge les lignes dont le fichier a disparu du disque (packs supprimés
-    # entre deux runs) — jamais sous --limit, la liste tronquée ne reflète pas tout le dossier.
+    # v4.0/v4.3 : purge TOUTE ligne dont le fichier a disparu du disque (packs supprimés OU
+    # dépôt déplacé/renommé, ex. ancienne racine `.../musicos/samples/...` qui polluait la DB)
+    # — jamais sous --limit, la liste tronquée ne reflète pas tout le dossier.
     pruned = 0
     if limit == 0:
         root_real = os.path.realpath(os.path.abspath(samples_dir))
@@ -1162,7 +1174,11 @@ def index_directory(
         stale_ids = [
             int(r["id"])
             for r in conn.execute("SELECT id, path FROM samples").fetchall()
-            if os.path.realpath(r["path"]).startswith(root_real + os.sep) and os.path.realpath(r["path"]) not in current
+            if (not os.path.isfile(r["path"]))
+            or (
+                os.path.realpath(r["path"]).startswith(root_real + os.sep)
+                and os.path.realpath(r["path"]) not in current
+            )
         ]
         if stale_ids:
             conn.executemany("DELETE FROM sample_dsp_metrics WHERE sample_id = ?", [(i,) for i in stale_ids])
@@ -1213,9 +1229,35 @@ def index_directory(
             conn.commit()
     conn.commit()
 
-    dsp_stats = populate_dsp_metrics(conn, force=force, limit=limit, workers=workers) if with_dsp else {"dsp_indexed": 0, "dsp_errors": 0, "q2_pass": 0, "q2_rejected": 0}
+    # Vérifier si la version d'analyse DSP a évolué depuis la dernière indexation (sans perdre clap_embedding)
+    meta_row = conn.execute("SELECT value FROM db_meta WHERE key = 'dsp_metrics_version'").fetchone()
+    prev_dsp_ver = int(meta_row["value"]) if meta_row is not None else 0
+    existing_dsp_count = conn.execute("SELECT COUNT(*) FROM sample_dsp_metrics").fetchone()[0]
+    dsp_upgrade_needed = bool(with_dsp and limit == 0 and existing_dsp_count > 0 and prev_dsp_ver < DSP_METRICS_VERSION)
+    if dsp_upgrade_needed:
+        # Mettre aussi à jour `category` en place selon les règles CATEGORY_RULES à jour (sans toucher clap_embedding)
+        cat_updates: list[tuple[str, int]] = []
+        for r in conn.execute("SELECT id, rel_path, filename, duration_sec, category, ext FROM samples").fetchall():
+            if r["ext"] in MIDI_EXTS:
+                continue
+            new_cat, _, _ = _infer_category_and_pack(r["rel_path"], r["filename"], float(r["duration_sec"] or 0.0))
+            if new_cat != r["category"]:
+                cat_updates.append((new_cat, int(r["id"])))
+        if cat_updates:
+            conn.executemany("UPDATE samples SET category = ? WHERE id = ?", cat_updates)
+            conn.commit()
+
+    eff_force_dsp = bool(force or dsp_upgrade_needed)
+    dsp_stats = populate_dsp_metrics(conn, force=eff_force_dsp, limit=limit, workers=workers) if with_dsp else {"dsp_indexed": 0, "dsp_errors": 0, "q2_pass": 0, "q2_rejected": 0}
     clap_count = _compute_clap_embeddings(conn) if with_clap else 0
-    card_stats = populate_semantic_cards(conn, force=force, limit=limit)
+    card_stats = populate_semantic_cards(conn, force=eff_force_dsp, limit=limit)
+    if with_dsp and limit == 0:
+        conn.execute(
+            "INSERT INTO db_meta (key, value) VALUES ('dsp_metrics_version', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (str(DSP_METRICS_VERSION),),
+        )
+        conn.commit()
     total = conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0]
     dsp_total = conn.execute("SELECT COUNT(*) FROM sample_dsp_metrics").fetchone()[0]
     cards_total = conn.execute("SELECT COUNT(*) FROM sample_semantic_cards").fetchone()[0]

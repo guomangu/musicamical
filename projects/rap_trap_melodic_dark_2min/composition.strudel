@@ -1,0 +1,5 @@
+// @meta 140 F:minor trap_rap V=-0.6 T=0.7 E=0.75 D=0.7 form=I4-V16-C8-V16-C8-B6-C8-O4 dur=120s seed=2002 intent="dark melodic trap 808 hypnotic bell atmospheric pad"
+kit("trap_half", {var: 2, hats: "rolls"})
+$chords: sectionGrid({default: "Fm7 Dbmaj7 Bbm7 Fm7", chorus: "Dbmaj7 Bbm7 Fm7 Bbm7", bridge: "Bbm7 Fm7 Dbmaj7 Bbm7"}).slow(2).gain(0.68).muteIn("intro,outro")
+$bass: bassline("<1 ~ ~ 1 1 ~ ~ 1>", {mode: "root", glide: 45}).slow(4).in("verse,chorus,outro")
+$lead: deg("0 3 2 ~ 3 2 ~ 1 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.6).lift("chorus", {energy: "+1.5dB"}).in("verse,chorus,bridge")

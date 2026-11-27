@@ -149,10 +149,11 @@ def _brickwall_cutoff_hz(mono: np.ndarray, sr: int, bin_hz: float = 500.0) -> fl
     return None
 
 
-def _snr_spectral(mono: np.ndarray, sr: int) -> tuple[float, float]:
-    """(SNR dB, fraction tonale) : puissance des pics spectraux (contenu structuré) vs plancher
-    de bruit (médiane du spectre). Sinus pur -> plancher ~0, fraction ~1, SNR ~99 dB (PASS) ;
-    sinus + bruit blanc -20 dB -> SNR ~17-20 dB ; bruit blanc seul -> fraction tonale ~0."""
+def _snr_spectral_details(mono: np.ndarray, sr: int) -> tuple[float, float, float]:
+    """(SNR dB, fraction tonale, SFM haute fréquence > 4 kHz).
+    Sinus pur -> plancher ~0, fraction ~1, SNR ~99 dB (PASS) ;
+    sinus + bruit blanc -20 dB -> SNR ~15-20 dB, hi_sfm ~0.55 (NOISY_FLOOR) ;
+    cordes/pads soutenus propres -> SNR ~20-25 dB mais hi_sfm < 0.08 (PASS, pas de souffle large bande)."""
     n = min(len(mono), 1 << 18)
     seg = mono[:n] * np.hanning(n)
     spec = np.abs(np.fft.rfft(seg)) ** 2
@@ -162,7 +163,25 @@ def _snr_spectral(mono: np.ndarray, sr: int) -> tuple[float, float]:
     p_noise = floor * len(spec)
     snr = 10.0 * math.log10(max(p_sig, 1e-24) / max(p_noise, 1e-24))
     frac = p_sig / max(float(np.sum(spec)), 1e-24)
-    return round(float(min(99.0, max(0.0, snr))), 2), round(float(min(1.0, frac)), 4)
+    fr = np.fft.rfftfreq(n, 1.0 / sr)
+    hi_cut = min(4000.0, sr * 0.35)
+    hi_m = fr >= hi_cut
+    if np.any(hi_m):
+        hi_sp = spec[hi_m] + 1e-24
+        hi_sfm = float(np.exp(np.mean(np.log(hi_sp))) / max(float(np.mean(hi_sp)), 1e-24))
+    else:
+        hi_sfm = 0.0
+    return (
+        round(float(min(99.0, max(0.0, snr))), 2),
+        round(float(min(1.0, frac)), 4),
+        round(float(min(1.0, max(0.0, hi_sfm))), 4),
+    )
+
+
+def _snr_spectral(mono: np.ndarray, sr: int) -> tuple[float, float]:
+    """(SNR dB, fraction tonale) — wrapper rétro-compatible."""
+    snr, frac, _hi_sfm = _snr_spectral_details(mono, sr)
+    return snr, frac
 
 
 def snr_db(mono: np.ndarray, sr: int) -> float:
@@ -202,11 +221,12 @@ def quality_gate_v2(x: np.ndarray, sr: int) -> dict:
     cutoff = _brickwall_cutoff_hz(mono, sr)
     if cutoff is not None:
         defects.append(f"UPSAMPLED_LOSSY(cutoff={cutoff}Hz)")
-    snr, tonal_frac = _snr_spectral(mono, sr)
+    snr, tonal_frac, hi_sfm = _snr_spectral_details(mono, sr)
     dyn_db = _time_dynamic_range_db(mono, sr)
-    # NOISY_FLOOR exige à la fois un faible SNR spectral ET un plancher de bruit persistant dans le temps
-    # (sinon les percussions large bande propres — hi-hats, snares, claps — sont faussement rejetées).
-    if snr < SNR_MIN_DB and tonal_frac >= 0.02 and dyn_db < 15.0:
+    # NOISY_FLOOR exige : faible SNR spectral + plancher temporel persistant + bruit large bande
+    # réel en hautes fréquences (hi_sfm >= 0.22, ou bruit extrême snr < 12 dB).
+    # Évite de rejeter à tort les cordes/pads soutenus propres (hi_sfm ~ 0.01-0.05) et les percussions.
+    if snr < SNR_MIN_DB and tonal_frac >= 0.02 and dyn_db < 15.0 and (hi_sfm >= 0.22 or snr < 12.0):
         defects.append("NOISY_FLOOR")  # signal structuré noyé dans un plancher de bruit persistant
     status = "REJECTED" if defects else "PASS"
     return {
@@ -227,9 +247,15 @@ def _hz_to_midi(f: float) -> float:
 def f0_contour(mono: np.ndarray, sr: int, hop_ms: float = 10.0) -> tuple[np.ndarray, np.ndarray]:
     """Contour F0(t) trame par trame (équivalent CREPE/YIN, 10 ms) via librosa.pyin."""
     import librosa
+    sig = mono
+    eff_sr = sr
+    while eff_sr > 48000 and len(sig) >= 64:
+        # 96/192 kHz -> <= 48 kHz : évite le warning pyin (frame_length=4096 < 2 périodes de 27.5 Hz) et 4x plus rapide
+        sig = _sig.resample_poly(sig, 1, 2)
+        eff_sr = eff_sr // 2
     f0, voiced, _ = librosa.pyin(
-        mono, fmin=27.5, fmax=2000.0, sr=sr,
-        hop_length=max(1, int(hop_ms * sr / 1000.0)), frame_length=4096,
+        sig, fmin=27.5, fmax=2000.0, sr=eff_sr,
+        hop_length=max(1, int(hop_ms * eff_sr / 1000.0)), frame_length=4096,
     )
     f0 = np.asarray(f0, dtype=np.float64)
     voiced = np.asarray(voiced, dtype=bool)

@@ -263,16 +263,15 @@ def _weighted_bark_overlap(c1: dict[str, Any], c2: dict[str, Any]) -> float:
         c2["_bark_sqrt"] = sq2
     if sq1 is None or sq2 is None:
         return 0.25
-    prod = sq1 * sq2
-    base_ov = float(np.sum(prod))
+    base_ov = float(sq1.dot(sq2))
     r1, r2 = c1["role"], c2["role"]
     if (r1 == "kick" and r2 == "bass_sub") or (r1 == "bass_sub" and r2 == "kick"):
-        low_ov = float(prod[0] + prod[1])
+        low_ov = float(sq1[0] * sq2[0] + sq1[1] * sq2[1])
         return min(1.0, 0.55 * base_ov + 0.70 * low_ov)
     if (r1 == "lead_melody" and r2 in ("chord_keys", "pad_atmosphere")) or (
         r2 == "lead_melody" and r1 in ("chord_keys", "pad_atmosphere")
     ):
-        mid_ov = float(np.sum(prod[7:17]))
+        mid_ov = float(sq1[7:17].dot(sq2[7:17]))
         return min(1.0, 0.50 * base_ov + 0.75 * mid_ov)
     return base_ov * 0.65
 
@@ -373,9 +372,11 @@ _INTENT_SYNONYMS: dict[str, tuple[str, ...]] = {
     "minimal": ("minimal", "sparse"), "minimaliste": ("minimal", "sparse"),
     "mental": ("introspective", "intimate"), "introspectif": ("introspective", "intimate"),
     "agressif": ("aggressive", "menacing", "festival"), "aggressive": ("aggressive", "menacing"),
+    "hard": ("aggressive", "menacing", "punchy", "gritty"), "dur": ("aggressive", "menacing", "punchy"),
+    "tense": ("tense", "cinematic", "dark", "menacing"), "tendu": ("tense", "cinematic", "dark"),
     "festival": ("festival", "energetic", "club"), "rêveur": ("dreamy", "cloud", "ethereal"), "dreamy": ("dreamy", "ethereal"),
     "nuage": ("cloud", "dreamy"), "épique": ("cinematic", "epic"), "cinematic": ("cinematic", "epic"),
-    "intime": ("intimate", "acoustic", "fragile"), "acoustique": ("acoustic", "intimate"),
+    "intime": ("intimate", "acoustic", "fragile"), "acoustique": ("acoustic", "intimate"), "acoustic": ("acoustic", "intimate", "organic"),
     "feutré": ("felt", "muted", "warm"), "muted": ("muted", "felt"),
     "poussiéreux": ("dusty", "vintage"), "dusty": ("dusty", "vintage"), "vintage": ("vintage", "dusty"),
     "vitreux": ("glassy", "airy"), "glassy": ("glassy", "airy"), "aérien": ("airy", "glassy"),
@@ -385,6 +386,33 @@ _INTENT_SYNONYMS: dict[str, tuple[str, ...]] = {
     "chaud": ("warm", "mellow"), "warm": ("warm", "mellow"), "froid": ("cold", "glassy"),
     "profond": ("deep", "sub"), "deep": ("deep", "sub"), "808": ("808", "sub", "bass"),
     "lourd": ("heavy", "sub"), "rap": ("rap",), "lent": ("slow", "calm"), "mélancolique": ("melancholic", "sad"),
+    "melodic": ("mellow", "silky", "emotional"), "mélodique": ("mellow", "silky", "emotional"),
+    "atmospheric": ("atmospheric", "ambient", "pad", "spacious", "ethereal"),
+    "atmosphérique": ("atmospheric", "ambient", "pad", "spacious", "ethereal"),
+    "punchy": ("punchy", "tight", "dry", "sharp"),
+    # Genres & instruments (v4.3+ : diversité réelle entre Boom Bap, Trap, Drill, Lo-Fi, EDM, Jazz, Ambient)
+    "trap": ("trap", "808", "dark", "punchy", "synth", "bell"),
+    "drill": ("aggressive", "menacing", "dark", "808", "gritty", "tense", "synth"),
+    "boombap": ("lofi", "vintage", "dusty", "acoustic", "warm", "rhodes", "piano"),
+    "boom": ("vintage", "warm", "acoustic", "lofi"), "bap": ("vintage", "warm", "acoustic", "lofi"),
+    "soul": ("warm", "rhodes", "nostalgic", "mellow", "vintage"),
+    "soulful": ("warm", "rhodes", "nostalgic", "mellow", "vintage"),
+    "jazz": ("warm", "rhodes", "acoustic", "piano", "mellow", "chill"),
+    "lofi": ("lofi", "vinyl", "dusty", "vintage", "warm", "chill"),
+    "house": ("club", "energetic", "synth", "punchy"), "edm": ("club", "energetic", "synth", "festival"),
+    "rock": ("guitar", "aggressive", "acoustic", "punchy"),
+    "ambient": ("ambient", "ethereal", "dreamy", "pad", "slow"),
+    "piano": ("piano", "felt", "keys"), "rhodes": ("rhodes", "keys", "vintage", "warm"), "keys": ("keys", "piano", "rhodes"),
+    "synth": ("synth", "synthesizer", "analog", "pad", "pluck"),
+    "synthe": ("synth", "synthesizer", "analog", "pad"), "synthé": ("synth", "synthesizer", "analog", "pad"),
+    "pad": ("pad", "atmospheric", "slow", "ambient", "airy"), "nappe": ("pad", "atmospheric", "slow", "ambient"),
+    "bell": ("bell", "chime", "glassy", "fm"), "cloche": ("bell", "chime", "glassy", "fm"),
+    "pluck": ("pluck", "plucked", "synth", "arpeggio"),
+    "guitar": ("guitar", "plucked", "acoustic"), "guitare": ("guitar", "plucked", "acoustic"),
+    "strings": ("strings", "orchestral", "bowed", "cinematic"), "cordes": ("strings", "orchestral", "bowed"),
+    "bass": ("bass", "sub", "finger"), "basse": ("bass", "sub", "finger"),
+    "slide": ("808", "sub", "dark", "gritty"),
+    "vocal": ("vocal", "choir", "ethereal"), "choir": ("choir", "vocal", "ethereal"),
 }
 
 _TOKEN_RE = re.compile(r"[a-zàâäéèêëîïôöùûüç]+")
@@ -749,11 +777,35 @@ _ROLE_CATEGORY_FILTER: dict[str, tuple[str, ...]] = {
 }
 
 
+_CONTENT_FP_CACHE: dict[tuple[str, int, int], str] = {}
+
+
+def _fast_content_fp(fp: str) -> str:
+    try:
+        st = os.stat(fp)
+        key = (fp, int(st.st_size), int(st.st_mtime_ns))
+        cached = _CONTENT_FP_CACHE.get(key)
+        if cached is not None:
+            return cached
+        import hashlib as _hashlib
+        h = _hashlib.sha256()
+        h.update(str(st.st_size).encode("ascii"))
+        with open(fp, "rb") as _fh:
+            h.update(_fh.read(4096))
+        val = h.hexdigest()[:20]
+        if len(_CONTENT_FP_CACHE) > 8192:
+            _CONTENT_FP_CACHE.clear()
+        _CONTENT_FP_CACHE[key] = val
+        return val
+    except Exception:
+        return fp
+
+
 def _load_sqlite_candidates(
     db_path: str,
     roles: list[str],
     target_key: str,
-    per_role_limit: int = 24,
+    per_role_limit: int = 32,
     bpm: float | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Ultra-fast (< 25 ms) indexed SQLite candidate fetch across all roles (0 PyTorch)."""
@@ -792,6 +844,9 @@ def _load_sqlite_candidates(
         base_clauses = ["s.ext NOT IN ('.mid', '.midi')", "COALESCE(d.hard_reject, 0) = 0", q2_clause]
         if role in MELODIC_ROLES:
             base_clauses.append("d.playable_chromatically = 1")
+        if role in ("chord_keys", "lead_melody"):
+            # Ne pas polluer chords/lead avec des samples graves de basse (root < G2 et centroid < 220 Hz)
+            base_clauses.append("(COALESCE(d.recommended_root_midi, 60) >= 43 OR COALESCE(d.centroid_hz, 500) >= 220)")
         if role == "bass_sub":
             # Alignement de phase Kick/808 exigé sur la basse uniquement : les one-shots
             # percussifs (kick/snare/hat/perc) ne doivent JAMAIS être pénalisés sur des
@@ -799,29 +854,51 @@ def _load_sqlite_candidates(
             base_clauses.append("COALESCE(d.phase_corr, 1.0) >= 0.70")
         order_expr = role_order_expr.get(role, "-COALESCE(d.r_harsh, 0)")
 
-        # Ne pas couper par un petit LIMIT SQL avant reroute_sample_path : si samples.db
-        # contient d'anciennes entrées mortes (packs déplacés), un LIMIT avant filtrage
-        # affame les rôles réels sur disque. On filtre par existence puis on borne à per_role_limit.
+        # Stratification par catégorie directement en SQL (window function SQLite, 0 scan complet Python) :
+        # empêche qu'une seule famille (ex. piano ou vocal ou 808) ne sature le quota et affame
+        # les synthés/pads/guitares/basses acoustiques, tout en gardant < 30 ms sur 5k-10k lignes.
         rows: list[Any] = []
+        max_keep = max(int(per_role_limit) * 2, 64)
         if cats:
             ph = ",".join("?" for _ in cats)
             clauses = base_clauses + [f"s.category IN ({ph})"]
+            per_cat_quota = max(14, max_keep // max(1, len(cats)) + 4)
             sql = f"""
                 SELECT
-                    s.id, s.path, s.category, s.duration_sec, s.spectral_centroid_hz,
-                    d.sample_nature, d.playable_chromatically, d.recommended_root_midi,
-                    d.recommended_fine_tune_ct, d.detected_note, d.centroid_hz, d.r_harsh,
-                    d.peak_harsh_db, d.roughness, d.sfm, d.r_harm, d.spectral_flux,
-                    d.low_mid_corr, d.phase_corr, d.crest_factor_db, d.attack_ms, d.needs_fade,
-                    d.band_sub, d.band_bass, d.band_lowmid, d.band_mid, d.band_harsh, d.band_air,
-                    d.bark_24_json, s.bpm, s.is_loop
-                FROM samples s
-                JOIN sample_dsp_metrics d ON d.sample_id = s.id
-                {q2_join}
-                WHERE {' AND '.join(clauses)}
-                ORDER BY ({order_expr}) DESC
+                    id, path, category, duration_sec, spectral_centroid_hz,
+                    sample_nature, playable_chromatically, recommended_root_midi,
+                    recommended_fine_tune_ct, detected_note, centroid_hz, r_harsh,
+                    peak_harsh_db, roughness, sfm, r_harm, spectral_flux,
+                    low_mid_corr, phase_corr, crest_factor_db, attack_ms, needs_fade,
+                    band_sub, band_bass, band_lowmid, band_mid, band_harsh, band_air,
+                    bark_24_json, bpm, is_loop
+                FROM (
+                    SELECT
+                        s.id, s.path, s.category, s.duration_sec, s.spectral_centroid_hz,
+                        d.sample_nature, d.playable_chromatically, d.recommended_root_midi,
+                        d.recommended_fine_tune_ct, d.detected_note, d.centroid_hz, d.r_harsh,
+                        d.peak_harsh_db, d.roughness, d.sfm, d.r_harm, d.spectral_flux,
+                        d.low_mid_corr, d.phase_corr, d.crest_factor_db, d.attack_ms, d.needs_fade,
+                        d.band_sub, d.band_bass, d.band_lowmid, d.band_mid, d.band_harsh, d.band_air,
+                        d.bark_24_json, s.bpm, s.is_loop,
+                        ({order_expr}) AS _ord_score,
+                        ROW_NUMBER() OVER (PARTITION BY s.category ORDER BY ({order_expr}) DESC) AS _rn
+                    FROM samples s
+                    JOIN sample_dsp_metrics d ON d.sample_id = s.id
+                    {q2_join}
+                    WHERE {' AND '.join(clauses)}
+                )
+                WHERE _rn <= ?
+                ORDER BY _ord_score DESC
+                LIMIT ?
             """
-            rows = [r for r in conn.execute(sql, list(cats)).fetchall() if reroute_sample_path(r[1]) is not None]
+            raw_fetched = conn.execute(sql, list(cats) + [per_cat_quota, max_keep + 24]).fetchall()
+            for r in raw_fetched:
+                rp = r[1] if (r[1] and os.path.isfile(r[1])) else reroute_sample_path(r[1])
+                if rp is not None:
+                    rows.append((r[0], rp) + tuple(r[2:]))
+                    if len(rows) >= max_keep:
+                        break
 
         if len(rows) < 2:
             sql_fb = f"""
@@ -838,9 +915,15 @@ def _load_sqlite_candidates(
                 {q2_join}
                 WHERE {' AND '.join(base_clauses)}
                 ORDER BY ({order_expr}) DESC
+                LIMIT ?
             """
-            rows = [r for r in conn.execute(sql_fb).fetchall() if reroute_sample_path(r[1]) is not None]
-        rows = rows[: max(int(per_role_limit) * 3, 60)]
+            rows = []
+            for r in conn.execute(sql_fb, [max_keep + 24]).fetchall():
+                rp = r[1] if (r[1] and os.path.isfile(r[1])) else reroute_sample_path(r[1])
+                if rp is not None:
+                    rows.append((r[0], rp) + tuple(r[2:]))
+                    if len(rows) >= max_keep:
+                        break
         raw_by_role[role] = rows
         all_ids.extend(int(r[0]) for r in rows)
 
@@ -854,34 +937,39 @@ def _load_sqlite_candidates(
 
     conn.close()
 
-    import hashlib as _hashlib
     from sample_fit_guard import infer_sample_category
 
-    def _content_fp(fp: str) -> str:
-        try:
-            h = _hashlib.sha256()
-            h.update(str(os.path.getsize(fp)).encode("ascii"))
-            with open(fp, "rb") as _fh:
-                h.update(_fh.read(65536))
-            return h.hexdigest()[:20]
-        except Exception:
-            return os.path.realpath(fp)
+    _BAD_ONESHOT_NAME_RE = re.compile(
+        r"(?:^|[\s_\-\[\(])(?:loop|riser|rise|swell|rev|reverse|1bar|2bar|4bar|8bar|16bar)(?:$|[\s_\-\]\)\.])",
+        re.IGNORECASE,
+    )
+    _EXT_PREF = {".wav": 0, ".flac": 1, ".aiff": 2, ".aif": 2, ".ogg": 3, ".mp3": 4}
 
     for role in roles:
         cands: list[dict[str, Any]] = []
         seen_real: set[str] = set()
         seen_fp: set[str] = set()
-        for r in raw_by_role[role]:
-            rpath = reroute_sample_path(r[1])
-            if rpath is None:
-                continue  # fichier absent (ancienne racine / pack supprimé) : jamais sélectionné
-            real_p = os.path.realpath(rpath)
-            if real_p in seen_real:
+        seen_stem: set[str] = set()
+        # Préférer .wav avant .flac/.mp3 pour éviter les doublons de format (ex. DBD_HI STR_C_1.*)
+        ordered_rows = sorted(
+            raw_by_role[role],
+            key=lambda rr: _EXT_PREF.get(os.path.splitext(str(rr[1] or ""))[1].lower(), 9),
+        )
+        for r in ordered_rows:
+            rpath = r[1]
+            bn_no_ext = os.path.splitext(os.path.basename(rpath))[0].lower()
+            if role != "pad_atmosphere" and _BAD_ONESHOT_NAME_RE.search(bn_no_ext):
+                continue  # jamais de loop/riser/swell/reverse dans un rôle one-shot (kick, bass, chords, lead)
+            stem_key = os.path.join(os.path.dirname(rpath), bn_no_ext).lower()
+            if stem_key in seen_stem:
+                continue  # dédoublonnage multi-format (.wav vs .flac/.mp3 du même son)
+            if rpath in seen_real:
                 continue
-            cfp = _content_fp(real_p)
+            cfp = _fast_content_fp(rpath)
             if cfp in seen_fp:
                 continue  # F9 : dédoublonnage contenu (ex. foo.wav vs foo-2.wav)
-            seen_real.add(real_p)
+            seen_stem.add(stem_key)
+            seen_real.add(rpath)
             seen_fp.add(cfp)
             r = (r[0], rpath) + tuple(r[2:])
             (
@@ -901,6 +989,8 @@ def _load_sqlite_candidates(
             dur_f = float(dur or 0.5)
             cent_f = float(d_cent if d_cent is not None else (s_cent or 1000.0))
             att_f = float(att_ms if att_ms is not None else 15.0)
+            if role in ("chord_keys", "lead_melody") and att_f > 1500.0:
+                continue  # pad/swell à attaque ultra-lente (> 1,5 s) impropre aux accords/mélodies rythmiques
             rh_f = float(r_harsh or 0.0)
             pk_f = float(pk_h or 0.0)
             rg_f = float(rough or 0.0)
@@ -994,7 +1084,29 @@ def _load_sqlite_candidates(
             })
 
         cands.sort(key=lambda x: 0.62 * x["role_score"] + 0.38 * x["comfort_score"], reverse=True)
-        by_role[role] = cands[:per_role_limit]
+        if len(cands) > per_role_limit:
+            # Conserver la diversité des catégories (piano, synth, pad, guitar, bass, 808...) dans le top N
+            by_cat: dict[str, list[dict[str, Any]]] = {}
+            for c in cands:
+                by_cat.setdefault(str(c.get("category") or "other"), []).append(c)
+            quota = max(8, per_role_limit // max(1, len(by_cat)))
+            diverse: list[dict[str, Any]] = []
+            seen_d: set[str] = set()
+            for cat_list in by_cat.values():
+                for c in cat_list[:quota]:
+                    if c["id"] not in seen_d:
+                        diverse.append(c)
+                        seen_d.add(c["id"])
+            for c in cands:
+                if len(diverse) >= per_role_limit:
+                    break
+                if c["id"] not in seen_d:
+                    diverse.append(c)
+                    seen_d.add(c["id"])
+            diverse.sort(key=lambda x: 0.62 * x["role_score"] + 0.38 * x["comfort_score"], reverse=True)
+            by_role[role] = diverse[:per_role_limit]
+        else:
+            by_role[role] = cands
 
     return by_role
 
@@ -1004,11 +1116,37 @@ def _build_gl_synth_pool(roles: list[str], valence: float, mix_profile: str = "t
     # v3.2 TimbralCohesion : archétype calibré par (profil, rôle, valence) en priorité
     from gl_dsl import resolve_archetype
     arch_map = {}
-    role_map = {"bass_sub": "bass", "chord_keys": "chords", "pad_atmosphere": "chords", "lead_melody": "lead",
-                "snare_clap": "chords", "hihat_perc": "lead", "kick": "bass"}
+    _PERC_GL_DEFAULTS = {
+        "kick": ("gl.kick", 95.0, 4.0, _make_bark_profile([(0, 1.0), (1, 0.85), (2, 0.35)]), "Kick natif gl.kick punchy, sub propre (gl.* natif)"),
+        "snare_clap": ("gl.snare", 1800.0, 5.0, _make_bark_profile([(6, 0.7), (10, 1.0), (14, 0.65)]), "Snare natif gl.snare sec et précis (gl.* natif)"),
+        "hihat_perc": ("gl.hat", 6500.0, 2.0, _make_bark_profile([(16, 0.7), (19, 1.0), (22, 0.75)]), "Hi-Hat natif gl.hat net, attaque courte (gl.* natif)"),
+    }
+    role_map = {"bass_sub": "bass", "chord_keys": "chords", "pad_atmosphere": "chords", "lead_melody": "lead"}
     for role in roles:
+        if role in _PERC_GL_DEFAULTS:
+            plug, cent, att, bark, card = _PERC_GL_DEFAULTS[role]
+            pool[role].append({
+                "id": f"{plug}:{role}",
+                "role": role,
+                "source_type": "gridline_native",
+                "plugin": plug,
+                "filepath": None,
+                "playable_chromatically": False,
+                "recommended_fine_tune_ct": 0,
+                "theme": "synthetic",
+                "role_score": 0.85,
+                "comfort_score": 0.92,
+                "attack_ms": att,
+                "centroid_hz": cent,
+                "timbre_card": card,
+                "bark_24": bark,
+                "_clap_vec": None,
+            })
+            continue
         arch_map[role] = resolve_archetype(mix_profile, role_map.get(role, role), valence=valence)
     for role in roles:
+        if role in _PERC_GL_DEFAULTS:
+            continue
         arch_entry = arch_map.get(role)
         # Jamais injecter gl.sampler (sans fichier) dans le pool de synthés natifs
         if arch_entry and arch_entry["plugin"] in SYNTH_REGISTRY and arch_entry["plugin"] != "gl.sampler":
@@ -1093,6 +1231,95 @@ def space_coherence_penalty(items: list[dict[str, Any]], max_diff: float = 0.35,
     return round(pen / max(1, n), 4)
 
 
+def _intent_candidate_bonus(
+    cand: dict[str, Any],
+    role: str,
+    intent_toks: set[str],
+    intent_vec: np.ndarray | None,
+    mix_profile: str,
+    valence: float,
+) -> float:
+    """v4.3+ : aligne directement chaque candidat sur l'intention textuelle, le genre et CLAP
+    (0 PyTorch) pendant la sélection greedy — empêche que les mêmes Rhodes/pianos ne gagnent
+    systématiquement sur Trap, Drill, EDM ou Ambient."""
+    bonus = 0.0
+    # 1. Alignement cosinus CLAP direct avec l'intention (quand disponible)
+    if intent_vec is not None:
+        cvec = _item_clap_vec(cand)
+        if cvec is not None and cvec.size == intent_vec.size:
+            sim = float(np.dot(cvec, intent_vec))
+            bonus += 0.28 * max(-0.35, min(0.65, sim))
+
+    # 2. Affinité lexicale genre / famille d'instrument (active même si CLAP=OFF)
+    if not intent_toks and mix_profile == "trap_rap" and valence >= -0.2:
+        return round(bonus, 4)
+
+    hay = f"{os.path.basename(str(cand.get('filepath') or ''))} {cand.get('timbre_card') or ''} {cand.get('category') or ''}".lower()
+    cat = str(cand.get("category") or "").lower()
+    prof = str(mix_profile or "trap_rap").lower()
+
+    wants_keys_organic = bool(
+        intent_toks & {"piano", "rhodes", "keys", "boombap", "boom", "bap", "soul", "soulful", "jazz", "lofi", "felt"}
+    ) or (prof in ("lofi_chill", "jazz_acoustic") and not (intent_toks & {"synth", "bell", "pad", "electronic", "drill", "trap"}))
+    wants_synth_modern = bool(
+        intent_toks & {"trap", "drill", "synth", "synthe", "synthé", "pad", "bell", "cloche", "pluck", "edm", "house", "club", "electronic", "tense", "atmospheric", "strings", "cordes", "ambient", "cinematic", "orchestral"}
+    ) or (prof in ("edm_club", "classical_ambient") and not wants_keys_organic)
+    wants_guitar = bool(intent_toks & {"guitar", "guitare", "rock", "metal"}) or (prof == "rock_metal" and not wants_synth_modern)
+    wants_strings = bool(intent_toks & {"strings", "cordes", "orchestral", "cinematic", "classical", "epic"}) or (
+        prof == "classical_ambient" and not wants_keys_organic
+    )
+    wants_bell = bool(intent_toks & {"bell", "cloche", "chime", "glassy", "crystal", "hypnotic"})
+    wants_pad = bool(intent_toks & {"pad", "nappe", "atmospheric", "atmosphérique", "ambient", "ethereal", "dreamy", "cloud"})
+    wants_acoustic_bass = bool(
+        (intent_toks & {"acoustic", "jazz", "boombap", "boom", "bap", "soul", "soulful", "finger", "upright", "rock"})
+        and not (intent_toks & {"808", "trap", "drill", "slide"})
+    )
+    wants_808 = bool(intent_toks & {"808", "trap", "drill", "slide"}) or (prof == "trap_rap" and not wants_acoustic_bass)
+
+    if role == "bass_sub":
+        if wants_acoustic_bass:
+            if cat == "bass" or "bass guitar" in hay or "finger" in hay:
+                bonus += 0.30
+            elif cat == "808" or "808" in hay:
+                bonus -= 0.22
+        elif wants_808:
+            if cat == "808" or "808" in hay:
+                bonus += 0.26
+            elif "bass guitar" in hay or "upright" in hay or "finger" in hay:
+                bonus -= 0.22
+    elif role in ("chord_keys", "pad_atmosphere", "lead_melody"):
+        is_rhodes = "rhodes" in hay
+        is_piano = cat == "piano" or "piano" in hay
+        is_synth_like = cat in ("synth", "pad") or any(w in hay for w in ("synth", "pad", "bell", "pluck", "str", "string", "cloud", "kalimba"))
+        is_guitar = (cat == "guitar" or "guitar" in hay) and "bass guitar" not in hay
+        is_str = any(w in hay for w in ("string", "hi str", "_str_", "orchestr", "choir"))
+        is_bell = any(w in hay for w in ("bell", "chime", "kalimba", "mallet", "pluck"))
+        is_pad = any(w in hay for w in ("pad", "cloud", "str", "string", "ambient"))
+
+        if wants_synth_modern and not wants_keys_organic:
+            if is_synth_like:
+                bonus += 0.22
+            if is_rhodes:
+                bonus -= 0.18  # jamais de Rhodes jazz chaud par défaut sur Trap/Drill/EDM
+            elif is_piano:
+                bonus -= 0.06
+        elif wants_keys_organic and not wants_synth_modern:
+            if is_rhodes and ("rhodes" in intent_toks or "soul" in intent_toks or "soulful" in intent_toks or "jazz" in intent_toks or "boombap" in intent_toks):
+                bonus += 0.24
+            elif is_piano or is_guitar:
+                bonus += 0.18
+        if wants_guitar and is_guitar:
+            bonus += 0.20
+        if wants_strings and is_str:
+            bonus += 0.22
+        if wants_bell and role == "lead_melody" and is_bell:
+            bonus += 0.20
+        if wants_pad and role in ("chord_keys", "pad_atmosphere") and is_pad:
+            bonus += 0.18
+
+    return round(bonus, 4)
+
+
 def _score_palette(
     items: list[dict[str, Any]],
     emotion_vector: dict[str, float],
@@ -1102,16 +1329,30 @@ def _score_palette(
     lam_mood: float = 0.25,
     lam_space: float = 0.18,
 ) -> tuple[float, dict[str, float]]:
-    if not items:
+    n_items = len(items)
+    if n_items == 0:
         return 0.0, {"role_mean": 0.0, "overlap_mean": 0.0, "attack_penalty": 0.0, "mood_mean": 0.0}
-    role_mean = float(np.mean([0.65 * it["role_score"] + 0.35 * it["comfort_score"] for it in items]))
-    pair_overlaps: list[float] = []
-    for i in range(len(items)):
-        for j in range(i + 1, len(items)):
-            pair_overlaps.append(_weighted_bark_overlap(items[i], items[j]))
-    overlap_mean = float(np.mean(pair_overlaps)) if pair_overlaps else 0.0
+    role_sum = 0.0
+    mood_sum = 0.0
+    for it in items:
+        role_sum += 0.65 * it["role_score"] + 0.35 * it["comfort_score"]
+        mv = it.get("_mood_cached")
+        if mv is None:
+            mv = _mood_match_score(it, emotion_vector, mood_vec)
+            it["_mood_cached"] = mv
+        mood_sum += mv
+    role_mean = role_sum / n_items
+    mood_mean = mood_sum / n_items
+
+    ov_sum = 0.0
+    ov_n = 0
+    for i in range(n_items):
+        ci = items[i]
+        for j in range(i + 1, n_items):
+            ov_sum += _weighted_bark_overlap(ci, items[j])
+            ov_n += 1
+    overlap_mean = (ov_sum / ov_n) if ov_n else 0.0
     att_pen = _attack_relay_penalty(items)
-    mood_mean = float(np.mean([_mood_match_score(it, emotion_vector, mood_vec) for it in items]))
 
     space_pen = space_coherence_penalty(items)
     raw = role_mean - lam_overlap * overlap_mean - lam_attack * att_pen + lam_mood * mood_mean - lam_space * space_pen
@@ -1264,9 +1505,11 @@ def propose_palettes(
             range_ok = True
             if role in MELODIC_ROLES and rng:
                 rf = register_fit(cand.get("midi_root"), rng, cand, role=role)
-                if not rf["ok"]:
+                if not (rf["ok"] or rf.get("multizone_viable")):
                     selection_trace["range_excluded"][role] += 1
                     continue
+                if rf.get("needs_multizone") or rf.get("multizone_viable"):
+                    cand["multizone"] = True
                 range_ok = True
             g = pleasantness_gate({
                 "r_harsh": cand.get("r_harsh"),
@@ -1327,12 +1570,21 @@ def propose_palettes(
     anchors = load_semantic_anchors(anchors_path)
     mood_vec = _build_mood_anchor_vec(ev, anchors)
     # v4.3 (D1) : vecteur d'intention projeté sur les ancres sémantiques (0 PyTorch)
-    intent_vec = build_intent_vector(intent, anchors) if str(intent or "").strip() else None
+    intent_str = str(intent or "").strip()
+    intent_toks = _intent_tokens(intent_str) if intent_str else set()
+    intent_vec = build_intent_vector(intent_str, anchors) if intent_str else None
+    energy = float(ev.get("energy", 0.6))
+    is_aggressive_intent = bool(intent_toks & {"aggressive", "hard", "drill", "gritty", "distorted", "reese", "rock", "metal", "menacing"})
     try:
         from mix_config import palette_scoring_weights as _mc_psw
         _psw = _mc_psw()
     except Exception:
         _psw = None
+
+    # Annoter chaque candidat avec son bonus d'intention (exposé dans candidate_pool pour prod_server)
+    for role in eff_roles:
+        for cand in combined_pool.get(role, []):
+            cand["intent_match"] = _intent_candidate_bonus(cand, role, intent_toks, intent_vec, str(mix_profile or "trap_rap"), valence)
 
     palettes_out: list[dict[str, Any]] = []
     used_ids_per_role: dict[str, set[str]] = {r: set() for r in eff_roles}
@@ -1345,11 +1597,29 @@ def propose_palettes(
     )
     target_bpm = float(bpm) if bpm else None
 
+    # Pré-tri par pertinence (rôle + confort + intent + policy) pour garder _greedy_select < 15 ms
+    # tout en préservant l'accès aux meilleurs candidats de chaque catégorie.
+    greedy_pool: dict[str, list[dict[str, Any]]] = {}
+    for role in ordered_roles:
+        c_list = list(combined_pool.get(role, []))
+        for c in c_list:
+            c.pop("_mood_cached", None)
+        c_list.sort(
+            key=lambda c: (
+                0.50 * float(c.get("role_score", 0.5))
+                + 0.25 * float(c.get("comfort_score", 0.5))
+                + float(c.get("intent_match") or 0.0)
+                + float(c.get("_policy_bonus") or 0.0)
+            ),
+            reverse=True,
+        )
+        greedy_pool[role] = c_list[:20]
+
     def _greedy_select(pref_theme: str, lam_overlap_eff: float) -> tuple[list[dict[str, Any]], list[str]]:
         chosen_l: list[dict[str, Any]] = []
         missing_l: list[str] = []
         for role in ordered_roles:
-            cands = combined_pool.get(role, [])
+            cands = greedy_pool.get(role, [])
             if not cands:
                 missing_l.append(role)
                 continue
@@ -1373,7 +1643,7 @@ def propose_palettes(
                     theme_bonus += 0.28 if (user_locked or pref_theme == "organic") else 0.22
 
                 mood_pen = 0.0
-                if valence <= 0.1 and role in ("bass_sub", "lead_melody") and is_sample:
+                if valence <= 0.1 and energy < 0.72 and not is_aggressive_intent and role in ("bass_sub", "lead_melody") and is_sample:
                     hay = f"{cand.get('timbre_card') or ''} {cand.get('filepath') or ''}".lower()
                     if any(k in hay for k in ("reese", "aggressive", "distorted", "acid", "saw", "metallic", "harsh")):
                         mood_pen = 0.35
@@ -1384,10 +1654,11 @@ def propose_palettes(
                     if float(cand["crest_factor_db"]) > 13.0:
                         mood_pen += 0.15
 
+                intent_bonus = float(cand.get("intent_match") or 0.0)
                 trial_items = chosen_l + [cand]
                 trial_score, _ = _score_palette(trial_items, ev, mood_vec, lam_overlap=lam_overlap_eff)
                 val = (
-                    trial_score + theme_bonus + policy_bonus - div_pen
+                    trial_score + theme_bonus + policy_bonus + intent_bonus - div_pen
                     - loop_bpm_penalty(cand, target_bpm, bpm_tolerance) - mood_pen
                 )
                 if val > best_val:
@@ -1397,9 +1668,16 @@ def propose_palettes(
                 chosen_l.append(best_cand)
         return chosen_l, missing_l
 
-    # v4.3 (D1) : `palette_strategy` oriente le thème préféré en tête de liste
+    # v4.3 (D1) : `palette_strategy` (ou l'intention textuelle) oriente le thème préféré en tête de liste
     _themes = list(_PALETTE_THEMES)
     _strat_theme = {"organic": "organic", "dark": "synthetic", "hybrid": "hybrid"}.get(str(palette_strategy or "").lower())
+    if not _strat_theme and intent_toks:
+        if (intent_toks & {"trap", "drill", "synth", "bell", "pad", "edm", "house", "dark"}) and not (
+            intent_toks & {"piano", "rhodes", "boombap", "soul", "jazz", "lofi", "acoustic"}
+        ):
+            _strat_theme = "synthetic"
+        elif intent_toks & {"piano", "rhodes", "boombap", "soul", "jazz", "lofi", "acoustic"}:
+            _strat_theme = "organic"
     if _strat_theme:
         _themes.sort(key=lambda t: 0 if t[2] == _strat_theme else 1)
     for p_idx in range(n_pal):
@@ -1544,13 +1822,43 @@ def propose_palettes(
         "palettes": palettes_out,
     }
     if include_pool:
-        out_payload["candidate_pool"] = {
-            role: [
+        def _pool_for_role(role: str, limit: int = 32) -> list[dict[str, Any]]:
+            cands = list(sample_pool.get(role, []))
+            cands.sort(
+                key=lambda c: (
+                    0.50 * float(c.get("role_score", 0.5))
+                    + 0.25 * float(c.get("comfort_score", 0.5))
+                    + float(c.get("intent_match") or 0.0)
+                ),
+                reverse=True,
+            )
+            if len(cands) > limit:
+                by_cat: dict[str, list[dict[str, Any]]] = {}
+                for c in cands:
+                    by_cat.setdefault(str(c.get("category") or "other"), []).append(c)
+                quota = max(6, limit // max(1, len(by_cat)))
+                picked: list[dict[str, Any]] = []
+                seen_ids: set[str] = set()
+                for cat_list in by_cat.values():
+                    for c in cat_list[:quota]:
+                        cid = str(c.get("id") or c.get("filepath") or "")
+                        if cid not in seen_ids:
+                            picked.append(c)
+                            seen_ids.add(cid)
+                for c in cands:
+                    if len(picked) >= limit:
+                        break
+                    cid = str(c.get("id") or c.get("filepath") or "")
+                    if cid not in seen_ids:
+                        picked.append(c)
+                        seen_ids.add(cid)
+                cands = picked[:limit]
+            return [
                 {k: v for k, v in c.items() if not k.startswith("_") and k != "bark_24"}
-                for c in sample_pool.get(role, [])[:16]
+                for c in cands
             ]
-            for role in eff_roles
-        }
+
+        out_payload["candidate_pool"] = {role: _pool_for_role(role) for role in eff_roles}
     return out_payload
 
 

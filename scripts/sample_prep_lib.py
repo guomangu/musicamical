@@ -159,17 +159,37 @@ def build_multizone_samples(
     `shift_from_source_st`, `tuning_ct`).
     """
     abs_src = os.path.abspath(os.path.expanduser(src_wav))
-    y, sr = read_stereo(abs_src)
     eff_zones = zones or [(48, 55), (56, 63), (64, 72)]
     stem = os.path.splitext(os.path.basename(abs_src))[0]
     os.makedirs(out_dir, exist_ok=True)
+    src_mtime = os.path.getmtime(abs_src) if os.path.isfile(abs_src) else 0.0
+    # Cache rapide : si toutes les zones existent et sont plus récentes que la source, réutiliser sans recalculer
+    cache_manifest = os.path.join(out_dir, f"{stem}_mz_cache.json")
+    if os.path.isfile(cache_manifest):
+        try:
+            with open(cache_manifest, encoding="utf-8") as cfh:
+                cached = json.load(cfh)
+            if (
+                isinstance(cached, dict)
+                and int(cached.get("base_midi", -1)) == int(base_midi)
+                and cached.get("zones") == [[int(a), int(b)] for a, b in eff_zones]
+                and abs(float(cached.get("src_mtime", -1.0)) - src_mtime) < 1e-3
+                and isinstance(cached.get("entries"), list)
+                and len(cached["entries"]) == len(eff_zones)
+                and all(os.path.isfile(str(e.get("wav_path") or "")) for e in cached["entries"])
+            ):
+                return cached["entries"]
+        except Exception:
+            pass
+
+    y, sr = read_stereo(abs_src)
     out: list[dict[str, Any]] = []
     for i, (lo, hi) in enumerate(eff_zones, start=1):
         if lo > hi:
             raise ValueError(f"Invalid zone {i}: ({lo}, {hi})")
         center = int(round((lo + hi) / 2.0))
         shift_st = float(center - int(base_midi))
-        z = pitch_shift_stereo(y, sr, shift_st)
+        z = y.copy() if abs(shift_st) < 0.05 else pitch_shift_stereo(y, sr, shift_st)
         tmp = os.path.join(out_dir, f"{stem}_zone{i}_tmp.wav")
         os.makedirs(os.path.dirname(os.path.abspath(tmp)), exist_ok=True)
         sf.write(tmp, z.astype(np.float32), sr, subtype="PCM_24")
@@ -181,7 +201,7 @@ def build_multizone_samples(
             stabilize_stereo_low_mid(tmp, mid_p, cutoff_hz=650.0, side_keep_low=0.18, side_keep_high=0.85)
             tuning = measure_fft_tuning(mid_p)
             ct = tuning.get("fft_cents_offset")
-            if ct is not None and abs(float(ct)) > 3.0:
+            if ct is not None and abs(float(ct)) > 3.0 and abs(shift_st) >= 0.05:
                 z_corr = pitch_shift_stereo(y, sr, shift_st - float(ct) / 100.0)
                 sf.write(mid_p, z_corr.astype(np.float32), sr, subtype="PCM_24")
                 stabilize_stereo_low_mid(mid_p, mid_p, cutoff_hz=650.0, side_keep_low=0.18, side_keep_high=0.85)
@@ -202,6 +222,16 @@ def build_multizone_samples(
             "shift_from_source_st": round(shift_st, 3),
             "tuning_ct": tuning.get("fft_cents_offset"),
         })
+    try:
+        with open(cache_manifest, "w", encoding="utf-8") as cfh:
+            json.dump({
+                "base_midi": int(base_midi),
+                "zones": [[int(a), int(b)] for a, b in eff_zones],
+                "src_mtime": src_mtime,
+                "entries": out,
+            }, cfh, indent=2)
+    except Exception:
+        pass
     return out
 
 

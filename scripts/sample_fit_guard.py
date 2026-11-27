@@ -382,32 +382,24 @@ def effective_shift_caps(entry: dict[str, Any] | None = None, role: str | None =
     if slot and slot in by_role:
         sample_cat = infer_sample_category((entry or {}).get("category"), (entry or {}).get("filepath") or (entry or {}).get("sample_path"))
         if slot == "bass_sub":
-            if cat != "acoustic" and sample_cat in ("808", "bass", "bass_sub"):
+            if sample_cat in ("808", "bass", "bass_sub"):
                 cap = int(by_role[slot])
         else:
             cap = int(by_role[slot])
     cap_single = int(single_zone.get(slot, cap)) if slot else cap
     cap_multi = int(multizone.get(slot, cap)) if slot else cap
+    if slot == "bass_sub":
+        sample_cat = infer_sample_category((entry or {}).get("category"), (entry or {}).get("filepath") or (entry or {}).get("sample_path"))
+        if sample_cat not in ("808", "bass", "bass_sub") and cat == "acoustic":
+            cap_single = min(cap_single, cap)
+            cap_multi = min(cap_multi, cap)
     return cat, cap_multi, cap_single
 
 
 def effective_shift_cap(entry: dict[str, Any] | None = None, role: str | None = None) -> tuple[str, int]:
-    """Retourne `(category, cap_st)` aligné sur `config/mix_profiles.json` + `blueprint_safety`."""
-    caps, by_role, _single_zone, _multizone = _load_config_shift_caps()
-    cat = shift_category(entry)
-    cap = caps.get(cat, caps["synth"])
-    slot = normalize_slot_role(role or "")
-    # Plafond par rôle (ex. chord_keys/pad_atmosphere = 10 st, lead_melody/bass_sub = 9 st)
-    # pour qu'un vrai piano/Rhodes/guitare/pad centré en C4/D4 puisse jouer des progressions
-    # standard ([53..70]) sans déclencher un repli synthé artificiel (tout en bloquant > 10 st).
-    if slot and slot in by_role:
-        sample_cat = infer_sample_category((entry or {}).get("category"), (entry or {}).get("filepath") or (entry or {}).get("sample_path"))
-        if slot == "bass_sub":
-            if cat != "acoustic" and sample_cat in ("808", "bass", "bass_sub"):
-                cap = int(by_role[slot])
-        else:
-            cap = int(by_role[slot])
-    return cat, cap
+    """Retourne `(category, cap_st)` aligné SSOT avec `effective_shift_caps` et `config/mix_profiles.json`."""
+    cat, cap_multi, _cap_single = effective_shift_caps(entry, role=role)
+    return cat, cap_multi
 
 
 def prepare_octave_shifted_sample(
@@ -519,14 +511,55 @@ def register_fit(
     else:
         action = "swap"
     # v4.3 (D4) : une piste mono-zone ne doit jamais dépasser le plafond single-zone (7 st) ;
-    # au-delà, le rendu passera en multi-zone (±4 st/zone) ou en dérivé d'octave.
-    needs_multizone = s_max > cap_single and s_max <= cap
+    # au-delà, le rendu passe en multi-zone (±3-4 st/zone, formants préservés).
+    # Quand l'ambitus propre de la piste dépasse `cap` (ex. accords [53..72], ambitus=19 st)
+    # tout en restant dans la limite multi-zone (<= 18 acoustique / <= 20 synthé), un sample
+    # dont la fondamentale (ou sa dérivée polyphase ±12 st) est centrée à <= 4.5 st du milieu
+    # de la tessiture est valide en multi-zone (chaque zone joue à <= ±3.5 st, sans « trou de
+    # serrure » de 2 demi-tons). Un sample simplement décalé d'octave sur ambitus étroit reste rejeté.
+    multizone_viable = False
+    mz_shift_st = octave_shift_st
+    mz_root = eff_root
+    if (
+        not (s_max <= cap)
+        and action == "multizone"
+        and ambitus > cap
+        and slot in ("chord_keys", "pad_atmosphere", "lead_melody")
+    ):
+        mid_pitch = 0.5 * (lo + hi)
+        best_dist = abs(eff_root - mid_pitch)
+        best_rn_mz = eff_root
+        best_sh_mz = octave_shift_st
+        for shift in (0, 12, -12):
+            if shift == 12 and dur_s < 1.2:
+                continue
+            if shift == -12 and rn < 64:
+                continue
+            rn_try = rn + shift
+            dist_try = abs(rn_try - mid_pitch)
+            if dist_try < best_dist:
+                best_dist = dist_try
+                best_rn_mz = rn_try
+                best_sh_mz = shift
+        if best_dist <= 4.5:
+            multizone_viable = True
+            mz_shift_st = best_sh_mz
+            mz_root = best_rn_mz
+            octave_shift_st = best_sh_mz
+            eff_root = best_rn_mz
+            s_max = max(abs(lo - eff_root), abs(hi - eff_root))
+
+    ok_eff = (s_max <= cap) or multizone_viable
+    needs_multizone = (s_max > cap_single and s_max <= cap) or multizone_viable
     return {
-        "ok": s_max <= cap,
+        "ok": bool(ok_eff),
         "s_max": int(s_max),
         "cap": int(cap),
         "cap_single_zone": int(cap_single),
         "needs_multizone": bool(needs_multizone),
+        "multizone_viable": bool(multizone_viable),
+        "multizone_octave_shift_st": int(mz_shift_st),
+        "multizone_root": int(mz_root),
         "category": cat,
         "ambitus": int(ambitus),
         "action": action,
@@ -757,6 +790,14 @@ def _pick_healthy_replacement(
                 -(float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4),
             )
         )
+    elif slot_role in TONAL_SLOTS and any(c.get("intent_match") is not None for c in ordered):
+        ordered.sort(
+            key=lambda c: -(
+                float(c.get("role_score", 0.5)) * 0.45
+                + float(c.get("comfort_score", 0.5)) * 0.25
+                + float(c.get("intent_match") or 0.0)
+            )
+        )
 
     for cand in ordered:
         if cand.get("source_type") not in ("sample", "project_sample"):
@@ -783,7 +824,7 @@ def _pick_healthy_replacement(
                 continue
             if pitches:
                 rf = register_fit(int(rn), pitches, merged, role=slot_role)
-                if not rf["ok"]:
+                if not (rf["ok"] or rf.get("multizone_viable")):
                     continue
         if pleasantness_gate is not None:
             g = pleasantness_gate({
@@ -900,8 +941,13 @@ def enforce_blueprint_sample_fit(
                 violations.append("missing_root")
             elif pitches:
                 rf = register_fit(int(rn), pitches, merged, role=slot_role)
-                if not rf["ok"]:
-                    violations.append(f"S_max={rf['s_max']}>{rf['cap']}")
+                if not (rf["ok"] or (rf.get("multizone_viable") and tr.get("multizone"))):
+                    if rf.get("multizone_viable"):
+                        tr["multizone"] = True
+                    else:
+                        violations.append(f"S_max={rf['s_max']}>{rf['cap']}")
+                elif rf.get("needs_multizone"):
+                    tr["multizone"] = True
 
         if pleasantness_gate is not None and entry is not None:
             g = pleasantness_gate({
@@ -943,9 +989,15 @@ def enforce_blueprint_sample_fit(
             new_fp = str(repl["filepath"])
             eff_fp = new_fp
             eff_rn = repl.get("midi_root")
+            use_mz = False
             if not percussive and slot_role in TONAL_SLOTS and eff_rn is not None and write_diag_dir:
                 rf_rep = register_fit(int(eff_rn), pitches, repl, role=slot_role)
                 shift_st = int(rf_rep.get("octave_shift_st") or 0)
+                if not rf_rep["ok"] and rf_rep.get("multizone_viable"):
+                    shift_st = int(rf_rep.get("multizone_octave_shift_st") or 0)
+                    use_mz = True
+                elif rf_rep.get("needs_multizone"):
+                    use_mz = True
                 if shift_st in (-12, 12):
                     derived = prepare_octave_shifted_sample(new_fp, write_diag_dir, int(eff_rn), shift_st // 12)
                     if derived is not None:
@@ -954,6 +1006,10 @@ def enforce_blueprint_sample_fit(
             tr["sample_path"] = eff_fp
             tr["plugin"] = "gl.sampler"
             tr.pop("preset", None)
+            if use_mz:
+                tr["multizone"] = True
+            else:
+                tr.pop("multizone", None)
             if percussive:
                 notated = max(set(pitches), key=pitches.count) if pitches else None
                 tr["root_note"] = int(notated or GM_DRUM.get(key) or eff_rn or 36)

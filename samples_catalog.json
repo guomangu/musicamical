@@ -1,6 +1,6 @@
 {
   "project_dir": "/home/gamo/Bureau/musicamical",
-  "indexed_at": "2026-11-26T04:57:44Z",
+  "indexed_at": "2026-11-27T05:00:50Z",
   "user_samples_locked": false,
   "external_samples_forbidden": false,
   "used_clap": false,
@@ -769,7 +769,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/01. 808 - infinite.wav",
@@ -878,7 +879,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9998
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/02. 808 - dream counting.wav",
@@ -952,7 +954,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=270,ratio=0.0813)"
+        "digital_clipping(max_consec=270,ratio=0.0813)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "808 sub très grave/sub, attaque douce, propre (mono_oneshot C, confort 0.82)",
       "top_tags": [
@@ -976,7 +979,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/11. 808 - game got told.wav",
@@ -1051,7 +1055,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=369,ratio=0.2272)"
+        "digital_clipping(max_consec=369,ratio=0.2272)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "808 sub très grave/sub, attaque douce, propre (mono_oneshot C, confort 0.66)",
       "top_tags": [
@@ -1075,7 +1080,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/56 Grams - 808  (16)_2 - Loop.wav",
@@ -1162,7 +1168,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=350,ratio=0.0261)"
+        "digital_clipping(max_consec=350,ratio=0.0261)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "808 sub très grave/sub, attaque douce, propre (mono_oneshot F, confort 0.95)",
       "top_tags": [
@@ -1186,7 +1193,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/808 (JumpMan).wav",
@@ -1274,7 +1282,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=27,ratio=0.0015)"
+        "digital_clipping(max_consec=27,ratio=0.0015)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "808 sub très grave/sub, attaque franche, propre (mono_oneshot B, confort 1.00)",
       "top_tags": [
@@ -1298,7 +1307,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/808_4_punch.wav",
@@ -1407,7 +1417,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/808_5_sat_alt.wav",
@@ -1503,7 +1514,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/808_5_sub.wav",
@@ -1599,7 +1611,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/808_deep_pnl.wav",
@@ -1708,7 +1721,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/808_deep_pnl_440.wav",
@@ -1817,7 +1831,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/808_punch_clean.wav",
@@ -1926,7 +1941,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/808_punch_sat.wav",
@@ -2035,7 +2051,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/808_sub_c1.wav",
@@ -2144,7 +2161,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/MZ 808 [Barely There].wav",
@@ -2231,7 +2249,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=66,ratio=0.0019)"
+        "digital_clipping(max_consec=66,ratio=0.0019)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "808 sub très grave/sub, attaque franche, propre (mono_oneshot C, confort 0.93)",
       "top_tags": [
@@ -2255,7 +2274,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/MZ Crash [808].wav",
@@ -2370,7 +2390,8 @@
           "score": 0.754
         }
       ],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.2838
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/MZ FX [808 Drop].wav",
@@ -2396,9 +2417,9 @@
       "comfort_score": 0.804,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "E",
       "f0_hz": 43.74,
-      "midi_root": 29,
+      "midi_root": 28,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9791,
@@ -2420,7 +2441,7 @@
       "inharmonicity": 0.9731,
       "wetness_score": 0.8852,
       "tail_duration_ms": 5051.7,
-      "recommended_gl_fine_tune_ct": -3,
+      "recommended_gl_fine_tune_ct": 7,
       "centroid_hz": 53.6,
       "attack_ms": 52.88,
       "r_harsh": 0.0,
@@ -2457,7 +2478,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=49,ratio=0.0003)"
+        "digital_clipping(max_consec=49,ratio=0.0003)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "808 sub très grave/sub, attaque douce, propre (melodic_sequence F, confort 0.80)",
       "top_tags": [
@@ -2508,7 +2530,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9999
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/MZ Perc [808 Cowbell].wav",
@@ -2532,11 +2555,11 @@
         "chord_keys": 0.2214
       },
       "comfort_score": 0.65,
-      "sample_nature": "inharmonic_bell_or_fx",
-      "playable_chromatically": true,
-      "detected_note": "C",
+      "sample_nature": "percussion",
+      "playable_chromatically": false,
+      "detected_note": "C#",
       "f0_hz": 263.78,
-      "midi_root": 60,
+      "midi_root": 73,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -2545,7 +2568,7 @@
       "inharmonicity": 1.0,
       "wetness_score": 0.0188,
       "tail_duration_ms": 338.5,
-      "recommended_gl_fine_tune_ct": -14,
+      "recommended_gl_fine_tune_ct": -13,
       "centroid_hz": 883.9,
       "attack_ms": 3.99,
       "r_harsh": 0.0093,
@@ -2604,7 +2627,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/MZ Perc [808 Rim].wav",
@@ -2641,7 +2665,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 0.0,
-      "recommended_gl_fine_tune_ct": -40,
+      "recommended_gl_fine_tune_ct": -35,
       "centroid_hz": 1760.6,
       "attack_ms": 2.99,
       "r_harsh": 0.1276,
@@ -2702,7 +2726,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/deep_808_clean.wav",
@@ -2787,8 +2812,10 @@
         0.0,
         0.0
       ],
-      "hard_reject": false,
-      "reject_reasons": [],
+      "hard_reject": true,
+      "reject_reasons": [
+        "v2:UPSAMPLED_LOSSY(cutoff=16250.0Hz)"
+      ],
       "timbre_card": "808 sub très grave/sub, attaque douce, propre (mono_oneshot C, confort 1.00)",
       "top_tags": [
         {
@@ -2811,7 +2838,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/energized_808_clean.wav",
@@ -2908,7 +2936,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/reese_a1_clean.wav",
@@ -3004,7 +3033,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/reese_lead_a3.wav",
@@ -3033,7 +3063,7 @@
       "playable_chromatically": true,
       "detected_note": "A",
       "f0_hz": 110.36,
-      "midi_root": 45,
+      "midi_root": 57,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -3042,7 +3072,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.894,
       "tail_duration_ms": 771.3,
-      "recommended_gl_fine_tune_ct": -6,
+      "recommended_gl_fine_tune_ct": -11,
       "centroid_hz": 224.4,
       "attack_ms": 420.05,
       "r_harsh": 0.0,
@@ -3101,7 +3131,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/sxj_808_4_clean.wav",
@@ -3210,7 +3241,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/sxj_808_5_clean.wav",
@@ -3306,7 +3338,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/808/v12_808_clean.wav",
@@ -3403,7 +3436,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/bass/man_from_sol_-_not_a_reese_clean.wav",
@@ -3521,7 +3555,8 @@
             "out": "man_from_sol_-_not_a_reese_clean_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8756
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/bass/sunnk_-_stammered_grave_-009_clean.wav",
@@ -3549,9 +3584,9 @@
       "comfort_score": 0.9328,
       "sample_nature": "poly_chord_or_dyad",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "B",
       "f0_hz": 43.74,
-      "midi_root": 29,
+      "midi_root": 23,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -3560,7 +3595,7 @@
       "inharmonicity": 0.7199,
       "wetness_score": 0.9686,
       "tail_duration_ms": 863.4,
-      "recommended_gl_fine_tune_ct": -3,
+      "recommended_gl_fine_tune_ct": -42,
       "centroid_hz": 105.3,
       "attack_ms": 388.12,
       "r_harsh": 0.0035,
@@ -3627,7 +3662,8 @@
             "out": "sunnk_-_stammered_grave_-009_clean_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9855
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/clap/MZ Clap [Stamp].wav",
@@ -3651,7 +3687,7 @@
         "chord_keys": 0.0
       },
       "comfort_score": 0.92,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "D#",
       "f0_hz": 619.75,
@@ -3733,7 +3769,8 @@
             "fade_out_ms": 18.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/clap/MZ Clap [Young].wav",
@@ -3846,7 +3883,8 @@
             "lpf_hz": 7500.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9086
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/clap/clap_clean.wav",
@@ -3942,7 +3980,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.922
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/clap/clap_dark_alt.wav",
@@ -4038,7 +4077,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9347
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/clap/clap_soft.wav",
@@ -4134,7 +4174,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9817
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/clap/clap_soft_clean.wav",
@@ -4230,7 +4271,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.982
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/clap/clap_verse_alt.wav",
@@ -4256,9 +4298,9 @@
       "comfort_score": 0.6688,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "A#",
+      "detected_note": "A",
       "f0_hz": 469.69,
-      "midi_root": 70,
+      "midi_root": 57,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -4267,7 +4309,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 108.3,
-      "recommended_gl_fine_tune_ct": -13,
+      "recommended_gl_fine_tune_ct": 21,
       "centroid_hz": 1399.7,
       "attack_ms": 34.92,
       "r_harsh": 0.2079,
@@ -4326,7 +4368,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9396
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/clap/nm_-_boring_clap_clean.wav",
@@ -4352,9 +4395,9 @@
       "comfort_score": 0.7032,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "A#",
+      "detected_note": "C#",
       "f0_hz": 477.1,
-      "midi_root": 70,
+      "midi_root": 61,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -4363,7 +4406,7 @@
       "inharmonicity": 0.7973,
       "wetness_score": 0.0029,
       "tail_duration_ms": 218.0,
-      "recommended_gl_fine_tune_ct": -40,
+      "recommended_gl_fine_tune_ct": -42,
       "centroid_hz": 1542.0,
       "attack_ms": 33.92,
       "r_harsh": 0.2147,
@@ -4422,7 +4465,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9388
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/(sxj)_fx_(4)_3_clean.wav",
@@ -4519,7 +4563,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/MZ FX [Bank].wav",
@@ -4545,9 +4590,9 @@
       "comfort_score": 0.8357,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "F",
       "f0_hz": 497.96,
-      "midi_root": 71,
+      "midi_root": 65,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -4556,7 +4601,7 @@
       "inharmonicity": 0.6569,
       "wetness_score": 0.0073,
       "tail_duration_ms": 644.8,
-      "recommended_gl_fine_tune_ct": -14,
+      "recommended_gl_fine_tune_ct": -23,
       "centroid_hz": 3348.8,
       "attack_ms": 5.99,
       "r_harsh": 0.5334,
@@ -4621,7 +4666,8 @@
           "score": 0.533
         }
       ],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9449
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/MZ FX [D.O.T.S.].wav",
@@ -4658,7 +4704,7 @@
       "inharmonicity": 0.7352,
       "wetness_score": 0.6504,
       "tail_duration_ms": 361.7,
-      "recommended_gl_fine_tune_ct": 12,
+      "recommended_gl_fine_tune_ct": 40,
       "centroid_hz": 1486.9,
       "attack_ms": 118.73,
       "r_harsh": 0.1911,
@@ -4736,7 +4782,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": -0.0146
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/MZ FX [Drake].wav",
@@ -4764,9 +4811,9 @@
       "comfort_score": 0.6972,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D#",
+      "detected_note": "A",
       "f0_hz": 313.58,
-      "midi_root": 63,
+      "midi_root": 69,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.6219,
@@ -4788,7 +4835,7 @@
       "inharmonicity": 0.964,
       "wetness_score": 0.4072,
       "tail_duration_ms": 1486.6,
-      "recommended_gl_fine_tune_ct": -14,
+      "recommended_gl_fine_tune_ct": -21,
       "centroid_hz": 388.9,
       "attack_ms": 20.95,
       "r_harsh": 0.0,
@@ -4876,7 +4923,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9141
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/MZ FX [Female].wav",
@@ -5024,7 +5072,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.2896
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/MZ FX [Girls Laughing].wav",
@@ -5052,9 +5101,9 @@
       "comfort_score": 1.0,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "A",
+      "detected_note": "C#",
       "f0_hz": 444.12,
-      "midi_root": 69,
+      "midi_root": 73,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.7011,
@@ -5076,7 +5125,7 @@
       "inharmonicity": 0.8632,
       "wetness_score": 0.9963,
       "tail_duration_ms": 1886.1,
-      "recommended_gl_fine_tune_ct": -16,
+      "recommended_gl_fine_tune_ct": -5,
       "centroid_hz": 895.1,
       "attack_ms": 277.37,
       "r_harsh": 0.0873,
@@ -5162,7 +5211,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9104
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/MZ FX [Hi].wav",
@@ -5187,8 +5237,8 @@
         "chord_keys": 0.0
       },
       "comfort_score": 0.7092,
-      "sample_nature": "inharmonic_bell_or_fx",
-      "playable_chromatically": true,
+      "sample_nature": "melodic_sequence",
+      "playable_chromatically": false,
       "detected_note": "E",
       "f0_hz": 658.11,
       "midi_root": 76,
@@ -5259,7 +5309,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/MZ FX [Nextel].wav",
@@ -5355,7 +5406,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/MZ FX [Sparks].wav",
@@ -5381,8 +5433,8 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.9328,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
       "detected_note": "C",
       "f0_hz": 522.85,
       "midi_root": 72,
@@ -5461,7 +5513,8 @@
             "out": "mz_fx_[sparks]_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9546
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/MZ FX [Zap].wav",
@@ -5489,7 +5542,7 @@
       "playable_chromatically": false,
       "detected_note": "D",
       "f0_hz": 37.01,
-      "midi_root": 50,
+      "midi_root": 26,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -5567,7 +5620,8 @@
             "fade_out_ms": 18.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9166
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/bfnk_riser_150.wav",
@@ -5702,7 +5756,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": -0.1241
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/eaalah_riser_rev.wav",
@@ -5728,11 +5783,11 @@
         "chord_keys": 0.7903
       },
       "comfort_score": 0.9028,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "G",
       "f0_hz": 100.26,
-      "midi_root": 43,
+      "midi_root": 55,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -5741,7 +5796,7 @@
       "inharmonicity": 0.248,
       "wetness_score": 1.0,
       "tail_duration_ms": 54.5,
-      "recommended_gl_fine_tune_ct": -40,
+      "recommended_gl_fine_tune_ct": 2,
       "centroid_hz": 548.6,
       "attack_ms": 1387.85,
       "r_harsh": 0.0475,
@@ -5808,7 +5863,8 @@
             "out": "eaalah_riser_rev_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.5913
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/fx_4_3_tuned.wav",
@@ -5906,7 +5962,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/fx_bank_clean.wav",
@@ -5932,9 +5989,9 @@
       "comfort_score": 1.0,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "C#",
       "f0_hz": 353.95,
-      "midi_root": 65,
+      "midi_root": 73,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -5943,7 +6000,7 @@
       "inharmonicity": 0.5528,
       "wetness_score": 0.0086,
       "tail_duration_ms": 697.2,
-      "recommended_gl_fine_tune_ct": -23,
+      "recommended_gl_fine_tune_ct": 21,
       "centroid_hz": 2864.8,
       "attack_ms": 66.85,
       "r_harsh": 0.3712,
@@ -6017,7 +6074,8 @@
             "lpf_hz": 7500.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.969
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/fx_chime_clean.wav",
@@ -6113,7 +6171,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/fx_drake_clean.wav",
@@ -6141,9 +6200,9 @@
       "comfort_score": 0.6732,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D#",
+      "detected_note": "A",
       "f0_hz": 313.58,
-      "midi_root": 63,
+      "midi_root": 69,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.6455,
@@ -6165,7 +6224,7 @@
       "inharmonicity": 0.971,
       "wetness_score": 0.4527,
       "tail_duration_ms": 1228.0,
-      "recommended_gl_fine_tune_ct": -14,
+      "recommended_gl_fine_tune_ct": -21,
       "centroid_hz": 394.3,
       "attack_ms": 277.37,
       "r_harsh": 0.0,
@@ -6251,7 +6310,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9993
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/fx_drake_rev.wav",
@@ -6376,7 +6436,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9992
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/fx_rev_riser.wav",
@@ -6472,7 +6533,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/glass_riser_1bar_142.wav",
@@ -6498,11 +6560,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C",
+      "detected_note": "G#",
       "f0_hz": 523.53,
-      "midi_root": 72,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -6511,7 +6573,7 @@
       "inharmonicity": 0.1209,
       "wetness_score": 0.9999,
       "tail_duration_ms": 42.2,
-      "recommended_gl_fine_tune_ct": -1,
+      "recommended_gl_fine_tune_ct": 3,
       "centroid_hz": 600.2,
       "attack_ms": 1482.63,
       "r_harsh": 0.0184,
@@ -6583,7 +6645,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3887
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/glass_waves_riser_1bar.wav",
@@ -6609,11 +6672,11 @@
         "chord_keys": 0.8602
       },
       "comfort_score": 0.65,
-      "sample_nature": "mono_oneshot",
-      "playable_chromatically": true,
+      "sample_nature": "poly_chord_or_dyad",
+      "playable_chromatically": false,
       "detected_note": "G#",
       "f0_hz": 102.96,
-      "midi_root": 44,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -6622,7 +6685,7 @@
       "inharmonicity": 0.0181,
       "wetness_score": 0.9999,
       "tail_duration_ms": 14.5,
-      "recommended_gl_fine_tune_ct": 15,
+      "recommended_gl_fine_tune_ct": 3,
       "centroid_hz": 589.7,
       "attack_ms": 1216.24,
       "r_harsh": 0.0122,
@@ -6681,7 +6744,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.757
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/nm_-_radiate_fx_clean.wav",
@@ -6707,9 +6771,9 @@
       "comfort_score": 0.4334,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "E",
+      "detected_note": "F#",
       "f0_hz": 41.72,
-      "midi_root": 28,
+      "midi_root": 54,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -6718,7 +6782,7 @@
       "inharmonicity": 0.6626,
       "wetness_score": 0.0874,
       "tail_duration_ms": 729.7,
-      "recommended_gl_fine_tune_ct": -22,
+      "recommended_gl_fine_tune_ct": 31,
       "centroid_hz": 3107.1,
       "attack_ms": 3.99,
       "r_harsh": 0.6906,
@@ -6783,7 +6847,8 @@
           "score": 0.691
         }
       ],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.4524
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/nuan_riser_1bar_132.wav",
@@ -6810,9 +6875,9 @@
       "comfort_score": 0.7192,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "A#",
+      "detected_note": "D#",
       "f0_hz": 58.54,
-      "midi_root": 34,
+      "midi_root": 27,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -6821,7 +6886,7 @@
       "inharmonicity": 0.6732,
       "wetness_score": 0.9997,
       "tail_duration_ms": 145.4,
-      "recommended_gl_fine_tune_ct": -8,
+      "recommended_gl_fine_tune_ct": 24,
       "centroid_hz": 262.1,
       "attack_ms": 1412.79,
       "r_harsh": 0.0011,
@@ -6907,7 +6972,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.7163
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/radiate_riser_150.wav",
@@ -7009,7 +7075,8 @@
           "score": 0.717
         }
       ],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.4807
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/fx/sxj_fx4_tuned.wav",
@@ -7107,7 +7174,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/guitar/eaalah_guitar_loop.wav",
@@ -7135,9 +7203,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C",
+      "detected_note": "D",
       "f0_hz": 132.56,
-      "midi_root": 48,
+      "midi_root": 62,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9735,
@@ -7159,7 +7227,7 @@
       "inharmonicity": 0.7197,
       "wetness_score": 0.9701,
       "tail_duration_ms": 5561.0,
-      "recommended_gl_fine_tune_ct": -23,
+      "recommended_gl_fine_tune_ct": 2,
       "centroid_hz": 523.4,
       "attack_ms": 1100.5,
       "r_harsh": 0.0225,
@@ -7245,7 +7313,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.7457
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/guitar/eaalah_guitar_loop_b.wav",
@@ -7383,7 +7452,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.7336
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/guitar/eaalah_guitar_shimmer.wav",
@@ -7521,7 +7591,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3856
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/guitar/guitar_dm_bar2.wav",
@@ -7549,9 +7620,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "A#",
+      "detected_note": "D",
       "f0_hz": 234.85,
-      "midi_root": 58,
+      "midi_root": 62,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -7560,7 +7631,7 @@
       "inharmonicity": 0.7306,
       "wetness_score": 0.8085,
       "tail_duration_ms": 1009.7,
-      "recommended_gl_fine_tune_ct": -13,
+      "recommended_gl_fine_tune_ct": 2,
       "centroid_hz": 585.7,
       "attack_ms": 654.51,
       "r_harsh": 0.0133,
@@ -7646,7 +7717,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.7846
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/guitar/guitar_ebmaj7_bar1.wav",
@@ -7672,11 +7744,11 @@
         "chord_keys": 0.9995
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C",
+      "detected_note": "D#",
       "f0_hz": 130.55,
-      "midi_root": 48,
+      "midi_root": 63,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -7685,7 +7757,7 @@
       "inharmonicity": 0.9393,
       "wetness_score": 0.6899,
       "tail_duration_ms": 1632.1,
-      "recommended_gl_fine_tune_ct": 4,
+      "recommended_gl_fine_tune_ct": 13,
       "centroid_hz": 384.4,
       "attack_ms": 28.93,
       "r_harsh": 0.0079,
@@ -7752,7 +7824,8 @@
             "out": "guitar_ebmaj7_bar1_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9747
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/Hlessi - Hat 1.wav",
@@ -7780,7 +7853,7 @@
       "playable_chromatically": false,
       "detected_note": "F",
       "f0_hz": 43.74,
-      "midi_root": 53,
+      "midi_root": 29,
       "midi_root_octave_corrected": true,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.1638,
@@ -7861,7 +7934,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9642
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/MZ Hi Hat [100].wav",
@@ -7889,7 +7963,7 @@
       "playable_chromatically": false,
       "detected_note": "C#",
       "f0_hz": 70.66,
-      "midi_root": 49,
+      "midi_root": 37,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -7936,7 +8010,8 @@
       "hard_reject": true,
       "reject_reasons": [
         "digital_clipping(max_consec=2,ratio=0.0163)",
-        "effective_duration_too_short(0.026s)"
+        "effective_duration_too_short(0.026s)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "Hi-hat brillant/aéré, attaque sèche, propre (percussion C#, confort 0.83)",
       "top_tags": [
@@ -7960,7 +8035,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/MZ Hi Hat [2020].wav",
@@ -7988,7 +8064,7 @@
       "playable_chromatically": false,
       "detected_note": "D",
       "f0_hz": 72.0,
-      "midi_root": 50,
+      "midi_root": 38,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -8056,7 +8132,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/MZ Hi Hat [Cardiak 1].wav",
@@ -8084,7 +8161,7 @@
       "playable_chromatically": false,
       "detected_note": "C#",
       "f0_hz": 67.96,
-      "midi_root": 49,
+      "midi_root": 37,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -8152,7 +8229,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/MZ Hi Hat [Fast].wav",
@@ -8178,9 +8256,9 @@
       "comfort_score": 0.8168,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "G",
+      "detected_note": "D#",
       "f0_hz": 99.59,
-      "midi_root": 55,
+      "midi_root": 87,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -8189,7 +8267,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 62.6,
-      "recommended_gl_fine_tune_ct": -28,
+      "recommended_gl_fine_tune_ct": 26,
       "centroid_hz": 7501.7,
       "attack_ms": 2.0,
       "r_harsh": 0.0176,
@@ -8248,7 +8326,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/MZ Hi Hat [Hard].wav",
@@ -8275,9 +8354,9 @@
       "comfort_score": 0.3916,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "D",
+      "detected_note": "F",
       "f0_hz": 1156.74,
-      "midi_root": 86,
+      "midi_root": 89,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -8286,7 +8365,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 69.0,
-      "recommended_gl_fine_tune_ct": 27,
+      "recommended_gl_fine_tune_ct": -47,
       "centroid_hz": 3667.6,
       "attack_ms": 4.99,
       "r_harsh": 0.8853,
@@ -8360,7 +8439,8 @@
             "lpf_hz": 7500.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/[pbs]_finesse_hat_clean.wav",
@@ -8458,7 +8538,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hat_batwing_clean.wav",
@@ -8486,7 +8567,7 @@
       "playable_chromatically": false,
       "detected_note": "F",
       "f0_hz": 353.28,
-      "midi_root": 65,
+      "midi_root": 89,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -8495,7 +8576,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 60.1,
-      "recommended_gl_fine_tune_ct": -20,
+      "recommended_gl_fine_tune_ct": 18,
       "centroid_hz": 7615.5,
       "attack_ms": 3.99,
       "r_harsh": 0.0202,
@@ -8554,7 +8635,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9904
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hat_closed_clean.wav",
@@ -8580,9 +8662,9 @@
       "comfort_score": 0.7752,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "G#",
+      "detected_note": "A#",
       "f0_hz": 404.42,
-      "midi_root": 68,
+      "midi_root": 58,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -8591,7 +8673,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 0.0,
-      "recommended_gl_fine_tune_ct": 46,
+      "recommended_gl_fine_tune_ct": 42,
       "centroid_hz": 7972.2,
       "attack_ms": 4.99,
       "r_harsh": 0.0027,
@@ -8652,7 +8734,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hat_cloud.wav",
@@ -8678,9 +8761,9 @@
       "comfort_score": 0.65,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "A",
+      "detected_note": "A#",
       "f0_hz": 855.94,
-      "midi_root": 81,
+      "midi_root": 58,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -8689,7 +8772,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 71.3,
-      "recommended_gl_fine_tune_ct": 48,
+      "recommended_gl_fine_tune_ct": 32,
       "centroid_hz": 8965.5,
       "attack_ms": 6.98,
       "r_harsh": 0.0051,
@@ -8748,7 +8831,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9978
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hat_cloud_clean.wav",
@@ -8776,7 +8860,7 @@
       "playable_chromatically": false,
       "detected_note": "C#",
       "f0_hz": 34.99,
-      "midi_root": 49,
+      "midi_root": 25,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -8844,7 +8928,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9977
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hat_mz_clean.wav",
@@ -8870,9 +8955,9 @@
       "comfort_score": 0.7192,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "A#",
+      "detected_note": "F#",
       "f0_hz": 958.9,
-      "midi_root": 82,
+      "midi_root": 90,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -8881,7 +8966,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 31.3,
-      "recommended_gl_fine_tune_ct": -49,
+      "recommended_gl_fine_tune_ct": 0,
       "centroid_hz": 6179.2,
       "attack_ms": 5.99,
       "r_harsh": 0.0473,
@@ -8940,7 +9025,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hat_open_alt.wav",
@@ -9036,7 +9122,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hat_open_clean.wav",
@@ -9146,7 +9233,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8488
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hh_bankroll_clean.wav",
@@ -9172,9 +9260,9 @@
       "comfort_score": 0.8884,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "A#",
+      "detected_note": "F#",
       "f0_hz": 58.54,
-      "midi_root": 58,
+      "midi_root": 54,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -9183,7 +9271,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 67.5,
-      "recommended_gl_fine_tune_ct": -8,
+      "recommended_gl_fine_tune_ct": 0,
       "centroid_hz": 9352.1,
       "attack_ms": 3.99,
       "r_harsh": 0.0124,
@@ -9242,7 +9330,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hh_batwing_clean.wav",
@@ -9270,7 +9359,7 @@
       "playable_chromatically": false,
       "detected_note": "B",
       "f0_hz": 30.95,
-      "midi_root": 59,
+      "midi_root": 23,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -9338,7 +9427,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9888
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/hh_infinite_clean.wav",
@@ -9366,7 +9456,7 @@
       "playable_chromatically": false,
       "detected_note": "C#",
       "f0_hz": 34.32,
-      "midi_root": 49,
+      "midi_root": 25,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -9434,7 +9524,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9987
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/hat/sunnk - strange intonate - hats -005.wav",
@@ -9460,9 +9551,9 @@
       "comfort_score": 0.9924,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "C",
+      "detected_note": "F",
       "f0_hz": 63.93,
-      "midi_root": 36,
+      "midi_root": 41,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -9471,7 +9562,7 @@
       "inharmonicity": 0.9751,
       "wetness_score": 0.745,
       "tail_duration_ms": 323.7,
-      "recommended_gl_fine_tune_ct": 40,
+      "recommended_gl_fine_tune_ct": 37,
       "centroid_hz": 10007.7,
       "attack_ms": 168.62,
       "r_harsh": 0.0246,
@@ -9530,7 +9621,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.0199
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/10 Kick -hot.wav",
@@ -9556,11 +9648,11 @@
         "chord_keys": 0.4893
       },
       "comfort_score": 0.908,
-      "sample_nature": "percussion",
-      "playable_chromatically": false,
-      "detected_note": "G#",
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
+      "detected_note": "A",
       "f0_hz": 53.16,
-      "midi_root": 32,
+      "midi_root": 33,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -9569,7 +9661,7 @@
       "inharmonicity": 1.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 122.7,
-      "recommended_gl_fine_tune_ct": -41,
+      "recommended_gl_fine_tune_ct": 16,
       "centroid_hz": 103.2,
       "attack_ms": 13.97,
       "r_harsh": 0.0,
@@ -9630,7 +9722,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9996
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/808_Cool Kix Kick.wav",
@@ -9747,7 +9840,8 @@
             "out": "808_cool_kix_kick_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9973
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/CLAUDE - kick02.wav",
@@ -9775,9 +9869,9 @@
       "comfort_score": 0.65,
       "sample_nature": "poly_chord_or_dyad",
       "playable_chromatically": false,
-      "detected_note": "D",
+      "detected_note": "A",
       "f0_hz": 35.66,
-      "midi_root": 26,
+      "midi_root": 33,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -9786,7 +9880,7 @@
       "inharmonicity": 0.8585,
       "wetness_score": 0.1813,
       "tail_duration_ms": 258.6,
-      "recommended_gl_fine_tune_ct": 50,
+      "recommended_gl_fine_tune_ct": 16,
       "centroid_hz": 99.9,
       "attack_ms": 60.86,
       "r_harsh": 0.0018,
@@ -9853,7 +9947,8 @@
             "out": "claude_-_kick02_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/CLAUDE - kick10.wav",
@@ -9951,7 +10046,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/MZ Kick [Ardist].wav",
@@ -9979,9 +10075,9 @@
       "comfort_score": 0.65,
       "sample_nature": "mono_oneshot",
       "playable_chromatically": true,
-      "detected_note": "F#",
+      "detected_note": "G",
       "f0_hz": 45.09,
-      "midi_root": 30,
+      "midi_root": 31,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -9990,7 +10086,7 @@
       "inharmonicity": 0.014,
       "wetness_score": 0.0011,
       "tail_duration_ms": 148.6,
-      "recommended_gl_fine_tune_ct": 44,
+      "recommended_gl_fine_tune_ct": -28,
       "centroid_hz": 87.7,
       "attack_ms": 34.92,
       "r_harsh": 0.0,
@@ -10027,7 +10123,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=204,ratio=0.1083)"
+        "digital_clipping(max_consec=204,ratio=0.1083)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "Kick très grave/sub, attaque douce, propre (mono_oneshot F#, confort 0.65)",
       "top_tags": [
@@ -10051,7 +10148,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/MZ Kick [Gucci].wav",
@@ -10127,7 +10225,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=238,ratio=0.2180)"
+        "digital_clipping(max_consec=238,ratio=0.2180)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "Kick très grave/sub, attaque franche, propre (poly_chord_or_dyad F, confort 0.77)",
       "top_tags": [
@@ -10159,7 +10258,8 @@
             "out": "mz_kick_[gucci]_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/MZ Kick [On God].wav",
@@ -10183,11 +10283,11 @@
         "chord_keys": 0.379
       },
       "comfort_score": 0.6892,
-      "sample_nature": "mono_oneshot",
-      "playable_chromatically": true,
-      "detected_note": "G#",
+      "sample_nature": "percussion",
+      "playable_chromatically": false,
+      "detected_note": "A",
       "f0_hz": 52.49,
-      "midi_root": 32,
+      "midi_root": 33,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -10196,7 +10296,7 @@
       "inharmonicity": 0.0291,
       "wetness_score": 0.001,
       "tail_duration_ms": 145.6,
-      "recommended_gl_fine_tune_ct": -19,
+      "recommended_gl_fine_tune_ct": -27,
       "centroid_hz": 116.3,
       "attack_ms": 12.97,
       "r_harsh": 0.0,
@@ -10233,7 +10333,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=66,ratio=0.0364)"
+        "digital_clipping(max_consec=66,ratio=0.0364)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "Kick très grave/sub, attaque franche, propre (mono_oneshot G#, confort 0.69)",
       "top_tags": [
@@ -10257,7 +10358,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9998
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/MZ Kick [Oshi].wav",
@@ -10281,11 +10383,11 @@
         "chord_keys": 0.2142
       },
       "comfort_score": 0.698,
-      "sample_nature": "mono_oneshot",
-      "playable_chromatically": true,
-      "detected_note": "C#",
+      "sample_nature": "percussion",
+      "playable_chromatically": false,
+      "detected_note": "F#",
       "f0_hz": 67.96,
-      "midi_root": 37,
+      "midi_root": 30,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -10294,7 +10396,7 @@
       "inharmonicity": 0.0146,
       "wetness_score": 0.0,
       "tail_duration_ms": 122.7,
-      "recommended_gl_fine_tune_ct": 34,
+      "recommended_gl_fine_tune_ct": 44,
       "centroid_hz": 116.2,
       "attack_ms": 45.9,
       "r_harsh": 0.0001,
@@ -10355,7 +10457,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9982
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/NUAN SONAR - Stereo Girth Kick.wav",
@@ -10382,9 +10485,9 @@
       "comfort_score": 0.9856,
       "sample_nature": "poly_chord_or_dyad",
       "playable_chromatically": false,
-      "detected_note": "E",
+      "detected_note": "F#",
       "f0_hz": 40.37,
-      "midi_root": 28,
+      "midi_root": 30,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -10393,7 +10496,7 @@
       "inharmonicity": 1.0,
       "wetness_score": 0.3247,
       "tail_duration_ms": 98.5,
-      "recommended_gl_fine_tune_ct": 35,
+      "recommended_gl_fine_tune_ct": 44,
       "centroid_hz": 91.6,
       "attack_ms": 132.7,
       "r_harsh": 0.0001,
@@ -10462,7 +10565,8 @@
             "out": "nuan_sonar_-_stereo_girth_kick_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8548
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/[PBS] Lex.wav",
@@ -10490,9 +10594,9 @@
       "comfort_score": 0.7432,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "G",
       "f0_hz": 43.74,
-      "midi_root": 29,
+      "midi_root": 31,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -10501,7 +10605,7 @@
       "inharmonicity": 0.2027,
       "wetness_score": 0.0261,
       "tail_duration_ms": 188.8,
-      "recommended_gl_fine_tune_ct": -3,
+      "recommended_gl_fine_tune_ct": 44,
       "centroid_hz": 84.6,
       "attack_ms": 3.99,
       "r_harsh": 0.0001,
@@ -10572,7 +10676,8 @@
             "fade_out_ms": 18.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/dnb_kick_punch.wav",
@@ -10598,8 +10703,8 @@
         "chord_keys": 0.9317
       },
       "comfort_score": 1.0,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
       "detected_note": "B",
       "f0_hz": 61.91,
       "midi_root": 35,
@@ -10678,7 +10783,8 @@
             "out": "dnb_kick_punch_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/dt_-_farewell_(kick)_2_clean.wav",
@@ -10704,9 +10810,9 @@
       "comfort_score": 1.0,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "C",
       "f0_hz": 31.63,
-      "midi_root": 23,
+      "midi_root": 24,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -10715,7 +10821,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0,
       "tail_duration_ms": 73.5,
-      "recommended_gl_fine_tune_ct": -42,
+      "recommended_gl_fine_tune_ct": -14,
       "centroid_hz": 96.2,
       "attack_ms": 28.93,
       "r_harsh": 0.0,
@@ -10774,7 +10880,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/glorkglunk_-_kick_3_clean.wav",
@@ -10879,7 +10986,8 @@
             "out": "glorkglunk_-_kick_3_clean_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/kick_clean.wav",
@@ -10984,7 +11092,8 @@
             "out": "kick_clean_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/kick_climax_alt.wav",
@@ -11089,7 +11198,8 @@
             "out": "kick_climax_alt_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/kick_tight.wav",
@@ -11185,7 +11295,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/kick/kick_tight_clean.wav",
@@ -11209,11 +11320,11 @@
         "chord_keys": 0.3423
       },
       "comfort_score": 0.78,
-      "sample_nature": "percussion",
-      "playable_chromatically": false,
-      "detected_note": "F",
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
+      "detected_note": "C",
       "f0_hz": 43.07,
-      "midi_root": 29,
+      "midi_root": 24,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -11222,7 +11333,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0003,
       "tail_duration_ms": 154.4,
-      "recommended_gl_fine_tune_ct": 23,
+      "recommended_gl_fine_tune_ct": -14,
       "centroid_hz": 83.6,
       "attack_ms": 33.92,
       "r_harsh": 0.0,
@@ -11281,7 +11392,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/DOE (TRAP).wav",
@@ -11307,9 +11419,9 @@
       "comfort_score": 0.852,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "G",
+      "detected_note": "F#",
       "f0_hz": 191.78,
-      "midi_root": 55,
+      "midi_root": 66,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.1285,
@@ -11331,7 +11443,7 @@
       "inharmonicity": 0.6878,
       "wetness_score": 0.3159,
       "tail_duration_ms": 1338.3,
-      "recommended_gl_fine_tune_ct": 38,
+      "recommended_gl_fine_tune_ct": 15,
       "centroid_hz": 450.7,
       "attack_ms": 53.88,
       "r_harsh": 0.014,
@@ -11436,7 +11548,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": -0.6559
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/bfnk_a_150.wav",
@@ -11463,9 +11576,9 @@
       "comfort_score": 0.7296,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "D",
       "f0_hz": 174.28,
-      "midi_root": 53,
+      "midi_root": 26,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9373,
@@ -11487,7 +11600,7 @@
       "inharmonicity": 0.5229,
       "wetness_score": 0.4172,
       "tail_duration_ms": 6368.1,
-      "recommended_gl_fine_tune_ct": 3,
+      "recommended_gl_fine_tune_ct": 18,
       "centroid_hz": 189.6,
       "attack_ms": 27.94,
       "r_harsh": 0.0,
@@ -11573,7 +11686,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9896
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/bfnk_b_150.wav",
@@ -11601,9 +11715,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "E",
       "f0_hz": 174.96,
-      "midi_root": 53,
+      "midi_root": 52,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.8037,
@@ -11625,7 +11739,7 @@
       "inharmonicity": 0.8475,
       "wetness_score": 0.7576,
       "tail_duration_ms": 2644.2,
-      "recommended_gl_fine_tune_ct": -3,
+      "recommended_gl_fine_tune_ct": 28,
       "centroid_hz": 353.3,
       "attack_ms": 4836.01,
       "r_harsh": 0.0012,
@@ -11711,7 +11825,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8828
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/bfnk_chop_150.wav",
@@ -11738,9 +11853,9 @@
       "comfort_score": 0.7512,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "E",
       "f0_hz": 174.28,
-      "midi_root": 53,
+      "midi_root": 52,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.8875,
@@ -11762,7 +11877,7 @@
       "inharmonicity": 0.5502,
       "wetness_score": 0.3496,
       "tail_duration_ms": 6265.5,
-      "recommended_gl_fine_tune_ct": 3,
+      "recommended_gl_fine_tune_ct": 28,
       "centroid_hz": 192.0,
       "attack_ms": 27.94,
       "r_harsh": 0.0,
@@ -11848,7 +11963,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9895
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/bfnk_full_150.wav",
@@ -11875,9 +11991,9 @@
       "comfort_score": 0.57,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "E",
       "f0_hz": 174.28,
-      "midi_root": 53,
+      "midi_root": 52,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.8924,
@@ -11899,8 +12015,8 @@
       "inharmonicity": 0.5229,
       "wetness_score": 0.4172,
       "tail_duration_ms": 11969.5,
-      "recommended_gl_fine_tune_ct": 3,
-      "centroid_hz": 250.8,
+      "recommended_gl_fine_tune_ct": 28,
+      "centroid_hz": 209.4,
       "attack_ms": 27.94,
       "r_harsh": 0.0005,
       "roughness": 0.0233,
@@ -11985,7 +12101,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9813
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/bfnk_high12_150.wav",
@@ -12038,7 +12155,7 @@
       "wetness_score": 0.3034,
       "tail_duration_ms": 11981.3,
       "recommended_gl_fine_tune_ct": 0,
-      "centroid_hz": 764.5,
+      "centroid_hz": 614.3,
       "attack_ms": 17.96,
       "r_harsh": 0.0063,
       "roughness": 0.0209,
@@ -12139,7 +12256,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": -0.0237
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/glass_waves_high12_8bar.wav",
@@ -12165,11 +12283,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "inharmonic_bell_or_fx",
-      "playable_chromatically": true,
-      "detected_note": "A",
+      "sample_nature": "ambient_bed",
+      "playable_chromatically": false,
+      "detected_note": "G#",
       "f0_hz": 216.0,
-      "midi_root": 57,
+      "midi_root": 80,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9941,
@@ -12191,8 +12309,8 @@
       "inharmonicity": 0.0993,
       "wetness_score": 0.9499,
       "tail_duration_ms": 5139.7,
-      "recommended_gl_fine_tune_ct": 32,
-      "centroid_hz": 1860.1,
+      "recommended_gl_fine_tune_ct": 3,
+      "centroid_hz": 1789.0,
       "attack_ms": 7703.49,
       "r_harsh": 0.2079,
       "roughness": 0.0095,
@@ -12263,7 +12381,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3955
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/glass_waves_intro_8bar.wav",
@@ -12289,11 +12408,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.6656,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "G#",
       "f0_hz": 101.61,
-      "midi_root": 44,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9729,
@@ -12315,8 +12434,8 @@
       "inharmonicity": 0.218,
       "wetness_score": 0.9427,
       "tail_duration_ms": 5647.3,
-      "recommended_gl_fine_tune_ct": 37,
-      "centroid_hz": 488.1,
+      "recommended_gl_fine_tune_ct": -8,
+      "centroid_hz": 498.9,
       "attack_ms": 5159.27,
       "r_harsh": 0.0035,
       "roughness": 0.0347,
@@ -12382,7 +12501,8 @@
             "out": "glass_waves_intro_8bar_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9169
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/glass_waves_loop.wav",
@@ -12408,11 +12528,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "G#",
       "f0_hz": 105.65,
-      "midi_root": 44,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9716,
@@ -12434,8 +12554,8 @@
       "inharmonicity": 0.1928,
       "wetness_score": 0.9414,
       "tail_duration_ms": 5643.7,
-      "recommended_gl_fine_tune_ct": -30,
-      "centroid_hz": 494.4,
+      "recommended_gl_fine_tune_ct": -8,
+      "centroid_hz": 505.1,
       "attack_ms": 5505.49,
       "r_harsh": 0.0042,
       "roughness": 0.036,
@@ -12501,7 +12621,8 @@
             "out": "glass_waves_loop_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9831
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/noisehats_8bar_172.wav",
@@ -12552,7 +12673,7 @@
       "wetness_score": 0.9357,
       "tail_duration_ms": 5671.0,
       "recommended_gl_fine_tune_ct": 16,
-      "centroid_hz": 7576.7,
+      "centroid_hz": 7542.1,
       "attack_ms": 5488.53,
       "r_harsh": 0.2349,
       "roughness": 0.0824,
@@ -12610,7 +12731,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.5092
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/nuan_4bar_a_132.wav",
@@ -12637,9 +12759,9 @@
       "comfort_score": 0.8252,
       "sample_nature": "poly_chord_or_dyad",
       "playable_chromatically": false,
-      "detected_note": "D#",
+      "detected_note": "B",
       "f0_hz": 154.1,
-      "midi_root": 51,
+      "midi_root": 47,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.8811,
@@ -12661,7 +12783,7 @@
       "inharmonicity": 0.7108,
       "wetness_score": 0.9785,
       "tail_duration_ms": 1993.7,
-      "recommended_gl_fine_tune_ct": 16,
+      "recommended_gl_fine_tune_ct": 24,
       "centroid_hz": 290.0,
       "attack_ms": 1167.35,
       "r_harsh": 0.0034,
@@ -12739,7 +12861,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.0581
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/nuan_4bar_b_132.wav",
@@ -12766,9 +12889,9 @@
       "comfort_score": 0.7892,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D",
+      "detected_note": "E",
       "f0_hz": 72.0,
-      "midi_root": 38,
+      "midi_root": 52,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.8569,
@@ -12790,7 +12913,7 @@
       "inharmonicity": 0.7496,
       "wetness_score": 0.9721,
       "tail_duration_ms": 1024.3,
-      "recommended_gl_fine_tune_ct": 34,
+      "recommended_gl_fine_tune_ct": 42,
       "centroid_hz": 330.8,
       "attack_ms": 6245.8,
       "r_harsh": 0.0053,
@@ -12892,7 +13015,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": -0.0928
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/nuan_4bar_high12_132.wav",
@@ -13028,7 +13152,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": -0.093
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/nuan_5bar_outro_132.wav",
@@ -13080,7 +13205,7 @@
       "wetness_score": 0.9917,
       "tail_duration_ms": 2539.3,
       "recommended_gl_fine_tune_ct": -47,
-      "centroid_hz": 307.4,
+      "centroid_hz": 307.3,
       "attack_ms": 6199.91,
       "r_harsh": 0.0048,
       "roughness": 0.0431,
@@ -13181,7 +13306,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": -0.0556
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/tech_dnb_top_8bar_172.wav",
@@ -13232,7 +13358,7 @@
       "wetness_score": 0.8384,
       "tail_duration_ms": 4521.1,
       "recommended_gl_fine_tune_ct": -5,
-      "centroid_hz": 2122.8,
+      "centroid_hz": 2068.0,
       "attack_ms": 5240.09,
       "r_harsh": 0.2147,
       "roughness": 0.0533,
@@ -13290,7 +13416,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.849
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/loop/tech_dnb_top_8bar_172_clean.wav",
@@ -13316,9 +13443,9 @@
       "comfort_score": 0.8312,
       "sample_nature": "percussion",
       "playable_chromatically": false,
-      "detected_note": "F#",
+      "detected_note": "G",
       "f0_hz": 189.09,
-      "midi_root": 54,
+      "midi_root": 55,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.0468,
@@ -13340,8 +13467,8 @@
       "inharmonicity": 0.7662,
       "wetness_score": 0.8607,
       "tail_duration_ms": 4519.8,
-      "recommended_gl_fine_tune_ct": -38,
-      "centroid_hz": 2518.2,
+      "recommended_gl_fine_tune_ct": -28,
+      "centroid_hz": 2467.5,
       "attack_ms": 2453.42,
       "r_harsh": 0.2889,
       "roughness": 0.0571,
@@ -13399,7 +13526,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.8265
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/open_hat/MZ Open Hat [24hrs].wav",
@@ -13423,11 +13551,11 @@
         "chord_keys": 0.0
       },
       "comfort_score": 0.65,
-      "sample_nature": "inharmonic_bell_or_fx",
-      "playable_chromatically": true,
+      "sample_nature": "melodic_sequence",
+      "playable_chromatically": false,
       "detected_note": "B",
       "f0_hz": 30.95,
-      "midi_root": 59,
+      "midi_root": 23,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -13497,7 +13625,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": -0.5744
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/open_hat/MZ Open Hat [Batman].wav",
@@ -13525,7 +13654,7 @@
       "playable_chromatically": true,
       "detected_note": "G#",
       "f0_hz": 53.16,
-      "midi_root": 56,
+      "midi_root": 32,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -13603,7 +13732,8 @@
             "fade_out_ms": 18.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/open_hat/MZ Open Hat [Flange].wav",
@@ -13629,9 +13759,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D",
+      "detected_note": "F#",
       "f0_hz": 147.37,
-      "midi_root": 50,
+      "midi_root": 54,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -13640,7 +13770,7 @@
       "inharmonicity": 0.6669,
       "wetness_score": 0.4269,
       "tail_duration_ms": 820.5,
-      "recommended_gl_fine_tune_ct": -6,
+      "recommended_gl_fine_tune_ct": -13,
       "centroid_hz": 9329.2,
       "attack_ms": 59.86,
       "r_harsh": 0.0049,
@@ -13718,7 +13848,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.0011
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/open_hat/MZ Open Hat [Suge].wav",
@@ -13746,7 +13877,7 @@
       "playable_chromatically": false,
       "detected_note": "C",
       "f0_hz": 32.97,
-      "midi_root": 48,
+      "midi_root": 24,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -13828,7 +13959,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3714
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/open_hat/MZ Open Hat [Triangle].wav",
@@ -13856,7 +13988,7 @@
       "playable_chromatically": false,
       "detected_note": "D",
       "f0_hz": 37.68,
-      "midi_root": 50,
+      "midi_root": 26,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -13938,7 +14070,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.5844
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/open_hat/[acd]_-_southsidetriangle_hat_2_clean.wav",
@@ -13964,9 +14097,9 @@
       "comfort_score": 0.6512,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "C",
       "f0_hz": 1011.39,
-      "midi_root": 83,
+      "midi_root": 72,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -13975,7 +14108,7 @@
       "inharmonicity": 0.6373,
       "wetness_score": 0.1729,
       "tail_duration_ms": 523.9,
-      "recommended_gl_fine_tune_ct": -41,
+      "recommended_gl_fine_tune_ct": 1,
       "centroid_hz": 9212.8,
       "attack_ms": 31.93,
       "r_harsh": 0.0226,
@@ -14048,7 +14181,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.5829
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/open_hat/openhat_chrome.wav",
@@ -14076,7 +14210,7 @@
       "playable_chromatically": false,
       "detected_note": "D",
       "f0_hz": 150.73,
-      "midi_root": 50,
+      "midi_root": 62,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -14085,7 +14219,7 @@
       "inharmonicity": 0.4523,
       "wetness_score": 0.0588,
       "tail_duration_ms": 296.7,
-      "recommended_gl_fine_tune_ct": -45,
+      "recommended_gl_fine_tune_ct": -34,
       "centroid_hz": 7664.2,
       "attack_ms": 19.95,
       "r_harsh": 0.0161,
@@ -14158,7 +14292,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9942
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/open_hat/openhat_chrome_clean.wav",
@@ -14268,7 +14403,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9948
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/other/glass_waves_dark.wav",
@@ -14294,11 +14430,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "A",
+      "detected_note": "C",
       "f0_hz": 109.68,
-      "midi_root": 45,
+      "midi_root": 72,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9719,
@@ -14320,8 +14456,8 @@
       "inharmonicity": 0.7563,
       "wetness_score": 0.9414,
       "tail_duration_ms": 5639.3,
-      "recommended_gl_fine_tune_ct": 5,
-      "centroid_hz": 498.1,
+      "recommended_gl_fine_tune_ct": -12,
+      "centroid_hz": 507.4,
       "attack_ms": 5505.49,
       "r_harsh": 0.002,
       "roughness": 0.0371,
@@ -14387,7 +14523,8 @@
             "out": "glass_waves_dark_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9858
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/other/glass_waves_rev.wav",
@@ -14413,11 +14550,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "G#",
+      "detected_note": "C",
       "f0_hz": 209.28,
-      "midi_root": 56,
+      "midi_root": 72,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9717,
@@ -14439,7 +14576,7 @@
       "inharmonicity": 0.8507,
       "wetness_score": 0.769,
       "tail_duration_ms": 5498.2,
-      "recommended_gl_fine_tune_ct": -14,
+      "recommended_gl_fine_tune_ct": 12,
       "centroid_hz": 516.9,
       "attack_ms": 420.05,
       "r_harsh": 0.0041,
@@ -14506,7 +14643,8 @@
             "out": "glass_waves_rev_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9838
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/other/steel_stab_d5_clean.wav",
@@ -14532,11 +14670,11 @@
         "chord_keys": 0.8746
       },
       "comfort_score": 0.65,
-      "sample_nature": "mono_oneshot",
+      "sample_nature": "inharmonic_bell_or_fx",
       "playable_chromatically": true,
       "detected_note": "D",
       "f0_hz": 294.06,
-      "midi_root": 62,
+      "midi_root": 74,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -14545,7 +14683,7 @@
       "inharmonicity": 0.0543,
       "wetness_score": 0.5288,
       "tail_duration_ms": 1118.6,
-      "recommended_gl_fine_tune_ct": -2,
+      "recommended_gl_fine_tune_ct": -16,
       "centroid_hz": 597.6,
       "attack_ms": 114.74,
       "r_harsh": 0.0,
@@ -14604,7 +14742,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9465
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Crash [Chopsquad].wav",
@@ -14628,11 +14767,11 @@
         "chord_keys": 0.0
       },
       "comfort_score": 0.6948,
-      "sample_nature": "inharmonic_bell_or_fx",
-      "playable_chromatically": true,
-      "detected_note": "C",
+      "sample_nature": "melodic_sequence",
+      "playable_chromatically": false,
+      "detected_note": "B",
       "f0_hz": 32.97,
-      "midi_root": 48,
+      "midi_root": 35,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -14641,7 +14780,7 @@
       "inharmonicity": 0.8273,
       "wetness_score": 0.2256,
       "tail_duration_ms": 695.6,
-      "recommended_gl_fine_tune_ct": -14,
+      "recommended_gl_fine_tune_ct": 14,
       "centroid_hz": 7913.3,
       "attack_ms": 32.93,
       "r_harsh": 0.0198,
@@ -14710,7 +14849,8 @@
             "fade_out_ms": 18.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9497
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Crash [Johnny].wav",
@@ -14736,9 +14876,9 @@
       "comfort_score": 0.9008,
       "sample_nature": "inharmonic_bell_or_fx",
       "playable_chromatically": true,
-      "detected_note": "B",
+      "detected_note": "G#",
       "f0_hz": 244.27,
-      "midi_root": 59,
+      "midi_root": 68,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -14747,7 +14887,7 @@
       "inharmonicity": 0.7139,
       "wetness_score": 0.1221,
       "tail_duration_ms": 1188.3,
-      "recommended_gl_fine_tune_ct": 19,
+      "recommended_gl_fine_tune_ct": 46,
       "centroid_hz": 9085.5,
       "attack_ms": 8.98,
       "r_harsh": 0.0091,
@@ -14806,7 +14946,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9853
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Perc [Clean Bell].wav",
@@ -14830,8 +14971,8 @@
         "chord_keys": 0.0
       },
       "comfort_score": 0.65,
-      "sample_nature": "inharmonic_bell_or_fx",
-      "playable_chromatically": true,
+      "sample_nature": "melodic_sequence",
+      "playable_chromatically": false,
       "detected_note": "E",
       "f0_hz": 42.39,
       "midi_root": 28,
@@ -14915,7 +15056,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Perc [Clean Triangle].wav",
@@ -14943,7 +15085,7 @@
       "playable_chromatically": false,
       "detected_note": "A#",
       "f0_hz": 59.89,
-      "midi_root": 58,
+      "midi_root": 34,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -15025,7 +15167,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9998
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Perc [Hot Vox].wav",
@@ -15051,11 +15194,11 @@
         "chord_keys": 0.6574
       },
       "comfort_score": 0.6816,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "G",
       "f0_hz": 707.9,
-      "midi_root": 77,
+      "midi_root": 79,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.3955,
@@ -15077,7 +15220,7 @@
       "inharmonicity": 0.8301,
       "wetness_score": 0.4583,
       "tail_duration_ms": 1183.6,
-      "recommended_gl_fine_tune_ct": -23,
+      "recommended_gl_fine_tune_ct": 5,
       "centroid_hz": 958.1,
       "attack_ms": 147.66,
       "r_harsh": 0.0323,
@@ -15155,7 +15298,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.347
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Perc [Jingle Bells].wav",
@@ -15183,7 +15327,7 @@
       "playable_chromatically": true,
       "detected_note": "A#",
       "f0_hz": 59.89,
-      "midi_root": 58,
+      "midi_root": 34,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -15251,7 +15395,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Perc [Light Bell].wav",
@@ -15279,7 +15424,7 @@
       "playable_chromatically": true,
       "detected_note": "B",
       "f0_hz": 31.63,
-      "midi_root": 59,
+      "midi_root": 23,
       "midi_root_octave_corrected": true,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -15323,8 +15468,10 @@
         0.004068,
         0.286147
       ],
-      "hard_reject": false,
-      "reject_reasons": [],
+      "hard_reject": true,
+      "reject_reasons": [
+        "v2:CLIPPED"
+      ],
       "timbre_card": "Percussion brillant/aéré, attaque franche, propre (inharmonic_bell_or_fx B, confort 0.57)",
       "top_tags": [
         {
@@ -15357,7 +15504,8 @@
             "fade_out_ms": 18.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Perc [Modern Cowbell].wav",
@@ -15383,11 +15531,11 @@
         "chord_keys": 0.8428
       },
       "comfort_score": 0.57,
-      "sample_nature": "mono_oneshot",
-      "playable_chromatically": true,
-      "detected_note": "A",
+      "sample_nature": "percussion",
+      "playable_chromatically": false,
+      "detected_note": "D",
       "f0_hz": 872.77,
-      "midi_root": 81,
+      "midi_root": 74,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -15396,7 +15544,7 @@
       "inharmonicity": 0.1206,
       "wetness_score": 0.0123,
       "tail_duration_ms": 237.8,
-      "recommended_gl_fine_tune_ct": 14,
+      "recommended_gl_fine_tune_ct": -12,
       "centroid_hz": 1924.7,
       "attack_ms": 2.0,
       "r_harsh": 0.1925,
@@ -15465,7 +15613,8 @@
             "fade_out_ms": 18.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Perc [Plugg].wav",
@@ -15573,7 +15722,8 @@
             "fade_out_ms": 18.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/MZ Perc [Urban Vox].wav",
@@ -15601,9 +15751,9 @@
       "comfort_score": 0.84,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "E",
+      "detected_note": "B",
       "f0_hz": 42.39,
-      "midi_root": 28,
+      "midi_root": 83,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -15612,7 +15762,7 @@
       "inharmonicity": 0.7879,
       "wetness_score": 0.8388,
       "tail_duration_ms": 1419.6,
-      "recommended_gl_fine_tune_ct": -49,
+      "recommended_gl_fine_tune_ct": -4,
       "centroid_hz": 1228.6,
       "attack_ms": 177.6,
       "r_harsh": 0.1243,
@@ -15698,7 +15848,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/cowbell_g5_alt.wav",
@@ -15722,11 +15873,11 @@
         "chord_keys": 0.2689
       },
       "comfort_score": 0.65,
-      "sample_nature": "mono_oneshot",
-      "playable_chromatically": true,
-      "detected_note": "G",
+      "sample_nature": "melodic_sequence",
+      "playable_chromatically": false,
+      "detected_note": "C",
       "f0_hz": 777.21,
-      "midi_root": 79,
+      "midi_root": 72,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -15735,7 +15886,7 @@
       "inharmonicity": 0.0452,
       "wetness_score": 0.0176,
       "tail_duration_ms": 291.7,
-      "recommended_gl_fine_tune_ct": 15,
+      "recommended_gl_fine_tune_ct": -12,
       "centroid_hz": 823.7,
       "attack_ms": 4.99,
       "r_harsh": 0.0083,
@@ -15794,7 +15945,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/dnb_perc_ghost.wav",
@@ -15909,7 +16061,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.5425
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/nm_-_perc_14_clean.wav",
@@ -15935,9 +16088,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "E",
+      "detected_note": "D#",
       "f0_hz": 83.44,
-      "midi_root": 40,
+      "midi_root": 51,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -15946,7 +16099,7 @@
       "inharmonicity": 0.5655,
       "wetness_score": 0.1319,
       "tail_duration_ms": 797.0,
-      "recommended_gl_fine_tune_ct": -22,
+      "recommended_gl_fine_tune_ct": 16,
       "centroid_hz": 1604.4,
       "attack_ms": 46.89,
       "r_harsh": 0.0944,
@@ -16019,7 +16172,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8553
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/nm_-_perc_14_tuned.wav",
@@ -16129,7 +16283,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.6427
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/oddlogic_-_kernel_percs_-_marker_#1_clean.wav",
@@ -16155,9 +16310,9 @@
       "comfort_score": 1.0,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "A#",
       "f0_hz": 63.25,
-      "midi_root": 35,
+      "midi_root": 46,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -16166,7 +16321,7 @@
       "inharmonicity": 0.7239,
       "wetness_score": 0.2077,
       "tail_duration_ms": 915.7,
-      "recommended_gl_fine_tune_ct": -42,
+      "recommended_gl_fine_tune_ct": -18,
       "centroid_hz": 350.5,
       "attack_ms": 79.82,
       "r_harsh": 0.0087,
@@ -16239,7 +16394,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8862
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/perc_clean.wav",
@@ -16265,9 +16421,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F#",
+      "detected_note": "E",
       "f0_hz": 740.2,
-      "midi_root": 78,
+      "midi_root": 76,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -16276,7 +16432,7 @@
       "inharmonicity": 1.0,
       "wetness_score": 0.2184,
       "tail_duration_ms": 235.5,
-      "recommended_gl_fine_tune_ct": 0,
+      "recommended_gl_fine_tune_ct": 41,
       "centroid_hz": 6918.1,
       "attack_ms": 2.99,
       "r_harsh": 0.11,
@@ -16311,8 +16467,10 @@
         0.014094,
         0.02428
       ],
-      "hard_reject": false,
-      "reject_reasons": [],
+      "hard_reject": true,
+      "reject_reasons": [
+        "v2:UPSAMPLED_LOSSY(cutoff=16250.0Hz)"
+      ],
       "timbre_card": "Percussion brillant/aéré, attaque sèche, propre (melodic_sequence F#, confort 0.65)",
       "top_tags": [
         {
@@ -16335,7 +16493,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/perc/perc_ghost_clean.wav",
@@ -16361,9 +16520,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F#",
+      "detected_note": "E",
       "f0_hz": 740.88,
-      "midi_root": 78,
+      "midi_root": 76,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -16372,7 +16531,7 @@
       "inharmonicity": 0.0,
       "wetness_score": 0.0071,
       "tail_duration_ms": 155.5,
-      "recommended_gl_fine_tune_ct": -2,
+      "recommended_gl_fine_tune_ct": 35,
       "centroid_hz": 6836.4,
       "attack_ms": 2.99,
       "r_harsh": 0.1173,
@@ -16407,8 +16566,10 @@
         0.012867,
         0.018333
       ],
-      "hard_reject": false,
-      "reject_reasons": [],
+      "hard_reject": true,
+      "reject_reasons": [
+        "v2:UPSAMPLED_LOSSY(cutoff=16250.0Hz)"
+      ],
       "timbre_card": "Percussion brillant/aéré, attaque sèche, propre (melodic_sequence F#, confort 0.65)",
       "top_tags": [
         {
@@ -16431,7 +16592,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/155852__day_tripper13__upright-piano-pizz-e-dull-2.wav",
@@ -16541,7 +16703,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.5886
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/39216__jobro__piano-ff-088.wav",
@@ -16650,7 +16813,8 @@
           "score": 1.308
         }
       ],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.7595
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/chord_cm9_alt.wav",
@@ -16676,7 +16840,7 @@
         "chord_keys": 0.8196
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "C",
       "f0_hz": 261.76,
@@ -16756,7 +16920,8 @@
             "out": "chord_cm9_alt_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9981
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/chord_gm9_clean.wav",
@@ -16786,7 +16951,7 @@
       "playable_chromatically": false,
       "detected_note": "G",
       "f0_hz": 100.26,
-      "midi_root": 43,
+      "midi_root": 55,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -16795,7 +16960,7 @@
       "inharmonicity": 0.4386,
       "wetness_score": 0.8409,
       "tail_duration_ms": 624.1,
-      "recommended_gl_fine_tune_ct": -40,
+      "recommended_gl_fine_tune_ct": 2,
       "centroid_hz": 556.2,
       "attack_ms": 156.64,
       "r_harsh": 0.0103,
@@ -16868,7 +17033,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/snare/CLAUDE - distorted snare07.wav",
@@ -16973,7 +17139,8 @@
             "lpf_hz": 7500.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9752
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/snare/Glorkglunk - resnare 1.wav",
@@ -17049,7 +17216,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=25,ratio=0.0042)"
+        "digital_clipping(max_consec=25,ratio=0.0042)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "Snare chaud/équilibré, attaque sèche, propre (mono_oneshot G#, confort 1.00)",
       "top_tags": [
@@ -17073,7 +17241,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9278
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/snare/Glorkglunk - resnare 5.wav",
@@ -17149,7 +17318,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=55,ratio=0.0101)"
+        "digital_clipping(max_consec=55,ratio=0.0101)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "Snare chaud/équilibré, attaque franche, propre (poly_chord_or_dyad G, confort 0.91)",
       "top_tags": [
@@ -17181,7 +17351,8 @@
             "out": "glorkglunk_-_resnare_5_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9114
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/snare/Glorkglunk - snare 4.wav",
@@ -17255,7 +17426,8 @@
       ],
       "hard_reject": true,
       "reject_reasons": [
-        "digital_clipping(max_consec=28,ratio=0.0040)"
+        "digital_clipping(max_consec=28,ratio=0.0040)",
+        "v2:CLIPPED"
       ],
       "timbre_card": "Snare chaud/équilibré, attaque franche, propre (percussion G, confort 1.00)",
       "top_tags": [
@@ -17279,7 +17451,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9389
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/snare/dnb_snare_crisp.wav",
@@ -17303,7 +17476,7 @@
         "chord_keys": 0.0
       },
       "comfort_score": 1.0,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "G",
       "f0_hz": 391.64,
@@ -17383,7 +17556,8 @@
             "out": "dnb_snare_crisp_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9553
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/snare/glorkglunk_-_snare_4_clean.wav",
@@ -17493,7 +17667,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9375
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/snare/snare_andromeda.wav",
@@ -17605,7 +17780,8 @@
             "lpf_hz": 7500.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/snare/snare_andromeda_clean.wav",
@@ -17717,7 +17893,8 @@
             "lpf_hz": 7500.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/snare/tech_dnb_snare_clean.wav",
@@ -17741,7 +17918,7 @@
         "chord_keys": 0.0937
       },
       "comfort_score": 1.0,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "G",
       "f0_hz": 192.45,
@@ -17821,7 +17998,8 @@
             "out": "tech_dnb_snare_clean_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9105
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/7b9_keyAmin_120bpm.wav",
@@ -17849,9 +18027,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "C",
       "f0_hz": 247.63,
-      "midi_root": 59,
+      "midi_root": 36,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9756,
@@ -17873,8 +18051,8 @@
       "inharmonicity": 0.8276,
       "wetness_score": 0.6997,
       "tail_duration_ms": 4226.1,
-      "recommended_gl_fine_tune_ct": -5,
-      "centroid_hz": 564.2,
+      "recommended_gl_fine_tune_ct": -49,
+      "centroid_hz": 518.7,
       "attack_ms": 7721.45,
       "r_harsh": 0.0038,
       "roughness": 0.0295,
@@ -17975,7 +18153,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.4054
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Acid 4 Crunchy Synth Loop_keyBmin_133bpm.wav",
@@ -18111,7 +18290,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9988
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/AiryHighPad-8Bar_keyC#min_88bpm.wav",
@@ -18139,9 +18319,9 @@
       "comfort_score": 0.57,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "F#",
       "f0_hz": 248.3,
-      "midi_root": 59,
+      "midi_root": 66,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9854,
@@ -18163,9 +18343,9 @@
       "inharmonicity": 0.833,
       "wetness_score": 0.8488,
       "tail_duration_ms": 2374.4,
-      "recommended_gl_fine_tune_ct": -10,
-      "centroid_hz": 423.5,
-      "attack_ms": 9625.12,
+      "recommended_gl_fine_tune_ct": -7,
+      "centroid_hz": 426.3,
+      "attack_ms": 1162.36,
       "r_harsh": 0.0004,
       "roughness": 0.0451,
       "peak_harsh_db": 28.99,
@@ -18265,7 +18445,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.0872
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/AnthemChords-4Bar_keyFmin_121bpm.wav",
@@ -18293,9 +18474,9 @@
       "comfort_score": 1.0,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "D#",
       "f0_hz": 88.82,
-      "midi_root": 41,
+      "midi_root": 27,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.716,
@@ -18317,7 +18498,7 @@
       "inharmonicity": 0.5477,
       "wetness_score": 0.7704,
       "tail_duration_ms": 609.9,
-      "recommended_gl_fine_tune_ct": -30,
+      "recommended_gl_fine_tune_ct": 24,
       "centroid_hz": 996.2,
       "attack_ms": 7322.36,
       "r_harsh": 0.1069,
@@ -18413,7 +18594,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.4756
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Arp 2600 Melody 1_C#_Bb_125bpm.wav",
@@ -18522,7 +18704,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Arp loop_keyCmin_124bpm.wav",
@@ -18575,7 +18758,7 @@
       "wetness_score": 0.5651,
       "tail_duration_ms": 7115.9,
       "recommended_gl_fine_tune_ct": -5,
-      "centroid_hz": 388.8,
+      "centroid_hz": 410.1,
       "attack_ms": 47.89,
       "r_harsh": 0.0134,
       "roughness": 0.0308,
@@ -18676,7 +18859,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.0664
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/BrighterDay-8Bar_keyBmin_132bpm.wav",
@@ -18727,7 +18911,7 @@
       "wetness_score": 0.6829,
       "tail_duration_ms": 10461.2,
       "recommended_gl_fine_tune_ct": 32,
-      "centroid_hz": 288.6,
+      "centroid_hz": 275.8,
       "attack_ms": 1526.53,
       "r_harsh": 0.0001,
       "roughness": 0.0268,
@@ -18812,7 +18996,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.5941
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/CautionPluck_C.wav",
@@ -18942,7 +19127,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.091
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Chord 1_G.wav",
@@ -18968,11 +19154,11 @@
         "chord_keys": 0.8433
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "G",
+      "detected_note": "D",
       "f0_hz": 195.82,
-      "midi_root": 55,
+      "midi_root": 62,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -18981,7 +19167,7 @@
       "inharmonicity": 0.8501,
       "wetness_score": 0.8506,
       "tail_duration_ms": 711.8,
-      "recommended_gl_fine_tune_ct": 2,
+      "recommended_gl_fine_tune_ct": -2,
       "centroid_hz": 440.9,
       "attack_ms": 144.67,
       "r_harsh": 0.0063,
@@ -19048,7 +19234,8 @@
             "out": "chord_1_g_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9999
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Chord 2_F#.wav",
@@ -19076,9 +19263,9 @@
       "comfort_score": 0.65,
       "sample_nature": "poly_chord_or_dyad",
       "playable_chromatically": false,
-      "detected_note": "F#",
+      "detected_note": "D#",
       "f0_hz": 370.1,
-      "midi_root": 66,
+      "midi_root": 39,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -19087,7 +19274,7 @@
       "inharmonicity": 0.6397,
       "wetness_score": 0.9175,
       "tail_duration_ms": 771.2,
-      "recommended_gl_fine_tune_ct": 0,
+      "recommended_gl_fine_tune_ct": 24,
       "centroid_hz": 849.3,
       "attack_ms": 114.74,
       "r_harsh": 0.0238,
@@ -19154,7 +19341,8 @@
             "out": "chord_2_f#_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/GallopHorse-4Bar_keyAmin_127bpm.wav",
@@ -19291,7 +19479,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.7297
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Haviitz_SixFeet_SynthFx_4bar_keyGmin_87bpm.wav",
@@ -19344,8 +19533,8 @@
       "wetness_score": 0.6458,
       "tail_duration_ms": 1353.3,
       "recommended_gl_fine_tune_ct": -36,
-      "centroid_hz": 698.3,
-      "attack_ms": 9663.04,
+      "centroid_hz": 687.6,
+      "attack_ms": 1398.82,
       "r_harsh": 0.0018,
       "roughness": 0.0567,
       "peak_harsh_db": 24.04,
@@ -19445,7 +19634,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.1145
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Horn Synth Loop_keyAmin_127bpm.wav",
@@ -19554,7 +19744,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9266
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Intergalatic Synth Loop_keyEmin_122bpm.wav",
@@ -19582,9 +19773,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "D#",
       "f0_hz": 61.91,
-      "midi_root": 35,
+      "midi_root": 39,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.5799,
@@ -19606,7 +19797,7 @@
       "inharmonicity": 0.5091,
       "wetness_score": 0.9564,
       "tail_duration_ms": 1060.4,
-      "recommended_gl_fine_tune_ct": -5,
+      "recommended_gl_fine_tune_ct": 39,
       "centroid_hz": 326.2,
       "attack_ms": 2848.53,
       "r_harsh": 0.0001,
@@ -19692,7 +19883,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9317
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Jazzfeezy_LP_Melody_4Bar_keyAmin_123bpm.wav",
@@ -19745,8 +19937,8 @@
       "wetness_score": 0.7573,
       "tail_duration_ms": 157.1,
       "recommended_gl_fine_tune_ct": 1,
-      "centroid_hz": 1153.5,
-      "attack_ms": 11838.1,
+      "centroid_hz": 1153.2,
+      "attack_ms": 7844.17,
       "r_harsh": 0.2665,
       "roughness": 0.0354,
       "peak_harsh_db": 41.0,
@@ -19830,7 +20022,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8818
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Jazzfeezy_LP_Melody_4Bar_keyAmin_94bpm.wav",
@@ -19883,7 +20076,7 @@
       "wetness_score": 0.8337,
       "tail_duration_ms": 2344.1,
       "recommended_gl_fine_tune_ct": 10,
-      "centroid_hz": 412.6,
+      "centroid_hz": 433.4,
       "attack_ms": 7864.13,
       "r_harsh": 0.0013,
       "roughness": 0.0352,
@@ -19968,7 +20161,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.6881
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Jazzfeezy_LP_Melody_4Bar_keyC#min_122bpm.wav",
@@ -19995,9 +20189,9 @@
       "comfort_score": 0.12,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D#",
+      "detected_note": "E",
       "f0_hz": 152.08,
-      "midi_root": 51,
+      "midi_root": 52,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9785,
@@ -20019,8 +20213,8 @@
       "inharmonicity": 0.66,
       "wetness_score": 0.963,
       "tail_duration_ms": 7922.0,
-      "recommended_gl_fine_tune_ct": 39,
-      "centroid_hz": 2500.6,
+      "recommended_gl_fine_tune_ct": -15,
+      "centroid_hz": 2515.3,
       "attack_ms": 4078.73,
       "r_harsh": 0.986,
       "roughness": 0.0182,
@@ -20113,7 +20307,8 @@
             "lpf_hz": 5800.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9508
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Juno 60 Bass 133_F#_125bpm.wav",
@@ -20230,7 +20425,8 @@
             "out": "juno_60_bass_133_f#_125bpm_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Juno 60 Bass 86_Bb_125bpm.wav",
@@ -20367,7 +20563,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Juno Pad_keyEbmin_105bpm.wav",
@@ -20395,9 +20592,9 @@
       "comfort_score": 0.57,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "A#",
+      "detected_note": "E",
       "f0_hz": 232.15,
-      "midi_root": 58,
+      "midi_root": 40,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9876,
@@ -20419,8 +20616,8 @@
       "inharmonicity": 0.6361,
       "wetness_score": 0.8703,
       "tail_duration_ms": 11898.7,
-      "recommended_gl_fine_tune_ct": 7,
-      "centroid_hz": 327.3,
+      "recommended_gl_fine_tune_ct": 50,
+      "centroid_hz": 308.6,
       "attack_ms": 100.77,
       "r_harsh": 0.0,
       "roughness": 0.0667,
@@ -20505,7 +20702,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/L_PHRASE_MUSICAL_001_keyDmin_123bpm.wav",
@@ -20557,7 +20755,7 @@
       "wetness_score": 0.8193,
       "tail_duration_ms": 4675.8,
       "recommended_gl_fine_tune_ct": -14,
-      "centroid_hz": 226.9,
+      "centroid_hz": 226.6,
       "attack_ms": 4056.78,
       "r_harsh": 0.0047,
       "roughness": 0.026,
@@ -20652,7 +20850,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3206
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/L_PHRASE_MUSICAL_016_keyCmin_123bpm.wav",
@@ -20680,9 +20879,9 @@
       "comfort_score": 0.6772,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C",
+      "detected_note": "G#",
       "f0_hz": 132.56,
-      "midi_root": 48,
+      "midi_root": 44,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9768,
@@ -20704,7 +20903,7 @@
       "inharmonicity": 0.5022,
       "wetness_score": 0.4414,
       "tail_duration_ms": 2952.6,
-      "recommended_gl_fine_tune_ct": -23,
+      "recommended_gl_fine_tune_ct": -19,
       "centroid_hz": 702.0,
       "attack_ms": 10.98,
       "r_harsh": 0.0237,
@@ -20790,7 +20989,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.5831
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/L_PHRASE_MUSICAL_017_Dmin_123bpm.wav",
@@ -20944,7 +21144,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.2953
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/L_PHRASE_MUSICAL_022_keyAmin_124bpm.wav",
@@ -20972,9 +21173,9 @@
       "comfort_score": 0.92,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "G",
+      "detected_note": "E",
       "f0_hz": 49.8,
-      "midi_root": 31,
+      "midi_root": 28,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -20983,7 +21184,7 @@
       "inharmonicity": 0.8456,
       "wetness_score": 0.9729,
       "tail_duration_ms": 835.7,
-      "recommended_gl_fine_tune_ct": -28,
+      "recommended_gl_fine_tune_ct": -49,
       "centroid_hz": 425.4,
       "attack_ms": 126.71,
       "r_harsh": 0.041,
@@ -21069,7 +21270,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9963
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/L_PHRASE_MUSICAL_024_120bpm.wav",
@@ -21207,7 +21409,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.6538
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/MC 202 Melody 5_125bpm.wav",
@@ -21233,9 +21436,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D#",
+      "detected_note": "B",
       "f0_hz": 38.36,
-      "midi_root": 27,
+      "midi_root": 59,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.3277,
@@ -21257,7 +21460,7 @@
       "inharmonicity": 0.58,
       "wetness_score": 0.7528,
       "tail_duration_ms": 3373.6,
-      "recommended_gl_fine_tune_ct": 24,
+      "recommended_gl_fine_tune_ct": 43,
       "centroid_hz": 366.9,
       "attack_ms": 3170.79,
       "r_harsh": 0.0003,
@@ -21343,7 +21546,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/MC 202 Melody 9_B_125bpm.wav",
@@ -21369,9 +21573,9 @@
       "comfort_score": 0.7256,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "B",
       "f0_hz": 43.74,
-      "midi_root": 29,
+      "midi_root": 47,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.1361,
@@ -21393,7 +21597,7 @@
       "inharmonicity": 0.9361,
       "wetness_score": 0.4435,
       "tail_duration_ms": 2326.5,
-      "recommended_gl_fine_tune_ct": -3,
+      "recommended_gl_fine_tune_ct": 33,
       "centroid_hz": 437.3,
       "attack_ms": 1161.36,
       "r_harsh": 0.0416,
@@ -21479,7 +21683,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/OB-6Chords_keyFmin_123bpm.wav",
@@ -21507,9 +21712,9 @@
       "comfort_score": 0.7548,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C#",
+      "detected_note": "F#",
       "f0_hz": 68.64,
-      "midi_root": 37,
+      "midi_root": 30,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.928,
@@ -21531,8 +21736,8 @@
       "inharmonicity": 0.6068,
       "wetness_score": 0.856,
       "tail_duration_ms": 1484.3,
-      "recommended_gl_fine_tune_ct": 16,
-      "centroid_hz": 384.3,
+      "recommended_gl_fine_tune_ct": 44,
+      "centroid_hz": 386.2,
       "attack_ms": 6781.59,
       "r_harsh": 0.0,
       "roughness": 0.0459,
@@ -21633,7 +21838,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.4101
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/OP1 Damage_keyAmin_137bpm.wav",
@@ -21661,9 +21867,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "A#",
       "f0_hz": 172.27,
-      "midi_root": 53,
+      "midi_root": 34,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9126,
@@ -21685,7 +21891,7 @@
       "inharmonicity": 0.5949,
       "wetness_score": 0.9775,
       "tail_duration_ms": 3857.1,
-      "recommended_gl_fine_tune_ct": 23,
+      "recommended_gl_fine_tune_ct": -47,
       "centroid_hz": 405.8,
       "attack_ms": 1634.29,
       "r_harsh": 0.0,
@@ -21771,7 +21977,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8743
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/OTV Dream_keyC#min_140bpm.wav",
@@ -21799,9 +22006,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C#",
+      "detected_note": "C",
       "f0_hz": 277.91,
-      "midi_root": 61,
+      "midi_root": 48,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9892,
@@ -21823,8 +22030,8 @@
       "inharmonicity": 0.6714,
       "wetness_score": 0.992,
       "tail_duration_ms": 4903.2,
-      "recommended_gl_fine_tune_ct": -5,
-      "centroid_hz": 602.0,
+      "recommended_gl_fine_tune_ct": 40,
+      "centroid_hz": 594.8,
       "attack_ms": 7097.87,
       "r_harsh": 0.0001,
       "roughness": 0.0347,
@@ -21909,7 +22116,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.6458
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Pad 1_EbMaj7.wav",
@@ -21934,7 +22142,7 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.902,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "D#",
       "f0_hz": 155.44,
@@ -21961,7 +22169,7 @@
       "wetness_score": 0.9899,
       "tail_duration_ms": 3404.1,
       "recommended_gl_fine_tune_ct": 1,
-      "centroid_hz": 292.5,
+      "centroid_hz": 294.0,
       "attack_ms": 6595.01,
       "r_harsh": 0.0009,
       "roughness": 0.0312,
@@ -22038,7 +22246,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.2013
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Pad 4_C.wav",
@@ -22065,9 +22274,9 @@
       "comfort_score": 1.0,
       "sample_nature": "poly_chord_or_dyad",
       "playable_chromatically": false,
-      "detected_note": "C",
+      "detected_note": "G",
       "f0_hz": 131.89,
-      "midi_root": 48,
+      "midi_root": 55,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9654,
@@ -22089,7 +22298,7 @@
       "inharmonicity": 0.8506,
       "wetness_score": 0.9242,
       "tail_duration_ms": 4735.1,
-      "recommended_gl_fine_tune_ct": -14,
+      "recommended_gl_fine_tune_ct": -16,
       "centroid_hz": 907.3,
       "attack_ms": 2263.85,
       "r_harsh": 0.0838,
@@ -22167,7 +22376,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3856
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Pad 8_Amin.wav",
@@ -22193,11 +22403,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "A",
+      "detected_note": "F#",
       "f0_hz": 442.78,
-      "midi_root": 69,
+      "midi_root": 42,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.999,
@@ -22219,7 +22429,7 @@
       "inharmonicity": 0.6176,
       "wetness_score": 0.9755,
       "tail_duration_ms": 4560.5,
-      "recommended_gl_fine_tune_ct": -11,
+      "recommended_gl_fine_tune_ct": 44,
       "centroid_hz": 662.6,
       "attack_ms": 2437.46,
       "r_harsh": 0.0393,
@@ -22297,7 +22507,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": -0.0406
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Prophet Chords Loop-glued_100bpm.wav",
@@ -22325,9 +22536,9 @@
       "comfort_score": 0.7072,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D",
+      "detected_note": "D#",
       "f0_hz": 74.02,
-      "midi_root": 38,
+      "midi_root": 51,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.8979,
@@ -22349,9 +22560,9 @@
       "inharmonicity": 0.6159,
       "wetness_score": 0.6963,
       "tail_duration_ms": 559.0,
-      "recommended_gl_fine_tune_ct": -14,
-      "centroid_hz": 246.6,
-      "attack_ms": 9021.5,
+      "recommended_gl_fine_tune_ct": 16,
+      "centroid_hz": 238.0,
+      "attack_ms": 4856.96,
       "r_harsh": 0.0014,
       "roughness": 0.0232,
       "peak_harsh_db": 17.32,
@@ -22451,7 +22662,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.4191
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/SoftJunoChords-2Bar_keyBMaj_61bpm.wav",
@@ -22480,7 +22692,7 @@
       "playable_chromatically": false,
       "detected_note": "G#",
       "f0_hz": 103.63,
-      "midi_root": 44,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.992,
@@ -22502,7 +22714,7 @@
       "inharmonicity": 0.7748,
       "wetness_score": 0.682,
       "tail_duration_ms": 4143.2,
-      "recommended_gl_fine_tune_ct": 3,
+      "recommended_gl_fine_tune_ct": 9,
       "centroid_hz": 314.7,
       "attack_ms": 2093.24,
       "r_harsh": 0.0002,
@@ -22604,7 +22816,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": -0.0653
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Soundtrack_BMaj_Bmin_120bpm.wav",
@@ -22632,9 +22845,9 @@
       "comfort_score": 0.57,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C",
+      "detected_note": "B",
       "f0_hz": 258.4,
-      "midi_root": 60,
+      "midi_root": 71,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9988,
@@ -22656,9 +22869,9 @@
       "inharmonicity": 0.8129,
       "wetness_score": 0.9946,
       "tail_duration_ms": 3013.8,
-      "recommended_gl_fine_tune_ct": 22,
-      "centroid_hz": 938.7,
-      "attack_ms": 8987.57,
+      "recommended_gl_fine_tune_ct": 0,
+      "centroid_hz": 884.7,
+      "attack_ms": 913.92,
       "r_harsh": 0.0447,
       "roughness": 0.023,
       "peak_harsh_db": 20.09,
@@ -22742,7 +22955,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Stab_Dmin.wav",
@@ -22768,11 +22982,11 @@
         "chord_keys": 0.9129
       },
       "comfort_score": 0.8396,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D",
+      "detected_note": "F",
       "f0_hz": 290.03,
-      "midi_root": 62,
+      "midi_root": 65,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -22781,7 +22995,7 @@
       "inharmonicity": 0.6941,
       "wetness_score": 0.2532,
       "tail_duration_ms": 683.7,
-      "recommended_gl_fine_tune_ct": 22,
+      "recommended_gl_fine_tune_ct": -10,
       "centroid_hz": 1291.6,
       "attack_ms": 4.99,
       "r_harsh": 0.047,
@@ -22859,7 +23073,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.2904
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Start 1 (edsclusive)_keyAmin_162bpm.wav",
@@ -22887,9 +23102,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "A",
+      "detected_note": "E",
       "f0_hz": 219.37,
-      "midi_root": 57,
+      "midi_root": 64,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9643,
@@ -22911,9 +23126,9 @@
       "inharmonicity": 0.6924,
       "wetness_score": 0.9875,
       "tail_duration_ms": 4258.2,
-      "recommended_gl_fine_tune_ct": 5,
-      "centroid_hz": 980.8,
-      "attack_ms": 11586.67,
+      "recommended_gl_fine_tune_ct": 0,
+      "centroid_hz": 955.4,
+      "attack_ms": 2589.12,
       "r_harsh": 0.1319,
       "roughness": 0.0302,
       "peak_harsh_db": 21.28,
@@ -22997,7 +23212,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Steel Stab One Shot_D.wav",
@@ -23023,11 +23239,11 @@
         "chord_keys": 0.8746
       },
       "comfort_score": 0.65,
-      "sample_nature": "mono_oneshot",
+      "sample_nature": "inharmonic_bell_or_fx",
       "playable_chromatically": true,
       "detected_note": "D",
       "f0_hz": 294.06,
-      "midi_root": 62,
+      "midi_root": 74,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -23036,7 +23252,7 @@
       "inharmonicity": 0.0647,
       "wetness_score": 0.5273,
       "tail_duration_ms": 1119.4,
-      "recommended_gl_fine_tune_ct": -2,
+      "recommended_gl_fine_tune_ct": -16,
       "centroid_hz": 597.7,
       "attack_ms": 114.74,
       "r_harsh": 0.0,
@@ -23095,7 +23311,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9464
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Stuttering Alien Synth Loop_keyDmin_127bpm.wav",
@@ -23206,7 +23423,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.898
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Yelp 1 (edsclusive)_keyF#min_138bpm.wav",
@@ -23234,9 +23452,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "D",
       "f0_hz": 490.55,
-      "midi_root": 71,
+      "midi_root": 50,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9536,
@@ -23258,7 +23476,7 @@
       "inharmonicity": 0.9761,
       "wetness_score": 0.6434,
       "tail_duration_ms": 5889.0,
-      "recommended_gl_fine_tune_ct": 12,
+      "recommended_gl_fine_tune_ct": -45,
       "centroid_hz": 756.2,
       "attack_ms": 4536.69,
       "r_harsh": 0.001,
@@ -23360,7 +23578,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.1074
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/[EDptk] Celestial_1_keyF#min_120bpm.wav",
@@ -23388,9 +23607,9 @@
       "comfort_score": 0.57,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D",
+      "detected_note": "G",
       "f0_hz": 584.76,
-      "midi_root": 74,
+      "midi_root": 67,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9919,
@@ -23412,8 +23631,8 @@
       "inharmonicity": 0.5787,
       "wetness_score": 1.0,
       "tail_duration_ms": 9049.6,
-      "recommended_gl_fine_tune_ct": 8,
-      "centroid_hz": 505.6,
+      "recommended_gl_fine_tune_ct": -16,
+      "centroid_hz": 540.6,
       "attack_ms": 2786.67,
       "r_harsh": 0.0011,
       "roughness": 0.013,
@@ -23498,7 +23717,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9156
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/[EDptk] Vertical_2_keyDmin_132bpm.wav",
@@ -23551,8 +23771,8 @@
       "wetness_score": 0.8515,
       "tail_duration_ms": 3660.0,
       "recommended_gl_fine_tune_ct": 2,
-      "centroid_hz": 438.4,
-      "attack_ms": 8339.05,
+      "centroid_hz": 443.4,
+      "attack_ms": 7825.22,
       "r_harsh": 0.0016,
       "roughness": 0.0177,
       "peak_harsh_db": 42.96,
@@ -23652,7 +23872,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3374
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/short(edsclusive)1_keyAmin_138bpm.wav",
@@ -23680,9 +23901,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "E",
+      "detected_note": "G",
       "f0_hz": 329.05,
-      "midi_root": 64,
+      "midi_root": 67,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9877,
@@ -23704,7 +23925,7 @@
       "inharmonicity": 0.8795,
       "wetness_score": 0.9399,
       "tail_duration_ms": 317.9,
-      "recommended_gl_fine_tune_ct": 3,
+      "recommended_gl_fine_tune_ct": 2,
       "centroid_hz": 506.1,
       "attack_ms": 3164.81,
       "r_harsh": 0.0153,
@@ -23763,14 +23984,15 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9834
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/synth_chord_lead1_Cmaj7.wav",
       "rel_path": "samples/synth-samples/synth_chord_lead1_Cmaj7.wav",
       "filename": "synth_chord_lead1_Cmaj7.wav",
       "source_origin": "derived",
-      "category": "piano",
+      "category": "synth",
       "is_loop": true,
       "bpm": 89.1,
       "duration_sec": 8.166,
@@ -23791,9 +24013,9 @@
       "comfort_score": 0.902,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "G",
       "f0_hz": 246.96,
-      "midi_root": 59,
+      "midi_root": 55,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9603,
@@ -23815,7 +24037,7 @@
       "inharmonicity": 0.64,
       "wetness_score": 0.8333,
       "tail_duration_ms": 4340.5,
-      "recommended_gl_fine_tune_ct": 0,
+      "recommended_gl_fine_tune_ct": 20,
       "centroid_hz": 1111.0,
       "attack_ms": 125.71,
       "r_harsh": 0.1059,
@@ -23899,14 +24121,15 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.1259
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/synth_chord_lead1_Dmaj7.wav",
       "rel_path": "samples/synth-samples/synth_chord_lead1_Dmaj7.wav",
       "filename": "synth_chord_lead1_Dmaj7.wav",
       "source_origin": "derived",
-      "category": "piano",
+      "category": "synth",
       "is_loop": true,
       "bpm": null,
       "duration_sec": 7.906,
@@ -23927,9 +24150,9 @@
       "comfort_score": 0.8108,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "F#",
       "f0_hz": 246.96,
-      "midi_root": 59,
+      "midi_root": 54,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.978,
@@ -24035,14 +24258,15 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.1701
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/synth_chord_lead1_Emin7.wav",
       "rel_path": "samples/synth-samples/synth_chord_lead1_Emin7.wav",
       "filename": "synth_chord_lead1_Emin7.wav",
       "source_origin": "derived",
-      "category": "piano",
+      "category": "synth",
       "is_loop": true,
       "bpm": 136.0,
       "duration_sec": 6.902,
@@ -24061,11 +24285,11 @@
         "chord_keys": 0.725
       },
       "comfort_score": 0.756,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D",
+      "detected_note": "G",
       "f0_hz": 292.04,
-      "midi_root": 62,
+      "midi_root": 55,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9695,
@@ -24087,7 +24311,7 @@
       "inharmonicity": 0.6088,
       "wetness_score": 0.8281,
       "tail_duration_ms": 3999.6,
-      "recommended_gl_fine_tune_ct": 10,
+      "recommended_gl_fine_tune_ct": -4,
       "centroid_hz": 1139.0,
       "attack_ms": 248.44,
       "r_harsh": 0.1086,
@@ -24165,7 +24389,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.0816
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/synth_lead_keyEmin_70bpm.wav",
@@ -24193,9 +24418,9 @@
       "comfort_score": 0.8524,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C",
+      "detected_note": "F",
       "f0_hz": 520.16,
-      "midi_root": 72,
+      "midi_root": 53,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.983,
@@ -24217,8 +24442,8 @@
       "inharmonicity": 0.6958,
       "wetness_score": 0.9196,
       "tail_duration_ms": 11720.4,
-      "recommended_gl_fine_tune_ct": 10,
-      "centroid_hz": 1449.2,
+      "recommended_gl_fine_tune_ct": 30,
+      "centroid_hz": 1477.2,
       "attack_ms": 3526.98,
       "r_harsh": 0.181,
       "roughness": 0.0264,
@@ -24319,7 +24544,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.2034
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/whitesnd_01B_keyF#min_120bpm.wav",
@@ -24371,7 +24597,7 @@
       "inharmonicity": 0.7309,
       "wetness_score": 0.7694,
       "tail_duration_ms": 3880.7,
-      "recommended_gl_fine_tune_ct": 18,
+      "recommended_gl_fine_tune_ct": 6,
       "centroid_hz": 286.8,
       "attack_ms": 6010.34,
       "r_harsh": 0.0,
@@ -24467,7 +24693,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.5446
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/BFNK - Pad_01.wav",
@@ -24495,9 +24722,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "C#",
       "f0_hz": 703.19,
-      "midi_root": 77,
+      "midi_root": 49,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9552,
@@ -24519,8 +24746,8 @@
       "inharmonicity": 0.5448,
       "wetness_score": 0.3703,
       "tail_duration_ms": 6624.8,
-      "recommended_gl_fine_tune_ct": -12,
-      "centroid_hz": 791.6,
+      "recommended_gl_fine_tune_ct": 16,
+      "centroid_hz": 790.2,
       "attack_ms": 4808.07,
       "r_harsh": 0.0,
       "roughness": 0.024,
@@ -24617,7 +24844,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.4981
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/NUAN SONAR - C Sharp Major 9th and F Minor 9th Supersaw.wav",
@@ -24645,9 +24873,9 @@
       "comfort_score": 1.0,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C#",
+      "detected_note": "F#",
       "f0_hz": 69.31,
-      "midi_root": 37,
+      "midi_root": 30,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9531,
@@ -24669,7 +24897,7 @@
       "inharmonicity": 0.3978,
       "wetness_score": 0.8963,
       "tail_duration_ms": 3068.9,
-      "recommended_gl_fine_tune_ct": 0,
+      "recommended_gl_fine_tune_ct": -32,
       "centroid_hz": 647.4,
       "attack_ms": 4259.32,
       "r_harsh": 0.0361,
@@ -24771,7 +24999,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.2456
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/bfnk_pad_fm_shot.wav",
@@ -24797,11 +25026,11 @@
         "chord_keys": 0.9003
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "A#",
       "f0_hz": 703.19,
-      "midi_root": 77,
+      "midi_root": 46,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -24810,7 +25039,7 @@
       "inharmonicity": 0.5543,
       "wetness_score": 0.4048,
       "tail_duration_ms": 2053.7,
-      "recommended_gl_fine_tune_ct": -12,
+      "recommended_gl_fine_tune_ct": -38,
       "centroid_hz": 836.7,
       "attack_ms": 17.96,
       "r_harsh": 0.0001,
@@ -24877,7 +25106,8 @@
             "out": "bfnk_pad_fm_shot_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.7267
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/eaalah_pad_loop.wav",
@@ -24905,9 +25135,9 @@
       "comfort_score": 0.65,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "G",
+      "detected_note": "C",
       "f0_hz": 197.16,
-      "midi_root": 55,
+      "midi_root": 36,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9792,
@@ -24929,8 +25159,8 @@
       "inharmonicity": 0.5255,
       "wetness_score": 0.7412,
       "tail_duration_ms": 9721.8,
-      "recommended_gl_fine_tune_ct": -10,
-      "centroid_hz": 244.3,
+      "recommended_gl_fine_tune_ct": 4,
+      "centroid_hz": 257.0,
       "attack_ms": 2454.42,
       "r_harsh": 0.0,
       "roughness": 0.0303,
@@ -25015,7 +25245,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9141
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/eaalah_pad_single.wav",
@@ -25040,11 +25271,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.7768,
-      "sample_nature": "percussion",
-      "playable_chromatically": false,
-      "detected_note": "G#",
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
+      "detected_note": "G",
       "f0_hz": 103.63,
-      "midi_root": 44,
+      "midi_root": 55,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -25053,7 +25284,7 @@
       "inharmonicity": 0.9972,
       "wetness_score": 0.9413,
       "tail_duration_ms": 1247.1,
-      "recommended_gl_fine_tune_ct": 3,
+      "recommended_gl_fine_tune_ct": -4,
       "centroid_hz": 211.9,
       "attack_ms": 370.16,
       "r_harsh": 0.0,
@@ -25112,7 +25343,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9946
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/fx_bell_c5.wav",
@@ -25138,11 +25370,11 @@
         "chord_keys": 0.8368
       },
       "comfort_score": 1.0,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
-      "detected_note": "B",
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
+      "detected_note": "C",
       "f0_hz": 492.57,
-      "midi_root": 71,
+      "midi_root": 72,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -25151,7 +25383,7 @@
       "inharmonicity": 0.8668,
       "wetness_score": 0.9928,
       "tail_duration_ms": 530.2,
-      "recommended_gl_fine_tune_ct": 5,
+      "recommended_gl_fine_tune_ct": 1,
       "centroid_hz": 523.2,
       "attack_ms": 384.13,
       "r_harsh": 0.0,
@@ -25218,7 +25450,8 @@
             "out": "fx_bell_c5_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/glass_bell_c5.wav",
@@ -25244,11 +25477,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
-      "detected_note": "G#",
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
+      "detected_note": "C",
       "f0_hz": 414.51,
-      "midi_root": 68,
+      "midi_root": 72,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -25257,7 +25490,7 @@
       "inharmonicity": 0.9382,
       "wetness_score": 0.9098,
       "tail_duration_ms": 656.7,
-      "recommended_gl_fine_tune_ct": 3,
+      "recommended_gl_fine_tune_ct": 1,
       "centroid_hz": 534.1,
       "attack_ms": 185.58,
       "r_harsh": 0.0015,
@@ -25324,7 +25557,8 @@
             "out": "glass_bell_c5_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9862
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/glass_pad_142.wav",
@@ -25352,9 +25586,9 @@
       "comfort_score": 0.57,
       "sample_nature": "poly_chord_or_dyad",
       "playable_chromatically": false,
-      "detected_note": "A",
+      "detected_note": "G#",
       "f0_hz": 108.34,
-      "midi_root": 45,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9937,
@@ -25376,8 +25610,8 @@
       "inharmonicity": 0.1517,
       "wetness_score": 0.8822,
       "tail_duration_ms": 11421.5,
-      "recommended_gl_fine_tune_ct": 26,
-      "centroid_hz": 650.8,
+      "recommended_gl_fine_tune_ct": 3,
+      "centroid_hz": 617.5,
       "attack_ms": 574.69,
       "r_harsh": 0.0299,
       "roughness": 0.0201,
@@ -25445,7 +25679,8 @@
             "fade_out_ms": 18.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.7388
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/glass_waves_pad_a_8bar.wav",
@@ -25471,11 +25706,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "mono_oneshot",
-      "playable_chromatically": true,
+      "sample_nature": "poly_chord_or_dyad",
+      "playable_chromatically": false,
       "detected_note": "G#",
       "f0_hz": 102.28,
-      "midi_root": 44,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9928,
@@ -25497,8 +25732,8 @@
       "inharmonicity": 0.0573,
       "wetness_score": 0.9082,
       "tail_duration_ms": 1324.0,
-      "recommended_gl_fine_tune_ct": 26,
-      "centroid_hz": 581.6,
+      "recommended_gl_fine_tune_ct": 3,
+      "centroid_hz": 556.4,
       "attack_ms": 7442.09,
       "r_harsh": 0.0188,
       "roughness": 0.0237,
@@ -25556,7 +25791,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.8273
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/glass_waves_pad_b_8bar.wav",
@@ -25584,9 +25820,9 @@
       "comfort_score": 0.65,
       "sample_nature": "poly_chord_or_dyad",
       "playable_chromatically": false,
-      "detected_note": "A#",
+      "detected_note": "G#",
       "f0_hz": 234.17,
-      "midi_root": 58,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.989,
@@ -25608,8 +25844,8 @@
       "inharmonicity": 0.8584,
       "wetness_score": 0.9143,
       "tail_duration_ms": 7378.9,
-      "recommended_gl_fine_tune_ct": -8,
-      "centroid_hz": 972.6,
+      "recommended_gl_fine_tune_ct": 3,
+      "centroid_hz": 914.8,
       "attack_ms": 3803.36,
       "r_harsh": 0.1054,
       "roughness": 0.0246,
@@ -25675,7 +25911,8 @@
             "out": "glass_waves_pad_b_8bar_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.6677
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/oddlogic - glass waves.wav",
@@ -25701,11 +25938,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.6816,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "A#",
+      "detected_note": "G#",
       "f0_hz": 232.15,
-      "midi_root": 58,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9708,
@@ -25727,8 +25964,8 @@
       "inharmonicity": 0.9538,
       "wetness_score": 0.8696,
       "tail_duration_ms": 4488.4,
-      "recommended_gl_fine_tune_ct": 7,
-      "centroid_hz": 485.3,
+      "recommended_gl_fine_tune_ct": -8,
+      "centroid_hz": 491.1,
       "attack_ms": 7510.93,
       "r_harsh": 0.0035,
       "roughness": 0.0321,
@@ -25805,7 +26042,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.0892
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/oddlogic - total hyper ambient zone vibe.wav",
@@ -25834,7 +26072,7 @@
       "playable_chromatically": false,
       "detected_note": "D",
       "f0_hz": 74.02,
-      "midi_root": 38,
+      "midi_root": 50,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9943,
@@ -25856,9 +26094,9 @@
       "inharmonicity": 0.3986,
       "wetness_score": 0.997,
       "tail_duration_ms": 1304.3,
-      "recommended_gl_fine_tune_ct": -14,
-      "centroid_hz": 185.2,
-      "attack_ms": 10625.85,
+      "recommended_gl_fine_tune_ct": 2,
+      "centroid_hz": 181.2,
+      "attack_ms": 5045.53,
       "r_harsh": 0.0,
       "roughness": 0.0316,
       "peak_harsh_db": 13.51,
@@ -25952,7 +26190,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.5025
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/pad_bbmaj7_alt.wav",
@@ -25979,9 +26218,9 @@
       "comfort_score": 0.7528,
       "sample_nature": "poly_chord_or_dyad",
       "playable_chromatically": false,
-      "detected_note": "D#",
+      "detected_note": "D",
       "f0_hz": 76.71,
-      "midi_root": 39,
+      "midi_root": 50,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.977,
@@ -26003,7 +26242,7 @@
       "inharmonicity": 0.3488,
       "wetness_score": 0.9912,
       "tail_duration_ms": 2119.0,
-      "recommended_gl_fine_tune_ct": 24,
+      "recommended_gl_fine_tune_ct": -6,
       "centroid_hz": 290.0,
       "attack_ms": 446.98,
       "r_harsh": 0.0012,
@@ -26070,7 +26309,8 @@
             "out": "pad_bbmaj7_alt_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9649
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/pad_cloud_g3_440.wav",
@@ -26095,11 +26335,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.712,
-      "sample_nature": "percussion",
-      "playable_chromatically": false,
-      "detected_note": "G#",
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
+      "detected_note": "G",
       "f0_hz": 103.63,
-      "midi_root": 44,
+      "midi_root": 55,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -26108,7 +26348,7 @@
       "inharmonicity": 0.9973,
       "wetness_score": 0.9338,
       "tail_duration_ms": 1342.0,
-      "recommended_gl_fine_tune_ct": 3,
+      "recommended_gl_fine_tune_ct": -4,
       "centroid_hz": 217.4,
       "attack_ms": 370.16,
       "r_harsh": 0.0,
@@ -26167,7 +26407,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9969
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/pad_cm_alt.wav",
@@ -26193,11 +26434,11 @@
         "chord_keys": 0.8769
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C",
+      "detected_note": "F#",
       "f0_hz": 517.47,
-      "midi_root": 72,
+      "midi_root": 42,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -26206,7 +26447,7 @@
       "inharmonicity": 0.6727,
       "wetness_score": 0.2859,
       "tail_duration_ms": 1913.5,
-      "recommended_gl_fine_tune_ct": 19,
+      "recommended_gl_fine_tune_ct": 6,
       "centroid_hz": 637.2,
       "attack_ms": 21.95,
       "r_harsh": 0.0,
@@ -26273,7 +26514,8 @@
             "out": "pad_cm_alt_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.958
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/pad_ebmaj7_clean.wav",
@@ -26299,7 +26541,7 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.7572,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "D#",
       "f0_hz": 155.44,
@@ -26392,7 +26634,8 @@
             "out": "pad_ebmaj7_clean_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9438
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/pad_fm_clean.wav",
@@ -26418,11 +26661,11 @@
         "chord_keys": 0.918
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "F",
+      "detected_note": "A#",
       "f0_hz": 703.19,
-      "midi_root": 77,
+      "midi_root": 46,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -26431,7 +26674,7 @@
       "inharmonicity": 0.5964,
       "wetness_score": 0.4455,
       "tail_duration_ms": 2019.0,
-      "recommended_gl_fine_tune_ct": -12,
+      "recommended_gl_fine_tune_ct": -28,
       "centroid_hz": 846.5,
       "attack_ms": 24.94,
       "r_harsh": 0.0001,
@@ -26498,7 +26741,8 @@
             "out": "pad_fm_clean_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9066
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/MZ Vox [Blueface].wav",
@@ -26524,11 +26768,11 @@
         "chord_keys": 0.7007
       },
       "comfort_score": 0.772,
-      "sample_nature": "inharmonic_bell_or_fx",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "C#",
+      "detected_note": "D",
       "f0_hz": 1104.25,
-      "midi_root": 85,
+      "midi_root": 86,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.704,
@@ -26550,7 +26794,7 @@
       "inharmonicity": 0.849,
       "wetness_score": 0.9228,
       "tail_duration_ms": 2688.6,
-      "recommended_gl_fine_tune_ct": 7,
+      "recommended_gl_fine_tune_ct": -38,
       "centroid_hz": 1407.2,
       "attack_ms": 337.23,
       "r_harsh": 0.1205,
@@ -26609,7 +26853,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9004
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/MZ Vox [Hi].wav",
@@ -26633,11 +26878,11 @@
         "chord_keys": 0.0
       },
       "comfort_score": 0.7888,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "E",
+      "detected_note": "A",
       "f0_hz": 656.76,
-      "midi_root": 76,
+      "midi_root": 57,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -26646,7 +26891,7 @@
       "inharmonicity": 0.8251,
       "wetness_score": 0.1185,
       "tail_duration_ms": 200.5,
-      "recommended_gl_fine_tune_ct": 7,
+      "recommended_gl_fine_tune_ct": -16,
       "centroid_hz": 4013.9,
       "attack_ms": 7.98,
       "r_harsh": 0.0965,
@@ -26713,7 +26958,8 @@
             "out": "mz_vox_[hi]_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.6251
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/Voice House.wav",
@@ -26739,11 +26985,11 @@
         "chord_keys": 0.7699
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "F",
       "f0_hz": 352.61,
-      "midi_root": 65,
+      "midi_root": 77,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9944,
@@ -26765,7 +27011,7 @@
       "inharmonicity": 0.3482,
       "wetness_score": 0.9074,
       "tail_duration_ms": 958.3,
-      "recommended_gl_fine_tune_ct": -17,
+      "recommended_gl_fine_tune_ct": -12,
       "centroid_hz": 1165.0,
       "attack_ms": 122.72,
       "r_harsh": 0.0509,
@@ -26843,7 +27089,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3634
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/WHEEZYOUTOFHERE.wav",
@@ -26953,7 +27200,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.7738
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/chant_hi_ab3.wav",
@@ -26979,11 +27227,11 @@
         "chord_keys": 0.5291
       },
       "comfort_score": 0.6872,
-      "sample_nature": "poly_chord_or_dyad",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "D#",
+      "detected_note": "G#",
       "f0_hz": 621.77,
-      "midi_root": 75,
+      "midi_root": 56,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -26992,7 +27240,7 @@
       "inharmonicity": 0.8189,
       "wetness_score": 0.1962,
       "tail_duration_ms": 132.9,
-      "recommended_gl_fine_tune_ct": 1,
+      "recommended_gl_fine_tune_ct": -19,
       "centroid_hz": 1893.4,
       "attack_ms": 64.85,
       "r_harsh": 0.1061,
@@ -27059,7 +27307,8 @@
             "out": "chant_hi_ab3_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/chant_hi_c4.wav",
@@ -27084,7 +27333,7 @@
         "chord_keys": 0.0023
       },
       "comfort_score": 0.5146,
-      "sample_nature": "percussion",
+      "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "C",
       "f0_hz": 264.45,
@@ -27171,7 +27420,8 @@
             "lpf_hz": 7500.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/eaalah_vox_cloud_a.wav",
@@ -27199,9 +27449,9 @@
       "comfort_score": 0.982,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "G",
+      "detected_note": "E",
       "f0_hz": 392.31,
-      "midi_root": 67,
+      "midi_root": 52,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.6885,
@@ -27223,7 +27473,7 @@
       "inharmonicity": 0.8882,
       "wetness_score": 0.9974,
       "tail_duration_ms": 3474.1,
-      "recommended_gl_fine_tune_ct": -1,
+      "recommended_gl_fine_tune_ct": 0,
       "centroid_hz": 984.0,
       "attack_ms": 3161.81,
       "r_harsh": 0.0773,
@@ -27319,7 +27569,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3726
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/eaalah_vox_cloud_b.wav",
@@ -27347,9 +27598,9 @@
       "comfort_score": 0.9932,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "E",
+      "detected_note": "F#",
       "f0_hz": 164.19,
-      "midi_root": 52,
+      "midi_root": 54,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.7217,
@@ -27371,7 +27622,7 @@
       "inharmonicity": 0.7102,
       "wetness_score": 0.997,
       "tail_duration_ms": 2151.8,
-      "recommended_gl_fine_tune_ct": 7,
+      "recommended_gl_fine_tune_ct": 18,
       "centroid_hz": 1050.9,
       "attack_ms": 130.7,
       "r_harsh": 0.0863,
@@ -27467,7 +27718,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.3575
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/eaalah_vox_note_c5.wav",
@@ -27579,7 +27831,8 @@
             "fade_out_ms": 22.0
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8514
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/nm_-_reused_vox_clean.wav",
@@ -27720,7 +27973,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.1637
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/sxj_chant6_tuned.wav",
@@ -27744,11 +27998,11 @@
         "chord_keys": 0.0
       },
       "comfort_score": 0.7608,
-      "sample_nature": "inharmonic_bell_or_fx",
-      "playable_chromatically": true,
-      "detected_note": "E",
+      "sample_nature": "melodic_sequence",
+      "playable_chromatically": false,
+      "detected_note": "A",
       "f0_hz": 671.57,
-      "midi_root": 76,
+      "midi_root": 69,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -27816,7 +28070,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vocal-3.ogg",
@@ -27842,11 +28097,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
-      "detected_note": "C",
+      "sample_nature": "inharmonic_bell_or_fx",
+      "playable_chromatically": true,
+      "detected_note": "G",
       "f0_hz": 522.85,
-      "midi_root": 72,
+      "midi_root": 67,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.997,
@@ -27868,7 +28123,7 @@
       "inharmonicity": 0.9903,
       "wetness_score": 0.966,
       "tail_duration_ms": 6144.9,
-      "recommended_gl_fine_tune_ct": 1,
+      "recommended_gl_fine_tune_ct": -31,
       "centroid_hz": 790.3,
       "attack_ms": 2074.29,
       "r_harsh": 0.0006,
@@ -27935,7 +28190,8 @@
             "out": "vocal-3_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.8101
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vocal3_phrase_g4.wav",
@@ -27961,11 +28217,11 @@
         "chord_keys": 0.8625
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
-      "detected_note": "C",
+      "sample_nature": "inharmonic_bell_or_fx",
+      "playable_chromatically": true,
+      "detected_note": "G",
       "f0_hz": 523.53,
-      "midi_root": 72,
+      "midi_root": 67,
       "midi_root_octave_corrected": false,
       "loop_nature": "melodic_loop",
       "harmonic_energy_ratio": 0.9971,
@@ -27987,7 +28243,7 @@
       "inharmonicity": 0.9905,
       "wetness_score": 0.9718,
       "tail_duration_ms": 5548.4,
-      "recommended_gl_fine_tune_ct": -1,
+      "recommended_gl_fine_tune_ct": -31,
       "centroid_hz": 793.6,
       "attack_ms": 2053.33,
       "r_harsh": 0.0006,
@@ -28054,7 +28310,8 @@
             "out": "vocal3_phrase_g4_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9019
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vocal3_sustain_g4.wav",
@@ -28165,7 +28422,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vocal3_swell_rev.wav",
@@ -28263,7 +28521,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.9165
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vox_-_virtual_-_c_clean.wav",
@@ -28289,8 +28548,8 @@
         "chord_keys": 0.8971
       },
       "comfort_score": 0.654,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
       "detected_note": "C",
       "f0_hz": 526.89,
       "midi_root": 72,
@@ -28369,7 +28628,8 @@
             "out": "vox_-_virtual_-_c_clean_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9803
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vox_lead_c5_440.wav",
@@ -28395,8 +28655,8 @@
         "chord_keys": 0.8907
       },
       "comfort_score": 0.652,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
       "detected_note": "C",
       "f0_hz": 526.89,
       "midi_root": 72,
@@ -28475,7 +28735,8 @@
             "out": "vox_lead_c5_440_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.9802
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vox_reused_f5.wav",
@@ -28503,9 +28764,9 @@
       "comfort_score": 0.8556,
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
-      "detected_note": "B",
+      "detected_note": "C",
       "f0_hz": 120.45,
-      "midi_root": 47,
+      "midi_root": 60,
       "midi_root_octave_corrected": false,
       "loop_nature": null,
       "harmonic_energy_ratio": null,
@@ -28514,7 +28775,7 @@
       "inharmonicity": 0.3564,
       "wetness_score": 0.8399,
       "tail_duration_ms": 1622.0,
-      "recommended_gl_fine_tune_ct": 43,
+      "recommended_gl_fine_tune_ct": 26,
       "centroid_hz": 815.2,
       "attack_ms": 95.78,
       "r_harsh": 0.0209,
@@ -28616,7 +28877,8 @@
             }
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.1674
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vox_swell_1bar_142.wav",
@@ -28714,7 +28976,8 @@
         }
       ],
       "defect_tags": [],
-      "suggested_prep_recipes": []
+      "suggested_prep_recipes": [],
+      "phase_correlation": 0.8171
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vox_virtual_bb4.wav",
@@ -28740,8 +29003,8 @@
         "chord_keys": 0.8669
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
       "detected_note": "A#",
       "f0_hz": 467.67,
       "midi_root": 70,
@@ -28820,7 +29083,8 @@
             "out": "vox_virtual_bb4_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.7779
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/vocal/vox_virtual_bb4_440.wav",
@@ -28846,8 +29110,8 @@
         "chord_keys": 0.8834
       },
       "comfort_score": 0.65,
-      "sample_nature": "poly_chord_or_dyad",
-      "playable_chromatically": false,
+      "sample_nature": "mono_oneshot",
+      "playable_chromatically": true,
       "detected_note": "A#",
       "f0_hz": 467.67,
       "midi_root": 70,
@@ -28926,7 +29190,8 @@
             "out": "vox_virtual_bb4_440_clean.wav"
           }
         }
-      ]
+      ],
+      "phase_correlation": 0.783
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/headroom_piano_c4.wav",
@@ -28945,7 +29210,7 @@
       "roughness": 0.0007,
       "peak_harsh_db": 41.06,
       "crest_factor_db": 18.33,
-      "centroid_hz": 521.3,
+      "centroid_hz": 521.1,
       "attack_ms": 29.93,
       "comfort_score": 0.92,
       "hard_reject": false,
@@ -28985,7 +29250,9 @@
         "chord_keys": 0.88,
         "pad_atmosphere": 0.88,
         "lead_melody": 0.85
-      }
+      },
+      "reject_reasons": [],
+      "phase_correlation": 0.9506
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth/glass_pad_c5.wav",
@@ -29044,7 +29311,9 @@
         "chord_keys": 0.88,
         "pad_atmosphere": 0.88,
         "lead_melody": 0.85
-      }
+      },
+      "reject_reasons": [],
+      "phase_correlation": 0.9884
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/guitar/guitar_pluck_b3_440.wav",
@@ -29095,7 +29364,9 @@
       ],
       "timbre_card": "Guitare sombre/chaud, attaque lente, propre (melodic_sequence B, confort 0.92)",
       "compatible_roles": [],
-      "role_scores": {}
+      "role_scores": {},
+      "reject_reasons": [],
+      "phase_correlation": 0.8187
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/guitar/eaalah_guitar_pluck.wav",
@@ -29146,7 +29417,9 @@
       ],
       "timbre_card": "Guitare sombre/chaud, attaque lente, propre (melodic_sequence B, confort 0.92)",
       "compatible_roles": [],
-      "role_scores": {}
+      "role_scores": {},
+      "reject_reasons": [],
+      "phase_correlation": 0.8847
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/bass/sausage_bass_clean.wav",
@@ -29205,7 +29478,9 @@
         "chord_keys": 0.88,
         "pad_atmosphere": 0.85,
         "lead_melody": 0.9
-      }
+      },
+      "reject_reasons": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/synth-samples/Pad 11_B.wav",
@@ -29218,8 +29493,8 @@
       "sample_nature": "melodic_sequence",
       "playable_chromatically": false,
       "detected_note": "B",
-      "midi_root": 47,
-      "recommended_gl_fine_tune_ct": 5,
+      "midi_root": 59,
+      "recommended_gl_fine_tune_ct": 0,
       "r_harsh": 0.0224,
       "roughness": 0.0328,
       "peak_harsh_db": 22.15,
@@ -29256,7 +29531,9 @@
       ],
       "timbre_card": "Synthé chaud/équilibré, attaque lente, propre (melodic_sequence B, confort 0.92)",
       "compatible_roles": [],
-      "role_scores": {}
+      "role_scores": {},
+      "reject_reasons": [],
+      "phase_correlation": 0.7284
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/headroom_99_eb7_clean.wav",
@@ -29307,7 +29584,9 @@
       ],
       "timbre_card": "Piano/Keys clair/présent, attaque franche, aigu dur (melodic_sequence C#, confort 0.92)",
       "compatible_roles": [],
-      "role_scores": {}
+      "role_scores": {},
+      "reject_reasons": [],
+      "phase_correlation": 0.5719
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/512481__phiiraco__pause-piano-sound.wav",
@@ -29358,7 +29637,9 @@
       ],
       "timbre_card": "Piano/Keys chaud/équilibré, attaque lente, phase bas-médiums large (melodic_sequence A#, confort 0.92)",
       "compatible_roles": [],
-      "role_scores": {}
+      "role_scores": {},
+      "reject_reasons": [],
+      "phase_correlation": -0.1292
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/other/[pbs]_og_cym_clean.wav",
@@ -29409,7 +29690,9 @@
       ],
       "timbre_card": "Son brillant/aéré, attaque franche, propre (melodic_sequence G, confort 0.92)",
       "compatible_roles": [],
-      "role_scores": {}
+      "role_scores": {},
+      "reject_reasons": [],
+      "phase_correlation": 0.8472
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/other/sxj_percs8_clean.wav",
@@ -29460,7 +29743,9 @@
       ],
       "timbre_card": "Son brillant/aéré, attaque sèche, propre (melodic_sequence G, confort 0.92)",
       "compatible_roles": [],
-      "role_scores": {}
+      "role_scores": {},
+      "reject_reasons": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/other/CLAUDE - kick04.wav",
@@ -29519,7 +29804,9 @@
         "chord_keys": 0.88,
         "pad_atmosphere": 0.85,
         "lead_melody": 0.9
-      }
+      },
+      "reject_reasons": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/other/CLAUDE - kick17.wav",
@@ -29578,7 +29865,9 @@
         "chord_keys": 0.88,
         "pad_atmosphere": 0.85,
         "lead_melody": 0.9
-      }
+      },
+      "reject_reasons": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/other/claude_-_kick04_clean.wav",
@@ -29637,7 +29926,9 @@
         "chord_keys": 0.88,
         "pad_atmosphere": 0.85,
         "lead_melody": 0.9
-      }
+      },
+      "reject_reasons": [],
+      "phase_correlation": 1.0
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/rhodes_mk1_d4.wav",
@@ -29696,7 +29987,9 @@
         "chord_keys": 0.88,
         "pad_atmosphere": 0.85,
         "lead_melody": 0.9
-      }
+      },
+      "reject_reasons": [],
+      "phase_correlation": 0.7176
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/rhodes_tine_lead_f4.wav",
@@ -29715,8 +30008,8 @@
       "roughness": 0.0,
       "peak_harsh_db": 44.81,
       "crest_factor_db": 6.59,
-      "centroid_hz": 349.6,
-      "attack_ms": 7.98,
+      "centroid_hz": 452.4,
+      "attack_ms": 24.94,
       "comfort_score": 0.92,
       "hard_reject": false,
       "bark_24": [
@@ -29755,7 +30048,9 @@
         "chord_keys": 0.88,
         "pad_atmosphere": 0.85,
         "lead_melody": 0.9
-      }
+      },
+      "reject_reasons": [],
+      "phase_correlation": 0.8503
     },
     {
       "filepath": "/home/gamo/Bureau/musicamical/samples/piano/headroom_piano_lead_fs4.wav",
@@ -29774,8 +30069,8 @@
       "roughness": 0.0003,
       "peak_harsh_db": 32.22,
       "crest_factor_db": 19.45,
-      "centroid_hz": 847.3,
-      "attack_ms": 24.94,
+      "centroid_hz": 882.0,
+      "attack_ms": 19.95,
       "comfort_score": 0.92,
       "hard_reject": false,
       "bark_24": [
@@ -29814,7 +30109,9 @@
         "chord_keys": 0.88,
         "pad_atmosphere": 0.85,
         "lead_melody": 0.9
-      }
+      },
+      "reject_reasons": [],
+      "phase_correlation": -0.2068
     }
   ],
   "errors": []
