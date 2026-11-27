@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+DEPRECATED (spec psychoacoustique) : remplacé par `mcp-servers/audio-index/unified_indexer.py` (samples.db, table `sound_assets`) + `scripts/palette_selector.py` (sélection relationnelle) + `scripts/audio_prep_pb.py` (prépa déterministe trim/-18 LUFS). Conservé pour compatibilité ; ne plus enrichir.
+
 v4.2 `sample_fit_guard.py` — Politique de timbre, filtre de registre (S_max),
 résolution de catalogue en cascade et garde finale déterministe (pur stdlib, 0 token, < 1 ms).
 

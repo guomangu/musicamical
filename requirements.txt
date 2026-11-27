@@ -19,6 +19,12 @@ mosqito>=1.2.1
 pyroomacoustics>=0.10.1
 matchering>=2.0.6
 
+# Prépa déterministe des samples à l'indexation (trim -60 dBFS + -18 LUFS) — scripts/audio_prep_pb.py
+pedalboard>=0.9.14
+# Optionnels (installés hors requirements si présents) :
+#   dawDreamer>=0.8  -> rendu VST3 headless des pistes tonales (mcp-servers/ai-studio-prod/synth_render.py)
+#   demucs>=4.0      -> séparation par stems des masters de référence (scripts/bootstrap_golden_refs.py)
+
 # Théorie musicale & audit MIDI
 music21>=10.0.0
 pretty_midi>=0.2.11

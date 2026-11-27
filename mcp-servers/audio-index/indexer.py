@@ -1,4 +1,6 @@
-"""Indexeur audio hybride (Essentia + métadonnées musicales + embeddings CLAP optionnels)."""
+"""
+DEPRECATED (spec psychoacoustique) : remplacé par `mcp-servers/audio-index/unified_indexer.py` (samples.db, table `sound_assets`) + `scripts/palette_selector.py` (sélection relationnelle) + `scripts/audio_prep_pb.py` (prépa déterministe trim/-18 LUFS). Conservé pour compatibilité ; ne plus enrichir.
+Indexeur audio hybride (Essentia + métadonnées musicales + embeddings CLAP optionnels)."""
 
 from __future__ import annotations
 

@@ -141,6 +141,215 @@ def _analytic_bark24_profile(profile: str) -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Chantier 4 (spec) : décomposition des références externes par stems (Demucs)
+# ---------------------------------------------------------------------------
+STEMS = ("drums", "bass", "other", "vocals")
+DEFAULT_DEMUCS_MODEL = "htdemucs"
+
+
+def separate_stems_demucs(
+    audio_path: str,
+    out_dir: str,
+    model: str = DEFAULT_DEMUCS_MODEL,
+) -> dict[str, str]:
+    """Sépare un master stéréo en 4 stems (`drums`, `bass`, `other`, `vocals`) via
+    `facebookresearch/demucs` (modèle `htdemucs`). Lève RuntimeError si torch/demucs
+    est indisponible : l'appelant retombe alors sur les corridors globaux/analytiques."""
+    try:
+        import torch
+        from demucs.apply import apply_model
+        from demucs.pretrained import get_model
+    except Exception as exc:  # pragma: no cover - dépend de l'install locale
+        raise RuntimeError(
+            f"demucs/torch indisponible ({exc}) : séparation par stems ignorée, "
+            "repli sur les corridors spectraux globaux"
+        ) from exc
+    os.makedirs(out_dir, exist_ok=True)
+    mono, sr = sf.read(audio_path, dtype="float32", always_2d=True)
+    wav = torch.from_numpy(np.asarray(mono.T, dtype=np.float32))  # (channels, samples)
+    if wav.shape[0] == 1:
+        wav = wav.repeat(2, 1)
+    model_obj = get_model(model)
+    with torch.no_grad():
+        sources = apply_model(model_obj, wav[None], device="cpu", split=True, overlap=0.25)[0]
+    out: dict[str, str] = {}
+    for name, src in zip(model_obj.sources, sources):
+        path = os.path.join(out_dir, f"{name}.wav")
+        sf.write(path, src.cpu().numpy().T, sr, subtype="PCM_24")
+        out[name] = path
+    return out
+
+
+def _stem_band_shares(bark24: list[float]) -> dict[str, float]:
+    b = np.asarray(bark24, dtype=np.float64)
+    return {
+        "low_end_share": float(b[0:2].sum()),
+        "low_mids_share": float(b[2:5].sum()),
+        "high_mids_share": float(b[5:18].sum()),
+        "air_share": float(b[18:24].sum()),
+    }
+
+
+def analyze_stem_audio(stem_path: str) -> dict[str, Any]:
+    """Cibles mesurées d'un stem : bark24 + centroïde + crest + plages AudioCommons déduites."""
+    mono, sr = sf.read(stem_path, dtype="float32", always_2d=False)
+    if mono.ndim > 1:
+        mono = mono.mean(axis=1)
+    bark = compute_bark24_distribution(mono, sr)
+    mag = np.abs(np.fft.rfft(mono.astype(np.float64))) ** 2
+    freqs = np.fft.rfftfreq(len(mono), 1.0 / float(sr))
+    centroid = float((freqs * mag).sum() / max(1e-9, float(mag.sum())))
+    crest = float(20.0 * np.log10((float(np.max(np.abs(mono))) + 1e-12) / (float(np.sqrt(np.mean(mono**2))) + 1e-12)))
+    shares = _stem_band_shares(bark)
+    ac = {
+        "ac_warmth": [round(max(0.0, 70.0 + 140.0 * shares["low_mids_share"] - 0.010 * centroid) - 15, 1),
+                      round(min(100.0, 70.0 + 140.0 * shares["low_mids_share"] - 0.010 * centroid) + 15, 1)],
+        "ac_brightness": [round(max(0.0, 0.0125 * centroid + 220.0 * shares["air_share"]) - 12, 1),
+                          round(min(100.0, 0.0125 * centroid + 220.0 * shares["air_share"]) + 12, 1)],
+        "ac_roughness": [0.0, round(min(100.0, 55.0 * shares["air_share"] * 4 + 0.55 * max(0.0, crest - 8.0)) + 12, 1)],
+    }
+    return {
+        "provenance": "demucs_measured",
+        "bark24": {"p10": [round(x * 0.85, 6) for x in bark], "p50": bark, "p90": [round(min(1.0, x * 1.15), 6) for x in bark]},
+        "metrics": {
+            "spectral_centroid_hz": {"p10": round(centroid * 0.85, 1), "p50": round(centroid, 1), "p90": round(centroid * 1.15, 1)},
+            "crest_factor_db": {"p10": round(crest - 2.0, 2), "p50": round(crest, 2), "p90": round(crest + 2.0, 2)},
+            **{k: {"p10": round(v * 0.8, 4), "p50": round(v, 4), "p90": round(min(1.0, v * 1.25), 4)} for k, v in shares.items()},
+        },
+        "ac_targets": ac,
+    }
+
+
+def _stem_bark_prior(stem: str, hints: dict[str, float]) -> np.ndarray:
+    """Distribution Bark24 analytique par stem, modulée par les ancres de genre."""
+    w = np.zeros(len(BARK_EDGES_HZ), dtype=np.float64)
+    sub = float(hints.get("sub_boost", 1.0))
+    air = float(hints.get("air_scale", 1.0))
+    for i, (flo, fhi) in enumerate(BARK_EDGES_HZ):
+        fc = math.sqrt(max(20.0, flo) * max(20.0, fhi))
+        bw = max(10.0, fhi - flo)
+        base = ((fc / 1000.0) ** (-4.0 / 3.0103)) * bw
+        if stem == "bass":
+            w[i] = base * (3.2 * sub if fc < 200.0 else (1.2 if fc < 500.0 else 0.05))
+        elif stem == "drums":
+            w[i] = base * ((2.6 * sub if fc < 150.0 else 0.4) + (2.2 * air if fc > 4000.0 else (0.7 if fc > 800.0 else 0.2)))
+        elif stem == "vocals":
+            w[i] = base * (2.4 if 700.0 <= fc <= 4000.0 else 0.15)
+        else:  # other (harmonie / leads)
+            w[i] = base * (2.2 if 350.0 <= fc <= 4400.0 else 0.25)
+    w /= max(1e-18, float(np.sum(w)))
+    return w
+
+
+def _analytic_stem_targets(profile: str) -> dict[str, Any]:
+    """Cibles par stem hors-ligne (sans master externe) : bark24 p10/p50/p90 + métriques +
+    plages AudioCommons cibles pour drums / bass / other / vocals (spec Chantier 4)."""
+    hints = _ANALYTIC_GENRE_HINTS.get(profile, {"target_slope": -3.9, "sub_boost": 1.0, "air_scale": 1.0})
+    out: dict[str, Any] = {}
+    centroid_prior = {"bass": 140.0 * float(hints["sub_boost"]), "drums": 1900.0, "other": 950.0, "vocals": 1500.0}
+    crest_prior = {"bass": (8.0, 16.0), "drums": (9.0, 18.0), "other": (7.0, 14.0), "vocals": (6.0, 12.0)}
+    ac_prior = {
+        "bass": {"ac_warmth": [55, 85], "ac_boomy": [55, 90], "ac_roughness": [0, 25]},
+        "drums": {"ac_hardness": [55, 95], "ac_brightness": [40, 75], "ac_roughness": [10, 40]},
+        "other": {"ac_warmth": [50, 80], "ac_brightness": [35, 70], "ac_roughness": [0, 30]},
+        "vocals": {"ac_warmth": [55, 85], "ac_brightness": [50, 80], "ac_roughness": [5, 35]},
+    }
+    for stem in STEMS:
+        p50 = _stem_bark_prior(stem, hints)
+        spread = 0.22
+        p10 = np.clip(p50 * (1.0 - spread), 5e-4, None)
+        p90 = np.clip(p50 * (1.0 + spread), 5e-4, None)
+        p10 /= float(np.sum(p10))
+        p90 /= float(np.sum(p90))
+        c = centroid_prior[stem]
+        c_lo, c_hi = crest_prior[stem]
+        shares = _stem_band_shares([float(x) for x in p50])
+        out[stem] = {
+            "provenance": "analytic_stem_prior",
+            "bark24": {
+                "p10": [round(float(x), 6) for x in p10],
+                "p50": [round(float(x), 6) for x in p50],
+                "p90": [round(float(x), 6) for x in p90],
+            },
+            "metrics": {
+                "spectral_centroid_hz": {"p10": round(c * 0.8, 1), "p50": round(c, 1), "p90": round(c * 1.2, 1)},
+                "crest_factor_db": {"p10": round(c_lo, 2), "p50": round((c_lo + c_hi) / 2.0, 2), "p90": round(c_hi, 2)},
+                **{k: {"p10": round(v * 0.8, 4), "p50": round(v, 4), "p90": round(min(1.0, v * 1.25), 4)} for k, v in shares.items()},
+            },
+            "ac_targets": ac_prior[stem],
+        }
+    return out
+
+
+def build_stem_corridors_from_masters(
+    external_dir: str = DEFAULT_EXTERNAL_DIR,
+    corridors_path: str = DEFAULT_CORRIDORS_PATH,
+    model: str = DEFAULT_DEMUCS_MODEL,
+) -> dict[str, Any]:
+    """Enrichit `spectral_corridors.json` avec des cibles PAR STEM mesurées : chaque master
+    externe de `external_masters/<profile>/` est séparé via Demucs (htdemucs) puis chaque
+    stem est analysé (bark24 + centroïde + crest + plages AudioCommons). Sans torch/demucs,
+    retourne un rapport avec `demucs_available=false` et ne modifie rien."""
+    try:
+        import torch  # noqa: F401
+        import demucs  # noqa: F401
+        demucs_ok = True
+    except Exception:
+        demucs_ok = False
+    if not os.path.isfile(corridors_path):
+        return {"demucs_available": demucs_ok, "updated": False, "reason": "corridors_absents"}
+    with open(corridors_path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    profiles = data.get("profiles", {})
+    updated = 0
+    errors: list[str] = []
+    for prof in PROFILES:
+        prof_dir = os.path.join(external_dir, prof)
+        masters = sorted(glob.glob(os.path.join(prof_dir, "**", "*.wav"), recursive=True) +
+                         glob.glob(os.path.join(prof_dir, "**", "*.mp3"), recursive=True) +
+                         glob.glob(os.path.join(prof_dir, "**", "*.flac"), recursive=True))
+        if not masters or not demucs_ok:
+            continue
+        acc: dict[str, list[dict[str, Any]]] = {s: [] for s in STEMS}
+        for master in masters[:4]:
+            try:
+                stems = separate_stems_demucs(master, os.path.join(prof_dir, "_stems", os.path.basename(master)), model=model)
+                for stem, path in stems.items():
+                    if stem in acc:
+                        acc[stem].append(analyze_stem_audio(path))
+            except Exception as exc:  # pragma: no cover
+                errors.append(f"{prof}/{os.path.basename(master)}: {exc}")
+        if any(acc[s] for s in STEMS):
+            entry = profiles.setdefault(prof, {})
+            measured = {}
+            for stem in STEMS:
+                if not acc[stem]:
+                    continue
+                b50 = np.mean([np.asarray(a["bark24"]["p50"]) for a in acc[stem]], axis=0)
+                b50 /= max(1e-18, float(b50.sum()))
+                c50 = float(np.median([a["metrics"]["spectral_centroid_hz"]["p50"] for a in acc[stem]]))
+                cr50 = float(np.median([a["metrics"]["crest_factor_db"]["p50"] for a in acc[stem]]))
+                measured[stem] = {
+                    "provenance": f"demucs_{model}_measured",
+                    "source_count": len(acc[stem]),
+                    "bark24": {"p10": [round(float(x * 0.85), 6) for x in b50],
+                               "p50": [round(float(x), 6) for x in b50],
+                               "p90": [round(float(min(1.0, x * 1.15)), 6) for x in b50]},
+                    "metrics": {
+                        "spectral_centroid_hz": {"p10": round(c50 * 0.85, 1), "p50": round(c50, 1), "p90": round(c50 * 1.15, 1)},
+                        "crest_factor_db": {"p10": round(cr50 - 2.0, 2), "p50": round(cr50, 2), "p90": round(cr50 + 2.0, 2)},
+                    },
+                    "ac_targets": acc[stem][0]["ac_targets"],
+                }
+            entry["stems"] = measured
+            updated += 1
+    if updated:
+        with open(corridors_path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False, separators=(",", ":"))
+    return {"demucs_available": demucs_ok, "updated_profiles": updated, "errors": errors}
+
+
 def _find_project_master(proj_dir: str) -> str | None:
     renders_dir = os.path.join(proj_dir, "renders")
     candidates: list[str] = []
@@ -525,9 +734,13 @@ def build_spectral_corridors(output_path: str = DEFAULT_CORRIDORS_PATH) -> dict[
                 "air_share": {"p10": round(dark_air * 0.8, 4), "p50": round(dark_air * 1.4, 4), "p90": round(dark_air * 2.6, 4)},
                 "pink_slope_db_per_oct": _corridor_triplet(slope - 0.5, 1.1, 0.7),
             },
+            # Chantier 4 : corridors par stem (drums/bass/other/vocals) — cibles baryk24 +
+            # métriques + plages AudioCommons, analytiques hors-ligne (remplacées par des
+            # mesures Demucs via build_stem_corridors_from_masters quand des masters existent).
+            "stems": _analytic_stem_targets(prof),
         }
     payload = {
-        "schema_version": "3.1",
+        "schema_version": "3.2",
         "generated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "profiles": profiles_out,
     }
