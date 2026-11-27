@@ -153,5 +153,108 @@ class TestBlueprintSafetyCutoffWarning(unittest.TestCase):
         self.assertEqual(iss["floor_hz"], 9000.0)
 
 
+class TestArchetypeSustainAndOrganicDark(unittest.TestCase):
+    """Round 2: chords/pad sustain (release) + dark mode keeps organic presets (no electric wavetable/additive)."""
+
+    def test_chords_pad_release_floors(self):
+        import gl_dsl
+        for valence in (0.0, -0.6):
+            ch = gl_dsl.resolve_archetype("trap_rap", "chords", valence=valence)
+            pad = gl_dsl.resolve_archetype("trap_rap", "pad", valence=valence)
+            lead = gl_dsl.resolve_archetype("trap_rap", "lead", valence=valence)
+            self.assertGreaterEqual(ch["params"]["release_ms"], 800)
+            self.assertGreaterEqual(pad["params"]["release_ms"], 1000)
+            self.assertGreaterEqual(lead["params"]["release_ms"], 300)
+
+    def test_dark_keeps_organic_plugins(self):
+        import gl_dsl
+        pad = gl_dsl.resolve_archetype("trap_rap", "pad", valence=-0.6)
+        lead = gl_dsl.resolve_archetype("trap_rap", "lead", valence=-0.6)
+        counter = gl_dsl.resolve_archetype("trap_rap", "counter", valence=-0.6)
+        self.assertEqual(pad["plugin"], "gl.analog")     # pas de gl.wavetable "Formant Choir" électrique
+        self.assertEqual(pad.get("preset"), "Velvet Pad")
+        self.assertEqual(lead["plugin"], "gl.analog")    # pas de gl.additive "Masked lead"
+        self.assertEqual(lead.get("preset"), "Glass Pluck")
+        self.assertNotIn("Bell", str(counter.get("preset") or ""))
+        self.assertLessEqual(lead["params"]["cutoff_hz"], 9000.0)
+
+
+class TestBellAndElectronicPolicyDark(unittest.TestCase):
+    """Round 2: en mode sombre, cloche inharmonique et noms 'stab/metallic' exclus du lead."""
+
+    def test_bell_forbidden_on_lead_in_dark(self):
+        from sample_fit_guard import nature_verdict, candidate_policy
+        v_dark, _, _ = nature_verdict("lead_melody", "inharmonic_bell_or_fx", 0.06, valence=-0.55)
+        self.assertEqual(v_dark, "forbidden")
+        v_light, _, _ = nature_verdict("lead_melody", "inharmonic_bell_or_fx", 0.06, valence=0.0)
+        self.assertEqual(v_light, "discouraged")
+        pol = candidate_policy("lead_melody", {
+            "filepath": "/x/synth-samples/Steel Stab One Shot_D.wav",
+            "category": "synth", "sample_nature": "inharmonic_bell_or_fx", "inharmonicity": 0.065,
+        }, valence=-0.55)
+        self.assertFalse(pol["allowed"], "steel stab doit être exclu du lead en mode sombre")
+        pol_light = candidate_policy("lead_melody", {
+            "filepath": "/x/synth-samples/Steel Stab One Shot_D.wav",
+            "category": "synth", "sample_nature": "inharmonic_bell_or_fx", "inharmonicity": 0.065,
+        }, valence=0.0)
+        self.assertTrue(pol_light["allowed"], "hors mode sombre la cloche reste jouable (pénalisée)")
+
+
+class TestGainStagingChordsAudibility(unittest.TestCase):
+    """Round 2: chords_pad assez haut dans le profil trap_rap (chords audibles)."""
+
+    def test_trap_rap_chords_pad_target(self):
+        from gain_staging_lib import ROLE_TARGET_OFFSETS_DB, ROLE_PRESENCE_FLOOR_DB, _effective_profile_offsets
+        lo, target, hi = ROLE_TARGET_OFFSETS_DB["trap_rap"]["chords_pad"]
+        self.assertGreaterEqual(target, -6.5, f"chords_pad target trop bas: {target} dB (chords inaudibles)")
+        self.assertGreaterEqual(target, ROLE_PRESENCE_FLOOR_DB["chords_pad"])
+        for prof in ("trap_rap", "pop_rnb", "lofi_chill", "classical_ambient"):
+            _, _, offsets = _effective_profile_offsets(prof, prof != "classical_ambient", None)
+            for role, fl in ROLE_PRESENCE_FLOOR_DB.items():
+                self.assertGreaterEqual(offsets[role][1], fl, f"{prof}/{role}")
+
+
+class TestSustainAndBleedRound2(unittest.TestCase):
+    """Round 2: blueprint enricher release floors + allow_bleed des accords tenus."""
+
+    def test_enforce_sustain_release_floors(self):
+        from blueprint_enricher import enrich_blueprint
+        bp = {
+            "title": "t", "key": "F", "bpm": 136.0, "mix_profile": "trap_rap",
+            "emotion_vector": {"valence": -0.55, "energy": 0.75},
+            "structure": [{"section": "verse", "start_bar": 1, "bars": 8, "energy": 0.6},
+                          {"section": "chorus", "start_bar": 9, "bars": 8, "energy": 0.9}],
+            "tracks": [
+                {"name": "chords", "role": "chords", "plugin": "gl.keys",
+                 "plugin_params": {"cutoff_hz": 6500.0, "release_ms": 260.0}},
+                {"name": "pad", "role": "chords", "plugin": "gl.analog",
+                 "plugin_params": {"cutoff_hz": 5500.0, "release_ms": 600.0}},
+            ],
+        }
+        out, report = enrich_blueprint(bp)
+        tr = {t["name"]: t for t in out["tracks"]}
+        self.assertGreaterEqual(tr["chords"]["plugin_params"]["release_ms"], 800.0)
+        self.assertGreaterEqual(tr["pad"]["plugin_params"]["release_ms"], 1000.0)
+        self.assertTrue(report["added"].get("sustain_release_floors_enforced"))
+
+    def test_chord_notes_allow_bleed(self):
+        from strudel_to_score_ir import build_score_ir_from_strudel
+        haps = {
+            "beats_per_bar": 4, "bars": 4, "seed": 4208,
+            "meta": {"bpm": 136, "key": "F", "mode": "minor", "valence": -0.55,
+                     "progression": ["Fm7", "Dbmaj7", "Bbm7", "Cm7"], "sections": []},
+            "tracks": {
+                "chords": {"events": [{"start": b, "end": b + 1.0, "chord": "Fm7", "gain": 0.6} for b in range(4)]},
+                "lead": {"events": [{"start": 0.0, "end": 0.5, "notes": [65], "gain": 0.58}]},
+            },
+        }
+        score, _info = build_score_ir_from_strudel(haps, None)
+        chords = score.tracks["chords"].notes
+        self.assertTrue(all(n.allow_bleed for n in chords), "les notes d'accords tenues doivent bleeder (allow_bleed)")
+        self.assertTrue(all(n.duration_beats >= 3.9 for n in chords), "les accords doivent couvrir la mesure entière")
+        lead = score.tracks["lead"].notes
+        self.assertTrue(all(not n.allow_bleed for n in lead))
+
+
 if __name__ == "__main__":
     unittest.main()

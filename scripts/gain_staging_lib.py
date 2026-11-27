@@ -32,7 +32,7 @@ ROLE_PRESENCE_FLOOR_DB: dict[str, float] = {
     "snare_clap": -4.0,
     "hihat_perc": -14.0,
     "lead": -3.0,
-    "chords_pad": -10.0,
+    "chords_pad": -8.0,
     "counter_melody": -11.0,
     "ear_candy_fx": -16.0,
     "vocals": -1.0,
@@ -65,7 +65,9 @@ ROLE_TARGET_OFFSETS_DB: dict[str, dict[str, tuple[float, float, float]]] = {
         "snare_clap":     (-3.5, -1.5, +0.5),
         "hihat_perc":     (-13.0, -10.0, -7.0),
         "lead":           (-3.0, -1.0, +1.5),
-        "chords_pad":     (-11.0, -8.0, -5.5),
+        # v4.3 round 2 : chords_pad remonté de -8.0 à -6.0 dB vs kick — à -8 dB les accords
+        # (porteurs de l'harmonie en trap mélodique) sont noyés sous kick/basse/lead.
+        "chords_pad":     (-9.0, -6.0, -4.0),
         "counter_melody": (-12.0, -9.0, -6.0),
         "ear_candy_fx":   (-16.0, -12.0, -8.5),
         "vocals":         (-1.0, +1.0, +3.0),

@@ -17,10 +17,11 @@
       "params": {
         "cutoff_hz": 6500,
         "attack_ms": 12,
-        "release_ms": 260
+        "release_ms": 900
       },
       "dark_overrides": {
-        "preset": "Soft"
+        "preset": "Soft",
+        "release_ms": 900
       }
     },
     "trap_rap:pad": {
@@ -29,12 +30,11 @@
       "params": {
         "cutoff_hz": 5500,
         "attack_ms": 240,
-        "release_ms": 600
+        "release_ms": 1200
       },
       "dark_overrides": {
-        "plugin": "gl.wavetable",
-        "preset": "Formant Choir",
-        "cutoff_hz": 4800
+        "cutoff_hz": 4800,
+        "release_ms": 1200
       }
     },
     "trap_rap:lead": {
@@ -43,13 +43,12 @@
       "params": {
         "cutoff_hz": 5500,
         "attack_ms": 8,
-        "release_ms": 200,
+        "release_ms": 400,
         "vibrato_delay_ms": 250
       },
       "dark_overrides": {
-        "plugin": "gl.additive",
-        "preset": "Masked lead",
-        "cutoff_hz": 4200
+        "cutoff_hz": 6500,
+        "release_ms": 400
       }
     },
     "trap_rap:counter": {
@@ -61,8 +60,8 @@
         "release_ms": 220
       },
       "dark_overrides": {
-        "plugin": "gl.wavetable",
-        "preset": "Glass Bell"
+        "cutoff_hz": 6000,
+        "release_ms": 320
       }
     },
     "trap_rap:kick": {

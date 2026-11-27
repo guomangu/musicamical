@@ -222,8 +222,13 @@ def category_tier(role: str, category: str | None = None, filepath: str | None =
     return ("neutral", 0.0, cat)
 
 
-def nature_verdict(role: str, sample_nature: str | None = None, inharmonicity: float = 0.0) -> tuple[str, float, str | None]:
-    """Vérifie la compatibilité `sample_nature` / `inharmonicity` pour un rôle (F4)."""
+def nature_verdict(role: str, sample_nature: str | None = None, inharmonicity: float = 0.0, valence: float = 0.0) -> tuple[str, float, str | None]:
+    """Vérifie la compatibilité `sample_nature` / `inharmonicity` pour un rôle (F4).
+
+    v4.3 round 2 : en mode sombre (valence < -0.2, ex. trap mélodique sombre), une cloche
+    inharmonique sur lead_melody est **interdite** (son métallique/« électrique » non désiré) ;
+    hors mode sombre elle reste jouable si la hauteur est stable (découragée seulement).
+    """
     slot = normalize_slot_role(role)
     nat = str(sample_nature or "").strip().lower()
     try:
@@ -237,6 +242,8 @@ def nature_verdict(role: str, sample_nature: str | None = None, inharmonicity: f
         if slot in ("chord_keys", "pad_atmosphere", "bass_sub") or any(t in raw_l for t in ("arp", "counter")):
             return ("forbidden", -1.0, f"inharmonic_bell_or_fx interdit pour {role} (inh={inh:.2f})")
         if slot == "lead_melody":
+            if float(valence or 0.0) < -0.2:
+                return ("forbidden", -1.0, f"inharmonic_bell_or_fx interdit pour {slot} en mode sombre (valence={valence}, inh={inh:.2f}) — lead métallique/électrique")
             return ("discouraged", -0.75, f"inharmonic_bell_or_fx pénalisé sur {slot} (inh={inh:.2f})")
 
     if slot in TONAL_SLOTS and nat in ("poly_chord_or_dyad", "melodic_sequence", "ambient_bed", "percussion"):
@@ -248,8 +255,9 @@ def nature_verdict(role: str, sample_nature: str | None = None, inharmonicity: f
     return ("ok", 0.0, None)
 
 
-def electronic_penalty(role: str, filename_or_path: str = "", timbre_card: str = "") -> tuple[float, list[str]]:
-    """Malus −0.20 sur les noms/cartes à consonance électronique/métallique pour rôles tonaux."""
+def electronic_penalty(role: str, filename_or_path: str = "", timbre_card: str = "", valence: float = 0.0) -> tuple[float, list[str]]:
+    """Malus −0.20 (−0.35 en mode sombre) sur les noms/cartes à consonance électronique/métallique
+    pour rôles tonaux — un « Steel Stab » sur un lead sombre rend le morceau artificiel/électrique."""
     slot = normalize_slot_role(role)
     if slot not in TONAL_SLOTS:
         return (0.0, [])
@@ -258,7 +266,8 @@ def electronic_penalty(role: str, filename_or_path: str = "", timbre_card: str =
     hits = sorted({m.group(1).lower() for m in _ELECTRONIC_NAME_RE.finditer(hay)})
     if not hits:
         return (0.0, [])
-    return (-0.20, hits)
+    pen = -0.35 if float(valence or 0.0) < -0.2 else -0.20
+    return (pen, hits)
 
 
 def candidate_policy(role: str, cand: dict[str, Any], valence: float = 0.0) -> dict[str, Any]:
@@ -267,9 +276,9 @@ def candidate_policy(role: str, cand: dict[str, Any], valence: float = 0.0) -> d
     fp = str(cand.get("filepath") or cand.get("sample_path") or cand.get("filename") or "")
     cat_tier, cat_bonus, cat = category_tier(slot, cand.get("category"), fp)
     nat_verdict, nat_bonus, nat_reason = nature_verdict(
-        slot, cand.get("sample_nature"), float(cand.get("inharmonicity") or 0.0)
+        slot, cand.get("sample_nature"), float(cand.get("inharmonicity") or 0.0), valence=valence
     )
-    elec_pen, elec_hits = electronic_penalty(slot, fp, str(cand.get("timbre_card") or ""))
+    elec_pen, elec_hits = electronic_penalty(slot, fp, str(cand.get("timbre_card") or ""), valence=valence)
 
     reasons: list[str] = []
     allowed = True
@@ -292,9 +301,11 @@ def candidate_policy(role: str, cand: dict[str, Any], valence: float = 0.0) -> d
 
     if elec_hits:
         reasons.append(f"electronic_name({','.join(elec_hits[:3])})")
-        if slot in ("chord_keys", "pad_atmosphere") and any(
-            h in ("stab", "metallic", "laser", "zap", "siren", "alarm", "glitch", "bitcrush") for h in elec_hits
-        ):
+        _harsh_hits = ("stab", "metallic", "laser", "zap", "siren", "alarm", "glitch", "bitcrush")
+        # v4.3 round 2 : en mode sombre, ces noms métalliques sont aussi exclus du lead
+        # (sinon un "stab" passe en lead_melody et sonne électrique/artificiel)
+        _harm_slots = ("chord_keys", "pad_atmosphere") + (("lead_melody",) if float(valence or 0.0) < -0.2 else ())
+        if slot in _harm_slots and any(h in _harsh_hits for h in elec_hits):
             allowed = False
             reasons.append(f"harsh_electronic_in_harmony({','.join(elec_hits[:2])})")
 
