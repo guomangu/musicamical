@@ -98,6 +98,40 @@ def normalize_flat_energy_arc(bp: dict[str, Any]) -> list[str]:
     return decisions
 
 
+_SUSTAIN_RELEASE_FLOOR_MS: dict[str, float] = {"chords": 800.0, "pad": 1000.0, "lead": 300.0}
+
+
+def enforce_sustain_release_floors(bp: dict[str, Any]) -> list[str]:
+    """v4.3 round 2 — release minimale par rôle harmonique : un `release_ms` trop court
+    (ex. 260 ms sur gl.keys) coupe le son des accords bien avant la fin de la ligne tenue
+    (chaque mesure = 1.76 s à 136 BPM) -> les accords « ne durent pas assez longtemps ».
+    """
+    decisions: list[str] = []
+    for t in bp.get("tracks") or []:
+        if not isinstance(t, dict):
+            continue
+        pp = t.get("plugin_params")
+        if not isinstance(pp, dict) or "release_ms" not in pp:
+            continue
+        nm = str(t.get("name") or "").lower()
+        role = str(t.get("role") or "").lower()
+        key = None
+        if "pad" in nm or role == "pad":
+            key = "pad"
+        elif "chord" in nm or "keys" in nm or role == "chords":
+            key = "chords"
+        elif "lead" in nm or "melody" in nm or role == "lead":
+            key = "lead"
+        if key is None:
+            continue
+        floor = _SUSTAIN_RELEASE_FLOOR_MS[key]
+        cur = float(pp.get("release_ms") or 0.0)
+        if cur < floor:
+            pp["release_ms"] = float(floor)
+            decisions.append(f"{t.get('name')}: release_ms {cur:.0f} -> {floor:.0f} ms (floor sustain {key})")
+    return decisions
+
+
 def clamp_cutoff_lpf_floors(bp: dict[str, Any]) -> list[str]:
     """v4.3 fix — clamp `tracks[*].plugin_params.cutoff_hz` au floor SSOT
     `global_invariants.source_lpf_floor_hz` selon le rôle (lead >= 9000 Hz, chords/pad >= 6500).
@@ -196,6 +230,12 @@ def enrich_blueprint(bp: dict[str, Any], project_dir: str | None = None,
     for _d in clamp_cutoff_lpf_floors(bp):
         decisions.append(_d)
         added["cutoff_lpf_floors_clamped"] = True
+
+    # 3d) v4.3 round 2 — release (sustain) minimale par rôle harmonique : des accords/pads
+    # à release 260 ms sonnent « trop courts » sur des lignes tenues d'une mesure entière
+    for _d in enforce_sustain_release_floors(bp):
+        decisions.append(_d)
+        added["sustain_release_floors_enforced"] = True
 
     # 4) glides 808 subtils au Climax (mesures 4 et 8)
     tracks = bp.get("tracks") or []

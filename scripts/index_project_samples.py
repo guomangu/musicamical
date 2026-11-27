@@ -156,7 +156,32 @@ def _suggest_prep_recipes(
         spec_h["fade_in_ms"] = 2.0
         spec_h["fade_out_ms"] = 18.0
         reasons.append("fade anti-clic")
-    if r_harsh > 0.32 and best_role not in ("hihat_perc",):
+    # v4.3 round 2 — adaptation au projet des dérivés TONAUX : un son métallique/électrique
+    # (inharmonicité > 0.04, nom "stab/laser/metallic/…", r_harsh élevé) sur un rôle
+    # chord/pad/lead reçoit LPF au plafond du rôle + coupe douce 5.2 kHz + saturation chaude,
+    # pour ne pas rendre le morceau artificiel/électrique.
+    _ELEC_RE = re.compile(
+        r"(?:^|[^a-z0-9])(fm|glitch|laser|robot|zap|digital|bitcrush|chiptune|metallic|stab|sfx|siren|alarm|riser|sweep|acid|reese|distorted)(?:$|[^a-z0-9])",
+        re.IGNORECASE,
+    )
+    inh = float(dsp.get("inharmonicity") or 0.0)
+    tonal_role = best_role in ("chord_keys", "pad_atmosphere", "lead_melody")
+    elec_hits = sorted({m.group(1).lower() for m in _ELEC_RE.finditer(filename)})
+    metallic = inh > 0.04 or (tonal_role and bool(elec_hits))
+    if tonal_role and (r_harsh > 0.25 or metallic):
+        role_lpf = {"chord_keys": 6500.0, "pad_atmosphere": 5500.0, "lead_melody": 9000.0}.get(best_role, 7500.0)
+        spec_h["lpf_hz"] = role_lpf
+        spec_h["eq_peaks"] = [[5200.0, -3.0, 0.7]]
+        spec_h["saturate_drive"] = 1.15
+        why = []
+        if inh > 0.04:
+            why.append(f"inharmonicité={inh:.3f}")
+        if elec_hits:
+            why.append(f"nom électronique({','.join(elec_hits[:2])})")
+        if r_harsh > 0.25:
+            why.append(f"r_harsh={r_harsh:.2f}")
+        reasons.append(f"adaptation organique {best_role} ({'; '.join(why)}): LPF {role_lpf:.0f} Hz + coupe -3 dB @ 5.2 kHz + saturation chaude")
+    elif r_harsh > 0.32 and best_role not in ("hihat_perc",):
         spec_h["lpf_hz"] = 6000.0 if best_role in ("chord_keys", "pad_atmosphere") else 7500.0
         reasons.append(f"LPF anti-dureté (r_harsh={r_harsh:.2f})")
     if lm_corr is not None and float(lm_corr) < 0.55 and best_role not in ("hihat_perc",):

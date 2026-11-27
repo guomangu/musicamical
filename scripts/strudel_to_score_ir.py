@@ -791,6 +791,10 @@ def build_score_ir_from_strudel(
                 chord_idx=cidx,
                 note_role=_infer_note_role(role, pitch, seg),
                 lock_harmony=role in ("bass", "chords", "counter"),
+                # v4.3 round 2 : les accords/pads tenus laissent leur release franchir la
+                # frontiere de mesure (allow_bleed) — sinon le boundary_clamp coupe le son
+                # pile a la barre suivante et les lignes harmoniques sonnent trop courtes.
+                allow_bleed=role == "chords",
             ))
         tir.notes.sort(key=lambda n: (n.grid_beat, n.pitch))
         score.tracks[name] = tir

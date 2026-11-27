@@ -161,6 +161,34 @@ aucune mutation low-end appliquée). Douze causes racines diversifiées, et leur
 est masqué (inaudible sur enceintes laptop qui ne reproduisent pas < 250 Hz). `air` < seuil = son bouché.
 Toujours croiser `autofix_history.json` (mutations réellement appliquées) avec `quality_gate.failures`.
 
+#### Round 2 (v4.3) — durée des accords, timbre « électrique », niveaux inégaux (projet `rap_melodique_2min`)
+
+Nouvelles causes racines (en plus des 12 ci-dessus), avec correctifs :
+
+13. **Accords/pads trop courts** : `release_ms=260` (gl.keys) sur des lignes tenues d'une mesure
+    (1.76 s à 136 BPM) + `allow_bleed=false` -> le `boundary_clamp` coupe le son pile à la barre
+    suivante. Fix : floors de release par rôle (`blueprint_enricher.enforce_sustain_release_floors`,
+    chords >= 800 ms, pad >= 1000 ms, lead >= 300 ms), `release_ms` relevé dans
+    `config/timbre_archetypes.json`, et `allow_bleed=True` sur les notes `chords`/`pad`
+    (`strudel_to_score_ir.build_score_ir_from_strudel`).
+14. **Pad/lead « électriques » en mode sombre** : les `dark_overrides` de `trap_rap:pad`/`lead`/
+    `counter` basculaient sur `gl.wavetable "Formant Choir"` / `gl.additive "Masked lead"` /
+    `"Glass Bell"` (sons synthétiques métalliques). Fix : les overrides sombres ne changent plus
+    de plugin/preset (on garde `gl.analog Velvet Pad` / `Glass Pluck` / `Harp pluck`), seuls le
+    cutoff et la release sont ajustés.
+15. ** mauvais sample pour arp/counter** : `Steel Stab One Shot` (`sample_nature=inharmonic_bell_or_fx`,
+    nom « stab ») choisi via le slot `lead_melody` où la cloche n'était que « discouraged ».
+    Fix : `sample_fit_guard.nature_verdict(..., valence)` interdit la cloche sur `lead_melody`
+    quand valence < -0.2, et `candidate_policy` exclut les noms électriques durs (stab/metallic/laser…)
+    du lead en mode sombre (malus renforcé −0.35).
+16. **Dérivés non adaptés au projet** : les recettes `sample_prep_lib` ne filtraient que si
+    `r_harsh > 0.32`. Fix : `index_project_samples._suggest_prep_recipes` détecte désormais
+    `inharmonicity > 0.04` ou un nom électronique sur rôle tonal -> LPF au plafond du rôle
+    + coupe -3 dB @ 5.2 kHz + saturation chaude 1.15.
+17. **Niveaux inégaux (chords inaudibles)** : `gain_staging_report.json` montrait Chords
+    0.68 -> 0.4795 (−6.07 dB) car `ROLE_TARGET_OFFSETS_DB["trap_rap"]["chords_pad"]` visait -8 dB
+    vs kick. Fix : target relevé à -6 dB (range -9..-4) et floor de présence chords_pad -10 -> -8 dB.
+
 ### 3.3 v4.1 P3 — Calibration réelle `gl.*`, propriété mixer unique & micro-passe scalaire
 * **Calibration réelle du surrogate** : `scripts/calibrate_gl_plugins.py` (à exécuter **une fois par version de Gridline** sur la machine hôte, binaire `gridline` requis) mesure la vraie réponse de `gl.eq` (boost +6 dB @ 1 kHz sur bruit, ratio FFT), la coloration de `gl.comp` et le dépassement réel de `gl.limiter`, puis écrit **`config/gl_calibration.json`** (versionné, stats seules, jamais d'audio) : `eq.gain_scale {low,mid,high}`, `eq.q_scale`, `limiter.ceiling_offset_db`, `measured: true/false`. Sans binaire (CI/sandbox) le script écrit la calibration idéale (`measured: false`, échelles 1.0) et `--check` valide la structure en CI. `math_mix_solver.load_calibration()` lit ce fichier (mis en cache, repli idéal si absent) : les gains EQ du modèle sont mis à l'échelle des vraies mesures `gl.eq` et le plafond limiteur est décalé de `ceiling_offset_db` (toujours autour de `-1.2 dBTP` via `config/mix_profiles.json`).
 * **Matrice de propriété stricte (un seul propriétaire par paramètre)** : après `math_mix_solver.py`, `mark_solver_applied(<projet>, solution)` (CLI `--set-flag`) écrit `math_mix_solver_applied: true` dans `<projet>/pipeline_state.json`. Le solveur possède alors **exclusivement** faders, EQ inserts, pans, largeur, sends FX et limiteur. `autofix_transaction.apply_with_rollback` retourne `SKIPPED_SOLVER_OWNERSHIP` pour toute action hors `SOLVER_SAFE_FIXES` = {`SWAP_SAMPLE`, `INVERT_808_POLARITY`, `SHIFT_BASS_MICRO_MS`, `TRIM_SAMPLE_START_MS`, `FIX_TRACK_ROOT_NOTE`} (invariants durs de sécurité Palier 1 uniquement) — une passe post-solveur ne peut plus défaire l'optimum conjoint.
