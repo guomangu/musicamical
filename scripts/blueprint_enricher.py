@@ -57,6 +57,78 @@ def _canonical_role(role: str) -> str:
     return r
 
 
+_SECTION_ENERGY_KIND: dict[str, float] = {
+    "intro": 0.35, "verse": 0.60, "pre_chorus": 0.78, "pre_chorus2": 0.78,
+    "chorus": 1.0, "refrain": 1.0, "drop": 1.0, "bridge": 0.80, "break": 0.45,
+    "outro": 0.30, "interlude": 0.50,
+}
+
+
+def _section_kind_value(section: str) -> float:
+    s = str(section or "").lower()
+    for k, v in _SECTION_ENERGY_KIND.items():
+        if k in s:
+            return v
+    return 0.70
+
+
+def normalize_flat_energy_arc(bp: dict[str, Any]) -> list[str]:
+    """v4.3 fix — si `structure[*].energy` est plat (étendue < 0.1), le remplacer par un arc
+    dépendant du type de section, modulé par `emotion_vector.energy`. Un arc plat rend le
+    morceau « sans relief » et fait échouer le gate `dynamic_arc >= 2.5 dB`.
+    Retourne les décisions prises (vide si rien à faire)."""
+    decisions: list[str] = []
+    structure = bp.get("structure")
+    if not isinstance(structure, list) or not structure:
+        return decisions
+    energies = [float(s.get("energy", 0.7)) for s in structure if isinstance(s, dict) and s.get("energy") is not None]
+    if len(energies) < 2 or (max(energies) - min(energies)) >= 0.1:
+        return decisions
+    base_e = float((bp.get("emotion_vector") or {}).get("energy", 0.7) or 0.7)
+    for s in structure:
+        if not isinstance(s, dict):
+            continue
+        kind_v = _section_kind_value(str(s.get("section") or s.get("name") or s.get("kind") or ""))
+        new_e = round(min(1.0, max(0.05, base_e * (0.45 + 0.55 * kind_v))), 3)
+        old_e = s.get("energy")
+        if old_e is None or abs(float(old_e) - new_e) < 0.02:
+            continue
+        s["energy"] = new_e
+        decisions.append(f"{s.get('section')}: energy {old_e} -> {new_e} (arc plat normalisé, base={base_e})")
+    return decisions
+
+
+def clamp_cutoff_lpf_floors(bp: dict[str, Any]) -> list[str]:
+    """v4.3 fix — clamp `tracks[*].plugin_params.cutoff_hz` au floor SSOT
+    `global_invariants.source_lpf_floor_hz` selon le rôle (lead >= 9000 Hz, chords/pad >= 6500).
+    Un cutoff de lead à 4200 Hz assourdit le lead et le rend inaudible dans le mix."""
+    decisions: list[str] = []
+    try:
+        from mix_config import get_invariant
+        floors = get_invariant("source_lpf_floor_hz", {}) or {}
+    except Exception:
+        floors = {}
+    if not floors:
+        return decisions
+    for t in bp.get("tracks") or []:
+        if not isinstance(t, dict):
+            continue
+        pp = t.get("plugin_params")
+        if not isinstance(pp, dict) or "cutoff_hz" not in pp:
+            continue
+        role = _canonical_role(str(t.get("role") or t.get("name") or ""))
+        nm = str(t.get("name") or "").lower()
+        floor_key = "lead" if ("lead" in nm or "melody" in nm or role == "lead") else (
+            "chords" if ("chord" in nm or "keys" in nm or role == "chords") else (
+                "pad" if ("pad" in nm or role == "chords") else "pluck"))
+        floor = float(floors.get(floor_key, floors.get("lead", 9000.0)))
+        cur = float(pp.get("cutoff_hz") or 0.0)
+        if 0.0 < cur < floor:
+            pp["cutoff_hz"] = float(floor)
+            decisions.append(f"{t.get('name')}: cutoff_hz {cur:.0f} -> {floor:.0f} Hz (floor {floor_key})")
+    return decisions
+
+
 def _derive_section_progressions(hc: dict[str, Any], valence: float) -> dict[str, list[str]]:
     """Variantes déterministes : pré-refrain à tension dominante, pont emprunt modal
     (compatible valence), outro = cadence de résolution sur la tonique."""
@@ -112,6 +184,18 @@ def enrich_blueprint(bp: dict[str, Any], project_dir: str | None = None,
             bp["phrase_length_bars"] = 8
             added["phrase_length_bars"] = 8
             decisions.append("phrase_length_bars=8 (phrasé Antécédent/Conséquent sur sections >= 8 mes.)")
+
+    # 3b) v4.3 fix — arc d'énergie plat (toutes sections égales) -> arc par type de section
+    # (un morceau 100 % plat échoue au gate `dynamic_arc` et sonne sans relief)
+    for _d in normalize_flat_energy_arc(bp):
+        decisions.append(_d)
+        added["structure_energy_arc_normalized"] = True
+
+    # 3c) v4.3 fix — cutoff LPF d'une piste sous le floor SSOT (ex. lead à 4200 Hz < 9000)
+    # -> clampé : un lead filtré trop bas est inaudible dans le mix final
+    for _d in clamp_cutoff_lpf_floors(bp):
+        decisions.append(_d)
+        added["cutoff_lpf_floors_clamped"] = True
 
     # 4) glides 808 subtils au Climax (mesures 4 et 8)
     tracks = bp.get("tracks") or []

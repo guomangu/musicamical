@@ -308,9 +308,31 @@ def lpf_makeup_gain_db(cutoff_hz: float) -> float:
     return 0.0
 
 
-def limiter_master(gain_db: float = 0.0, ceiling_db: float = -2.2) -> dict[str, Any]:
+ROOT_DIR = os.environ.get("AI_STUDIO_DIR") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def calibrated_lookahead_s(config_path: str | None = None) -> float:
     """
-    Build `gl.limiter` parameters for Master (`Attack (look-ahead) = 0.002`, `0.2 dB safety = 1`).
+    Look-ahead calibré du `gl.limiter` lu dans `config/gl_calibration.json`
+    (`limiter.lookahead_ms`, mesuré 5.0 ms sur le plugin réel), clampé à [0.002, 0.02] s.
+    Un look-ahead de 2 ms laisse passer les transitoires d'une 808 -> true peak > plafond.
+    """
+    path = config_path or os.path.join(ROOT_DIR, "config", "gl_calibration.json")
+    ms = 5.0
+    try:
+        with open(path, encoding="utf-8") as fh:
+            cal = json.load(fh)
+        ms = float((cal.get("limiter") or {}).get("lookahead_ms", 5.0))
+    except Exception:
+        pass
+    return round(clamp(ms / 1000.0, 0.002, 0.02), 4)
+
+
+def limiter_master(gain_db: float = 0.0, ceiling_db: float = -2.2, look_ahead_s: float | None = None) -> dict[str, Any]:
+    """
+    Build `gl.limiter` parameters for Master (`0.2 dB safety = 1`).
+    `look_ahead_s=None` -> valeur calibrée `config/gl_calibration.json` (5 ms, min 0.002 s),
+    indispensable pour contenir le true peak des transitoires sub/808 sous le plafond.
     Emits a `UserWarning` if `ceiling_db > -2.0`.
     """
     ceil = float(ceiling_db)
@@ -321,10 +343,11 @@ def limiter_master(gain_db: float = 0.0, ceiling_db: float = -2.2) -> dict[str, 
             UserWarning,
             stacklevel=2,
         )
+    la = calibrated_lookahead_s() if look_ahead_s is None else clamp(float(look_ahead_s), 0.002, 0.02)
     return {
         "Gain": round(clamp(float(gain_db), -36.0, 24.0), 2),
         "Ceiling": round(clamp(ceil, -36.0, 12.0), 2),
-        "Attack (look-ahead)": 0.002,
+        "Attack (look-ahead)": round(la, 4),
         "0.2 dB safety": 1,
     }
 

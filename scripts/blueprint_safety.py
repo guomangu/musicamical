@@ -630,6 +630,41 @@ def blueprint_musical_safety_issues(
             ),
         })
 
+    # v4.3 — warning de visibilité : cutoff LPF d'une piste sous le floor SSOT
+    # (un lead à 4200 Hz < floor 9000 Hz est inaudible dans le mix ; clampé par blueprint_enricher)
+    try:
+        from mix_config import get_invariant
+        _floors = get_invariant("source_lpf_floor_hz", {}) or {}
+    except Exception:
+        _floors = {}
+    if _floors:
+        for i, tr in enumerate(bp.get("tracks") or []):
+            if not isinstance(tr, dict):
+                continue
+            pp = tr.get("plugin_params")
+            if not isinstance(pp, dict) or "cutoff_hz" not in pp:
+                continue
+            nm = str(tr.get("name") or f"track[{i}]").lower()
+            role = str(tr.get("role") or "").lower()
+            floor_key = "lead" if ("lead" in nm or "melody" in nm or role == "lead") else (
+                "chords" if ("chord" in nm or "keys" in nm) else (
+                    "pad" if "pad" in nm else "pluck"))
+            try:
+                floor = float(_floors.get(floor_key, 9000.0))
+                cur = float(pp.get("cutoff_hz") or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if 0.0 < cur < floor:
+                issues.append({
+                    "track": str(tr.get("name") or f"track[{i}]"),
+                    "role": role or None,
+                    "severity": "warning",
+                    "code": "cutoff_below_lpf_floor",
+                    "cutoff_hz": cur,
+                    "floor_hz": floor,
+                    "fix": f"raise plugin_params.cutoff_hz to >= {floor:.0f} Hz (floor {floor_key}) — clamped automatically by blueprint_enricher.clamp_cutoff_lpf_floors",
+                })
+
     return issues
 
 

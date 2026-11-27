@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -198,6 +199,7 @@ def haps_to_tracks(haps: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]
                 ok_bars.update(range(b0, b1))
         return ok_bars
 
+    haps_seed = int(haps.get("seed") or (haps.get("meta") or {}).get("seed") or 0)
     for name, tr in (haps.get("tracks") or {}).items():
         allowed_bars = _allowed_bar_set(tr.get("sections") if isinstance(tr, dict) else None)
         notes: list[dict[str, Any]] = []
@@ -208,7 +210,25 @@ def haps_to_tracks(haps: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]
             start_beats = start_cyc * bpb
             dur_beats = max(0.02, (float(ev.get("end", 0.0)) - float(ev.get("start", 0.0))) * bpb)
             gain = float(ev.get("gain", 1.0) or 1.0)
-            vel = max(20, _clamp_vel(gain * 110.0))
+            # Humanisation déterministe (seed fixe par piste/événement) : accent sur les temps
+            # forts, atténuation des off-beats, jitter ±4 — sinon batterie à vélocité constante
+            # (ex. 543 hats à 110 = mitraillette harsh) et lead noyé sous les drums.
+            rng = random.Random(f"{haps_seed}:{name}:{len(notes)}")
+            beat_pos = start_beats % float(bpb)
+            accent = 6 if abs(beat_pos) < 1e-6 else (-6 if abs(beat_pos - 0.5) < 1e-6 else 0)
+            vel_f = gain * 110.0
+            trk_l = name.lower()
+            if ev.get("s") and any(k in trk_l for k in ("hat", "perc", "rim", "shaker")):
+                vel_f = min(vel_f, 88.0)  # base hats/percs sous le plafond (harsh 2-5 kHz)
+            vel_f += accent + rng.randint(-4, 4)
+            if ev.get("s"):
+                if any(k in trk_l for k in ("hat", "perc", "rim", "shaker")):
+                    vel_f = min(vel_f, 96.0)
+                elif any(k in trk_l for k in ("kick", "snare", "clap")):
+                    vel_f = min(vel_f, 118.0)
+            elif "lead" in trk_l or "melody" in trk_l:
+                vel_f = max(vel_f, 72.0)  # floor de présence du lead vs batterie
+            vel = max(20, _clamp_vel(vel_f))
             co = ev.get("cutoff", ev.get("lpf"))
             if co is not None:
                 cutoffs.setdefault(name, []).append((start_beats, float(co)))

@@ -119,8 +119,11 @@ En cas d'échec, **`render_and_audit.py --auto-fix --max-passes 2`** applique au
 
 | Symptôme (`failures`) | Action Unique (`gl_dsl` / Python) |
 | :--- | :--- |
-| **`clipped > 0` / `true_peak > -1.0`** | `limiter_master(gain, ceiling - 0.4)` (`Attack=0.002`, `safety=1`). |
+| **`clipped > 0` / `true_peak > -1.0`** | `limiter_master(gain, ceiling - 0.4)` max **4 drops** (floor -3.0) avec `Attack (look-ahead)` **calibré 0.005 s** (`config/gl_calibration.json`, `gl_dsl.calibrated_lookahead_s()`) ; si plafond atteint, fallback `Gain -= clamp(tp-limit+0.3, 0.5, 4) dB` (`true_peak_gain_fallback`). |
 | **`lufs` trop bas / haut** | Ajuster `Master slot 3 Gain` de `±Δ` (`\|Δ\| <= 4 dB`/passe, plafond `-1.2 dBTP`). |
+| **`low_end_share > max %`** (v4.3 fix : lecture via `mix_config.summary_bands_pct` — `bands_pct` plat, pas `spectral_bands` imbriqué) | Trim `BUS Bass volume` **proportionnel à l'excès** (`-clamp(excess*0.12, 1.5, 4) dB`, max 3 passes, floor 0.25) + `HPF 160 Hz` posé sur un **vrai slot `gl.eq`** de BUS Music (jamais un index de slot codé en dur). |
+| **`resonances = [F]` avec F < 200 Hz** (v4.3 règle 3b : 63/80 Hz d'une 808) | `gl.eq` **BUS Bass** uniquement : Peak `-3..-6 dB @ F` (`Q=5`) + `Band 1 HPF 34 Hz enabled=1` ; budget de notchs partagé (max 3). Jamais de notch 200–800 Hz (fondamentaux musicaux). |
+| **master comp hors invariants** (v4.3 règle 2b : Threshold < -12 dB ou Makeup > 0.8 dB) | Clamp `mixer/0/slot/<comp>/Threshold >= -12 dB`, `Makeup <= 0.8 dB` (`master_comp_clamp`, une fois). |
 | **`low_end_corr < 0.50`** | `BUS Bass Width=0.0`, Kick `pan=0`, `fx_send=0` sur Kick/Basse, `BUS Music HPF >= 120`. |
 | **`stereo_width < min dB`** | `WIDEN_HARMONY_OR_PERC` : `gl.stereo` legacy (`Width 2.0`, `Side level 6-12`, `Mono below 250`) + sends `FX Hall` `+0.06` sur Chords/Pads. |
 | **`stereo_balance > 1.2 dB`** | `FIX_STEREO_BALANCE` : recentrer/nudge `±0.10-0.16` pan sur 1–2 inserts panoramiques, max 2 passes. |
@@ -133,6 +136,30 @@ En cas d'échec, **`render_and_audit.py --auto-fix --max-passes 2`** applique au
 | **`air < min %`** | Si `V >= 0` : `BUS Drums` `+1.5 dB @ 10 kHz` / ouvrir LPF · Si `V < 0` : passer `valence`/`--dark` et relever hats `+1 dB`. |
 | **`tuning_offset > 6.5 ct`** (warning master ; fondation 6 ct / expressif 12 ct — config) | Recalibrer `Root note` + `Fine tune` (`measure_fft_tuning()`) ou annuler detune/chorus excessif. |
 | **`dynamic_arc < min dB`** | Alléger Intro/Pont (`Matrice 1.3`), `BUS Music comp Threshold >= -13.5`, `transitions_lib.section_gain_arc`. |
+
+### 3.2b — Analyse des causes racines d'un rendu « boomy / inaudible » (audit v4.3)
+
+Audit fondé sur un morceau réel (`rap_nocturne_2min`, trap_rap 136 BPM, profil `trap_rap`) dont le master
+mesurait `low_end_share=83%` (83 % de l'énergie sous 250 Hz), `high_mids=3%`, `air=1.5%`, résonances 63/80 Hz,
+`true_peak=+0.7 dBTP`, `LUFS=-9.7` vs cible -11, et un `autofix_history.json` bloqué (`final_passed=false`,
+aucune mutation low-end appliquée). Douze causes racines diversifiées, et leur correctif :
+
+1. **Règle autofix low-end morte (clé de summary)** : `_apply_autofix_mutations` lisait `summary["spectral_bands"]["sub"]["energy_pct"]` alors que le summary n'expose que `bands_pct` (plat) → `low_end_share_val` valait toujours 0.0 → le trim du BUS Bass et le HPF de BUS Music ne se déclenchaient **jamais**. Fix : `mix_config.summary_bands_pct()` (lit `bands_pct`, fallback `spectral_bands`), trim proportionnel à l'excès (max 3 passes), HPF posé sur un vrai slot `gl.eq`.
+2. **Résonances sub < 200 Hz incorrigeables** : la règle 3 ne notchait que [200, 8000] Hz (puis >= 800 Hz) alors que le gate échoue sur **toute** résonance en profil avec batterie → 63/80 Hz bloquaient le gate à jamais. Fix : règle 3b dédiée au BUS Bass (Peak -3..-6 dB @ F, Q=5, HPF Band 1 34 Hz actif).
+3. **True peak ingérable** : plafond de 2 drops de ceiling × 0.4 dB sans fallback → TP 0.7 → -0.1 dBTP toujours > limite -1.0. Fix : 4 drops + fallback par réduction du `Gain` du limiteur.
+4. **Look-ahead du limiteur non calibré** : `Attack (look-ahead)=0.002` (2 ms) en dur dans `limiter_master`, alors que `config/gl_calibration.json` mesure 5 ms → les transitoires de 808 dépassaient le plafond. Fix : `gl_dsl.calibrated_lookahead_s()` (0.005 s) appliqué par défaut et dans `setup_standard_buses`.
+5. **Master comp hors invariants** : Threshold -16 dB / Ratio 2.2 / Makeup +5.5 dB dans le projet (invariants : -12 dB / 1.6 / 0.8) → mix écrasé, pumping, le limiteur se battait contre le makeup. Fix : règle `master_comp_clamp`.
+6. **Vélocités plates** : `vel = gain*110` sans humanisation → 543 hats en doubles croches à 136 BPM tous à 110 = mitraillette harsh 2–5 kHz, et lead à 62 noyé sous la batterie. Fix : humanisation déterministe (seed fixe : accent temps forts +6, off-beats -6, jitter ±4), plafonds par rôle (hats/percs <= 96, kick/snare <= 118), floor lead >= 72 (`strudel_to_score_ir.haps_to_tracks`).
+7. **Arc d'énergie de sections plat** : `structure[*].energy = 0.7` partout → morceau sans relief, gate `dynamic_arc >= 2.5 dB` KO. Fix : `blueprint_enricher.normalize_flat_energy_arc` (arc par type de section modulé par `emotion_vector.energy`).
+8. **Cutoff du lead sous le floor SSOT** : `plugin_params.cutoff_hz=4200` pour un lead (floor `source_lpf_floor_hz.lead = 9000` Hz) → lead assourdi/inaudible. Fix : clamp automatique (`blueprint_enricher.clamp_cutoff_lpf_floors`) + warning `cutoff_below_lpf_floor` dans `blueprint_safety`.
+9. **Noms de canaux dupliqués** : `"hat" in role` matche `open_hat` aussi → deux canaux nommés `HiHat`, ce qui casse `_infer_roles()` et l'autofix par nom. Fix : branche `OpenHat` dédiée avant `HiHat` (pan distinct 0.30).
+10. **BUS Bass chargé en low-mids** : EQ du bus avec boost +2.2 dB @ 175 Hz et HPF Band 1 désactivé, 808 jouée en MIDI 36–46 avec tenues 1.5 temps + glide → masque tout le reste. Fix : règles 6b/3b (trim, HPF 160 Hz BUS Music, HPF 34 Hz + notchs BUS Bass) + sidechain Kick→BUS Bass déjà en place (Ratio 2.4, -18 dB).
+11. **Palette faible** : `composite_score=0.369`, 55 samples rejetés par `quality_gate_v2`, `p_fallback=0.33` → peu de bons candidats, thème `hybrid` avec samples imparfaits. Mitigation : `pleasantness_caps` (crest) et vérifier `samples_catalog.json` (`index_project_samples.py`) avant de forcer `palette_id="auto"`.
+12. **Handoff sans master** : `master=n/a` quand le `.gridline` est absent ou `auto_master` off → ne pas juger la qualité depuis le handoff seul ; lancer `render_and_audit.py --auto-fix` pour produire `renders/master.wav` + `autofix_history.json`.
+
+**Lecture du diagnostic** : `low_end_share` = sub(20–60) + bass(60–250 Hz) ; > 42 % = boomy/muddy et le reste du mix
+est masqué (inaudible sur enceintes laptop qui ne reproduisent pas < 250 Hz). `air` < seuil = son bouché.
+Toujours croiser `autofix_history.json` (mutations réellement appliquées) avec `quality_gate.failures`.
 
 ### 3.3 v4.1 P3 — Calibration réelle `gl.*`, propriété mixer unique & micro-passe scalaire
 * **Calibration réelle du surrogate** : `scripts/calibrate_gl_plugins.py` (à exécuter **une fois par version de Gridline** sur la machine hôte, binaire `gridline` requis) mesure la vraie réponse de `gl.eq` (boost +6 dB @ 1 kHz sur bruit, ratio FFT), la coloration de `gl.comp` et le dépassement réel de `gl.limiter`, puis écrit **`config/gl_calibration.json`** (versionné, stats seules, jamais d'audio) : `eq.gain_scale {low,mid,high}`, `eq.q_scale`, `limiter.ceiling_offset_db`, `measured: true/false`. Sans binaire (CI/sandbox) le script écrit la calibration idéale (`measured: false`, échelles 1.0) et `--check` valide la structure en CI. `math_mix_solver.load_calibration()` lit ce fichier (mis en cache, repli idéal si absent) : les gains EQ du modèle sont mis à l'échelle des vraies mesures `gl.eq` et le plafond limiteur est décalé de `ceiling_offset_db` (toujours autour de `-1.2 dBTP` via `config/mix_profiles.json`).

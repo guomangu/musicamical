@@ -42,13 +42,13 @@ from deep_diagnostics import (
     run_deep_audit,
 )
 from gain_staging_lib import normalize_role_for_gain_staging
-from gl_dsl import clamp, db_to_auto, eq_band, eq_params, limiter_master, to_mixer_params
+from gl_dsl import calibrated_lookahead_s, clamp, db_to_auto, eq_band, eq_params, limiter_master, to_mixer_params
 from macro_structure_audit import analyze_macro_structure
 from studio_lib import GridlineMCP
 from target_fingerprint import load_multi_scale_contract
 from taste_memory import record_validated_taste
 from blueprint_safety import summarize_musical_safety
-from mix_config import get_invariant, limiter_invariants, notch_caps, profile_settings, tuning_invariants
+from mix_config import get_invariant, limiter_invariants, notch_caps, profile_settings, summary_bands_pct, tuning_invariants
 
 
 def _should_record_taste(proj_dir: str, taste_memory_path: str = "", approve_taste: bool = False) -> bool:
@@ -807,12 +807,16 @@ def _apply_autofix_mutations(
 ) -> list[dict[str, Any]]:
     """
     Applies deterministic mixer mutations per Axe 3 §3.2 using `GridlineMCP` & `gl_dsl`:
-      1) Clip / True Peak > -1.0 dBTP -> Master `gl.limiter` look-ahead + safety + Ceiling -= 0.4 dB (max 2 drops)
+      1) Clip / True Peak > -1.0 dBTP -> Master `gl.limiter` Ceiling -= 0.4 dB (max 4 drops, floor -3.0),
+         look-ahead calibré (gl_calibration.json), puis fallback Gain -= clamp(tp-limit+0.3, 0.5, 4) dB
       2) |LUFS - target| > 1.2 -> Master `gl.limiter Gain += clamp(target - lufs, -4, +4)` (blocked if true_peak > -1.3 on boost)
-      3) resonances -> surgical `gl.eq` on BUS Music (`Peak -4.0 dB @ F_i`, `Q=2.8 -> width=0.22`, max 3 bands in [200, 8000])
-      4) low_mids > max -> BUS Music `gl.eq` HPF = max(HPF, 135) + Peak -3 dB @ 280 Hz (`Q=1.2`), once only
+      2b) master comp hors invariants -> clamp Threshold >= -12 dB / Makeup <= 0.8 dB (anti-squash)
+      3) resonances [200, 8000] Hz -> surgical `gl.eq` on BUS Music (`Peak -2..-4 dB @ F_i >= 800 Hz`, max 3 bands)
+      3b) sub-résonances < 200 Hz (63/80 Hz d'une 808) -> `gl.eq` peak -3..-6 dB sur BUS Bass + HPF Band 1 >= 34 Hz
+      4) low_mids > max -> BUS Music `gl.eq` HPF = max(HPF, 130) + Peak -1.5 dB @ 280 Hz (`Q=1.2`), once only
       5) sharpness >= max -> BUS Music `gl.eq` Peak -3 dB @ 3200 Hz (`Q=1.4`) + LPF *= 0.85 (floor 7.5 kHz)
-      6) low_end_corr < 0.50 -> BUS Bass `gl.stereo Width = 0`, pan = 0 on Kick/Bass, FX Room send = 0
+      6) low_end_share > max -> trim BUS Bass proportionnel à l'excès (max 3 passes) + HPF BUS Music 160 Hz (vrai slot gl.eq)
+      6b) low_end_corr < 0.50 -> BUS Bass `gl.stereo Width = 0`, pan = 0 on Kick/Bass, FX Room send = 0
     """
     abs_proj = os.path.abspath(project_path)
     mcp = GridlineMCP(abs_proj, os.path.dirname(abs_proj))
@@ -840,10 +844,11 @@ def _apply_autofix_mutations(
         low_mids_val = float(summary["bands_pct"]["low_mids"])
         sharp_val = float(summary["psychoacoustics"].get("sharpness_din_acum", 0.0))
         low_end_corr = float(summary["stereo"]["correlation_low_end_150hz"])
-        resonances = [
-            r for r in (summary.get("resonances_third_oct") or [])
-            if 200.0 <= float(r.get("freq_hz", 0.0)) <= 8000.0
-        ]
+        all_resonances = list(summary.get("resonances_third_oct") or [])
+        resonances = [r for r in all_resonances if 200.0 <= float(r.get("freq_hz", 0.0)) <= 8000.0]
+        # Sub-résonances (< 200 Hz, ex. 63/80 Hz d'une 808) : corrigeables UNIQUEMENT sur le
+        # BUS Bass (jamais de notch 200-800 Hz nulle part : ce sont des fondamentaux musicaux).
+        sub_resonances = [r for r in all_resonances if float(r.get("freq_hz", 0.0)) < 200.0]
 
         # Rules 1 & 2: Master gl.limiter
         need_tp_fix = clipped > 0 or true_peak > _tp_limit
@@ -864,10 +869,29 @@ def _apply_autofix_mutations(
 
                 eff_ceil = cur_ceil
                 if need_tp_fix:
-                    if state.get("ceiling_drops", 0) < 2:
+                    drops = int(state.get("ceiling_drops", 0))
+                    if drops < 4:
                         eff_ceil = max(-3.0, round(cur_ceil - 0.4, 2))
-                        state["ceiling_drops"] = state.get("ceiling_drops", 0) + 1
-                    lim_dict = limiter_master(gain_db=cur_gain, ceiling_db=eff_ceil)
+                        state["ceiling_drops"] = drops + 1
+                    elif true_peak > _tp_limit:
+                        # Plafond de ceiling atteint : fallback par réduction du Gain d'entrée
+                        # du limiteur (sinon le gate true_peak ne peut jamais passer).
+                        cut = round(clamp(true_peak - _tp_limit + 0.3, 0.5, 4.0), 2)
+                        cur_gain = round(clamp(cur_gain - cut, -36.0, 24.0), 2)
+                        state["tp_gain_cuts"] = int(state.get("tp_gain_cuts", 0)) + 1
+                        param_changes.append((f"mixer/0/slot/{lim_slot}/Gain", cur_gain))
+                        mutations.append(
+                            {
+                                "rule": "true_peak_gain_fallback",
+                                "target": f"mixer/0/slot/{lim_slot}/Gain",
+                                "old_gain_db": cur_lim.get("Gain", 0.0),
+                                "new_gain_db": cur_gain,
+                                "cut_db": cut,
+                                "true_peak_dbtp": true_peak,
+                                "tp_limit": _tp_limit,
+                            }
+                        )
+                    lim_dict = limiter_master(gain_db=cur_gain, ceiling_db=eff_ceil, look_ahead_s=calibrated_lookahead_s())
                     param_changes.extend(to_mixer_params(0, lim_slot, lim_dict))
                     mutations.append(
                         {
@@ -875,7 +899,8 @@ def _apply_autofix_mutations(
                             "target": f"mixer/0/slot/{lim_slot}",
                             "old_ceiling_db": cur_ceil,
                             "new_ceiling_db": eff_ceil,
-                            "ceiling_drops": state["ceiling_drops"],
+                            "ceiling_drops": state.get("ceiling_drops", 0),
+                            "look_ahead_s": lim_dict["Attack (look-ahead)"],
                         }
                     )
 
@@ -901,6 +926,32 @@ def _apply_autofix_mutations(
                                 "delta_db": round(new_gain - cur_gain, 2),
                             }
                         )
+
+        # Rule 2b: the master glue comp must respect the SSOT invariants (threshold >= -12 dB,
+        # makeup <= 0.8 dB) — a hotter comp with big makeup squashes the mix and fights the
+        # limiter (pumping / "écrasé"), which reads as harsh and lifeless.
+        if master_track is not None and not state.get("master_comp_clamped"):
+            comp_slots = _slots_for_plugin(master_track, "gl.comp")
+            if comp_slots:
+                cs = comp_slots[0]
+                cur_comp = _param_lookup(mcp, 0, cs)
+                thresh_lim = float(get_invariant("master_comp_threshold_db", -12.0))
+                makeup_lim = float(get_invariant("master_comp_makeup_db", 0.8))
+                cur_th = float(cur_comp.get("Threshold", thresh_lim))
+                cur_mk = float(cur_comp.get("Makeup", makeup_lim))
+                if cur_th < thresh_lim or cur_mk > makeup_lim:
+                    new_th = round(max(cur_th, thresh_lim), 2)
+                    new_mk = round(min(cur_mk, makeup_lim), 2)
+                    param_changes.append((f"mixer/0/slot/{cs}/Threshold", new_th))
+                    param_changes.append((f"mixer/0/slot/{cs}/Makeup", new_mk))
+                    state["master_comp_clamped"] = True
+                    mutations.append({
+                        "rule": "master_comp_clamp",
+                        "target": f"mixer/0/slot/{cs}",
+                        "old_threshold_db": cur_th, "new_threshold_db": new_th,
+                        "old_makeup_db": cur_mk, "new_makeup_db": new_mk,
+                        "limits": {"threshold_min_db": thresh_lim, "makeup_max_db": makeup_lim},
+                    })
 
         # BUS Music EQ rules (3, 4, 5)
         if bus_music_track is not None:
@@ -1015,28 +1066,90 @@ def _apply_autofix_mutations(
                 if bm_bands:
                     param_changes.extend(eq_params(bm_idx, bm_bands, slot=prim_slot))
 
-        # Rule 6b: low_end_share > max -> trim BUS Bass insert (max 2 passes, -1.5 dB each) + raise BUS Music HPF once
-        low_end_share_val = float(summary.get("spectral_bands", {}).get("sub", {}).get("energy_pct", 0.0)) + float(
-            summary.get("spectral_bands", {}).get("bass", {}).get("energy_pct", 0.0)
-        )
+        # Rule 3b: sub-bass resonances (< 200 Hz, ex. 63/80 Hz) -> notch chirurgical sur le
+        # BUS Bass (peak -3..-6 dB, Q=5) + HPF Band 1 actif >= 34 Hz. Budget de notchs partagé
+        # avec la règle 3. Sans cette règle, le gate échoue à jamais sur ces résonances sub.
+        if sub_resonances and bus_bass_track is not None:
+            bb_idx = int(bus_bass_track["mixer"])
+            bb_eq_slots = _slots_for_plugin(bus_bass_track, "gl.eq")
+            if not bb_eq_slots:
+                mcp.call("add_plugin", {"mixer": bb_idx, "plugin": "gl.eq"})
+                tracks = mcp.call("get_mixer", {}).get("tracks", [])
+                targets = _find_mixer_targets(tracks)
+                bus_bass_track = targets["bus_bass"]
+                bb_eq_slots = _slots_for_plugin(bus_bass_track, "gl.eq") if bus_bass_track else []
+            if bb_eq_slots:
+                _per_cap, _tot_cap = notch_caps()
+                _already_sub = int(state.get("resonance_notches_total", 0))
+                top_sub = sorted(
+                    sub_resonances,
+                    key=lambda r: float(r.get("local_excess_db", r.get("excess_db", 6.0))),
+                    reverse=True,
+                )[: max(0, _tot_cap - _already_sub)]
+                if top_sub:
+                    bb_slot = bb_eq_slots[-1]
+                    sub_bands = [eq_band(1, "hpf", 34.0)]
+                    for band_i, r in enumerate(top_sub[:3], start=2):
+                        depth = -round(min(6.0, max(3.0, float(r.get("local_excess_db", 6.0)) * 0.6)), 2)
+                        sub_bands.append(eq_band(band_i, "peak", float(r["freq_hz"]), depth, q=5.0))
+                    param_changes.extend(eq_params(bb_idx, sub_bands, slot=bb_slot, quality=0))
+                    param_changes.append((f"mixer/{bb_idx}/slot/{bb_slot}/Band 1 enabled", 1))
+                    state["resonance_notches_total"] = _already_sub + len(top_sub[:3])
+                    mutations.append({
+                        "rule": "sub_resonance_bass_eq",
+                        "target": f"mixer/{bb_idx}/slot/{bb_slot}",
+                        "freqs_hz": [float(r["freq_hz"]) for r in top_sub[:3]],
+                        "hpf_hz": 34.0,
+                        "notches_total": state["resonance_notches_total"],
+                        "notch_cap_total": _tot_cap,
+                    })
+
+        # Rule 6b: low_end_share > max -> trim BUS Bass (proportionnel à l'excès, max 3 passes)
+        # + HPF BUS Music posé sur un VRAI slot gl.eq existant (jamais un index codé en dur).
+        # v4.3 fix: le summary expose `bands_pct` (plat), pas `spectral_bands` imbriqué —
+        # l'ancienne lecture renvoyait toujours 0.0 et la règle ne se déclenchait JAMAIS.
+        _bands_pct = summary_bands_pct(summary)
+        low_end_share_val = float(_bands_pct.get("sub", 0.0)) + float(_bands_pct.get("bass", 0.0))
         low_end_max_eff = float((summary.get("effective_thresholds") or {}).get("low_end_max", 42.0))
         if any(f.startswith("low_end_share=") for f in failures) and low_end_share_val > low_end_max_eff:
-            if bus_bass_track is not None and state.get("bass_trims", 0) < 2:
+            if bus_bass_track is not None and state.get("bass_trims", 0) < 3:
                 bb_idx = int(bus_bass_track["mixer"])
                 cur_bb = float(bus_bass_track.get("volume", 1.0))
-                new_bb = round(max(0.5, cur_bb * (10.0 ** (-1.5 / 20.0))), 4)
+                excess = low_end_share_val - low_end_max_eff
+                delta_db = -round(clamp(excess * 0.12, 1.5, 4.0), 2)
+                new_bb = round(max(0.25, cur_bb * (10.0 ** (delta_db / 20.0))), 4)
                 param_changes.append((f"mixer/{bb_idx}/volume", new_bb))
                 state["bass_trims"] = state.get("bass_trims", 0) + 1
                 mutations.append({
                     "rule": "low_end_dominance_bass_trim",
                     "target": f"mixer/{bb_idx}/volume",
-                    "old": cur_bb, "new": new_bb, "low_end_share": round(low_end_share_val, 1),
+                    "old": cur_bb, "new": new_bb, "delta_db": delta_db,
+                    "low_end_share": round(low_end_share_val, 1),
                 })
             if bus_music_track is not None and not state.get("music_hpf_raised"):
                 bm_idx = int(bus_music_track["mixer"])
-                param_changes.extend(eq_params(bm_idx, [eq_band(1, "hpf", 160.0)], slot=2, quality=0))
-                state["music_hpf_raised"] = True
-                mutations.append({"rule": "low_end_dominance_music_hpf", "target": f"mixer/{bm_idx}/slot/2 Band 1", "hpf_hz": 160.0})
+                bm_hpf_slots = _slots_for_plugin(bus_music_track, "gl.eq")
+                if not bm_hpf_slots:
+                    mcp.call("add_plugin", {"mixer": bm_idx, "plugin": "gl.eq"})
+                    tracks = mcp.call("get_mixer", {}).get("tracks", [])
+                    targets = _find_mixer_targets(tracks)
+                    bus_music_track = targets["bus_music"]
+                    bm_hpf_slots = _slots_for_plugin(bus_music_track, "gl.eq") if bus_music_track else []
+                if bm_hpf_slots:
+                    hpf_slot = bm_hpf_slots[0]
+                    cur_eq2 = _param_lookup(mcp, bm_idx, hpf_slot)
+                    cur_hpf = 135.0
+                    if int(round(cur_eq2.get("Band 1 type", 1))) == 1:
+                        cur_hpf = float(cur_eq2.get("Band 1 freq", 135.0))
+                    new_hpf = round(min(200.0, max(cur_hpf, 160.0)), 1)
+                    param_changes.extend(eq_params(bm_idx, [eq_band(1, "hpf", new_hpf)], slot=hpf_slot, quality=0))
+                    param_changes.append((f"mixer/{bm_idx}/slot/{hpf_slot}/Band 1 enabled", 1))
+                    state["music_hpf_raised"] = True
+                    mutations.append({
+                        "rule": "low_end_dominance_music_hpf",
+                        "target": f"mixer/{bm_idx}/slot/{hpf_slot} Band 1",
+                        "old_hpf_hz": round(cur_hpf, 1), "hpf_hz": new_hpf,
+                    })
 
         # Rule 6: low_end_corr < 0.50 (idempotent mono low-end enforcement)
         if any(f.startswith("low_end_corr=") for f in failures):

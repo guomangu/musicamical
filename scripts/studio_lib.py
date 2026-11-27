@@ -32,6 +32,7 @@ except Exception:
     pass
 
 from gl_dsl import (
+    calibrated_lookahead_s,
     delay_send_fx,
     eq_band as dsl_eq_band,
     eq_params as dsl_eq_params,
@@ -610,12 +611,13 @@ def setup_standard_buses(
     master_comp_makeup = 0.3 if acoustic_mode else 0.8
 
     changes: list[tuple[str, Any]] = [
-        # Master (look-ahead 0.002s avoids True Peak overshoots & hi-hat micro-glitches)
+        # Master (look-ahead calibré gl_calibration.json = 0.005 s : un look-ahead de 2 ms
+        # laisse passer les transitoires 808 -> true peak au-dessus du plafond)
         *dsl_eq_params(0, [dsl_eq_band(1, "hpf", 28), dsl_eq_band(7, "lpf", 17000)], slot=1, quality=1),
         ("mixer/0/slot/2/Threshold", master_comp_thresh), ("mixer/0/slot/2/Ratio", 1.6),
         ("mixer/0/slot/2/Attack", 0.025), ("mixer/0/slot/2/Release", 0.110),
         ("mixer/0/slot/2/Makeup", master_comp_makeup), ("mixer/0/slot/2/Detector high-pass", 95),
-        *to_mixer_params(0, 3, limiter_master(limiter_gain_db, limiter_ceiling_db)),
+        *to_mixer_params(0, 3, limiter_master(limiter_gain_db, limiter_ceiling_db, look_ahead_s=calibrated_lookahead_s())),
         # BUS Drums
         *dsl_eq_params(
             bus_drums,
