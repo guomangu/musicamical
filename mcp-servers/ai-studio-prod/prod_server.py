@@ -732,7 +732,15 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
 
         def _pick_unique_from_pool(slot_role: str, track_key: str) -> dict[str, Any] | None:
             pool_cands = list(candidate_pool.get(slot_role) or [])
-            if track_key in ("perc", "rim"):
+            if track_key == "kick":
+                def _kick_rank(c: dict[str, Any]) -> tuple[int, float]:
+                    cat_c = infer_sample_category(c.get("category"), c.get("filepath"))
+                    cat_tier = 0 if cat_c == "kick" else (1 if cat_c == "808" else 2)
+                    sc = float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4 + float(c.get("intent_match") or 0.0)
+                    return (cat_tier, -sc)
+
+                pool_cands.sort(key=_kick_rank)
+            elif track_key in ("perc", "rim"):
                 def _perc_rank(c: dict[str, Any]) -> tuple[int, int, float]:
                     fp_l = os.path.basename(str(c.get("filepath") or "")).lower()
                     cat_c = infer_sample_category(c.get("category"), c.get("filepath"))
@@ -939,6 +947,8 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                 copied["filepath"] = rp
                 if slot_role in TONAL_SLOTS:
                     tier_k = _tonal_rank(c)[0]
+                elif track_key == "kick":
+                    tier_k = _kick_rank(c)[0]
                 elif track_key in ("perc", "rim"):
                     tier_k = _perc_rank(c)[0] * 10 + _perc_rank(c)[1]
                 elif track_key in ("snare", "clap"):
@@ -1008,7 +1018,7 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                     chosen_slot = None
                     rpath = None
 
-            gate_role_chosen = key if any(k in key for k in ("arp", "counter")) else str(chosen_slot.get("role") or slot_role)
+            gate_role_chosen = key if any(k in key for k in ("arp", "counter")) else str((chosen_slot or {}).get("role") or slot_role)
             if (chosen_slot and chosen_slot.get("source_type") in ("sample", "project_sample") and rpath
                     and pleasantness_gate({
                         "r_harsh": chosen_slot.get("r_harsh"), "roughness": chosen_slot.get("roughness"),

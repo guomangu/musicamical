@@ -1,0 +1,417 @@
+{
+  "title": "rap_nocturne_2min",
+  "genre": "trap_rap",
+  "mix_profile": "trap_rap",
+  "has_drums": true,
+  "seed": 2048,
+  "emotion_vector": {
+    "valence": -0.65,
+    "tension": 0.72,
+    "energy": 0.75,
+    "depth": 0.78
+  },
+  "intent": "dark melodic trap piano strings atmospheric pad 808 hard snare",
+  "bpm": 136.0,
+  "time_signature": {
+    "numerator": 4,
+    "denominator": 4
+  },
+  "key": "F",
+  "harmonic_core": {
+    "key": "F",
+    "mode": "minor",
+    "progression_bars": 1,
+    "chord_progression": [
+      {
+        "bar": 1,
+        "symbol": "Fm7",
+        "bass_midi": 41,
+        "voicing_midi": [
+          65,
+          68,
+          72
+        ]
+      },
+      {
+        "bar": 2,
+        "symbol": "Dbmaj7",
+        "bass_midi": 37,
+        "voicing_midi": [
+          61,
+          64,
+          68
+        ]
+      },
+      {
+        "bar": 3,
+        "symbol": "Bbm7",
+        "bass_midi": 46,
+        "voicing_midi": [
+          70,
+          73,
+          77
+        ]
+      },
+      {
+        "bar": 4,
+        "symbol": "Cm7",
+        "bass_midi": 36,
+        "voicing_midi": [
+          60,
+          63,
+          67
+        ]
+      },
+      {
+        "bar": 5,
+        "symbol": "Eb7",
+        "bass_midi": 39,
+        "voicing_midi": [
+          63,
+          66,
+          70
+        ]
+      }
+    ],
+    "motif_cell": {
+      "intervals_from_tonic": [
+        0,
+        3,
+        7
+      ],
+      "rhythm_beats": [
+        0,
+        2
+      ],
+      "apex_midi": 67
+    },
+    "phrase_plan": "A-A'-A''-B",
+    "section_progressions": {
+      "intro": [
+        "i7",
+        "bVImaj7",
+        "iv7",
+        "v7"
+      ],
+      "verse": [
+        "i7",
+        "bVImaj7",
+        "iv7",
+        "v7"
+      ],
+      "chorus": [
+        "i7",
+        "bVImaj7",
+        "iv7",
+        "v7"
+      ],
+      "bridge": [
+        "bVImaj7",
+        "bVII7",
+        "i7",
+        "v7"
+      ],
+      "outro": [
+        "i7",
+        "bVImaj7",
+        "iv7",
+        "v7"
+      ]
+    }
+  },
+  "structure": [
+    {
+      "section": "intro",
+      "start_bar": 1,
+      "bars": 4,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 5,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 21,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "verse",
+      "start_bar": 29,
+      "bars": 16,
+      "energy": 0.7
+    },
+    {
+      "section": "bridge",
+      "start_bar": 45,
+      "bars": 8,
+      "energy": 0.7
+    },
+    {
+      "section": "chorus",
+      "start_bar": 53,
+      "bars": 12,
+      "energy": 0.7
+    },
+    {
+      "section": "outro",
+      "start_bar": 65,
+      "bars": 4,
+      "energy": 0.7
+    }
+  ],
+  "tracks": [
+    {
+      "name": "chords",
+      "role": "chords",
+      "source_type": "gridline_native",
+      "plugin": "gl.keys",
+      "plugin_params": {
+        "cutoff_hz": 6500.0,
+        "attack_ms": 12.0,
+        "release_ms": 260.0
+      },
+      "mixer_track": 1,
+      "preset": "Soft",
+      "archetype": "trap_rap:chords"
+    },
+    {
+      "name": "pad",
+      "role": "chords",
+      "source_type": "gridline_native",
+      "plugin": "gl.wavetable",
+      "plugin_params": {
+        "cutoff_hz": 4800.0,
+        "attack_ms": 240.0,
+        "release_ms": 600.0
+      },
+      "mixer_track": 2,
+      "preset": "Formant Choir",
+      "archetype": "trap_rap:pad"
+    },
+    {
+      "name": "arp",
+      "role": "counter",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 3,
+      "archetype": "trap_rap:counter",
+      "sample_path": "/home/gamo/Bureau/musicamical/projects/rap_nocturne_2min/derived_samples/Steel Stab One Shot_D_oct62.wav",
+      "root_note": 62,
+      "multizone": true,
+      "fine_tune_ct": -16,
+      "plugin_params": {
+        "cutoff_hz": 6500.0,
+        "attack_ms": 6.0,
+        "release_ms": 160.0
+      }
+    },
+    {
+      "name": "bass",
+      "role": "bass",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 4,
+      "archetype": "trap_rap:bass",
+      "sample_path": "/home/gamo/Bureau/musicamical/projects/rap_nocturne_2min/derived_samples/sxj_808_4_clean_oct38.wav",
+      "root_note": 38,
+      "multizone": true,
+      "fine_tune_ct": -14,
+      "plugin_params": {
+        "attack_ms": 2.0,
+        "release_ms": 120.0
+      }
+    },
+    {
+      "name": "lead",
+      "role": "lead",
+      "source_type": "gridline_native",
+      "plugin": "gl.additive",
+      "plugin_params": {
+        "cutoff_hz": 4200.0,
+        "attack_ms": 8.0,
+        "release_ms": 200.0,
+        "vibrato_delay_ms": 250
+      },
+      "mixer_track": 5,
+      "preset": "Masked lead",
+      "archetype": "trap_rap:lead"
+    },
+    {
+      "name": "kick",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 6,
+      "archetype": "trap_rap:kick",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/kick/glorkglunk_-_kick_3_clean.wav",
+      "root_note": 36,
+      "fine_tune_ct": -3
+    },
+    {
+      "name": "snare",
+      "role": "drums",
+      "source_type": "gridline_native",
+      "plugin": "gl.snare",
+      "plugin_params": {},
+      "mixer_track": 7,
+      "preset": "Tight",
+      "archetype": "trap_rap:snare"
+    },
+    {
+      "name": "hihat",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 8,
+      "archetype": "trap_rap:hihat",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/hat/hh_batwing_clean.wav",
+      "root_note": 42,
+      "fine_tune_ct": 0
+    },
+    {
+      "name": "open_hat",
+      "role": "drums",
+      "source_type": "sample",
+      "plugin": "gl.sampler",
+      "mixer_track": 9,
+      "archetype": "trap_rap:hihat",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/open_hat/MZ Open Hat [Suge].wav",
+      "root_note": 46,
+      "fine_tune_ct": 0
+    },
+    {
+      "name": "perc",
+      "role": "drums",
+      "source_type": "gridline_native",
+      "plugin": "gl.clap",
+      "plugin_params": {},
+      "mixer_track": 10,
+      "preset": "Room",
+      "archetype": "trap_rap:perc"
+    }
+  ],
+  "auto_prepared": true,
+  "phrase_length_bars": 8,
+  "expression_defaults": {
+    "bass_808": {
+      "articulation": "glide_to_next",
+      "glide_ms": 60,
+      "climax_bars": [
+        4,
+        8
+      ]
+    }
+  },
+  "palette": {
+    "palette_id": "palette_C",
+    "score": 0.369,
+    "quality_score": 0.5665,
+    "composite_score": {
+      "score": 0.369,
+      "s_intent": 0.5088,
+      "s_coherence": 0.35,
+      "s_coverage": 0.5042,
+      "p_fallback": 0.3333,
+      "clap_off": false
+    },
+    "intent_score": 0.5088,
+    "intent": "dark melodic trap piano strings atmospheric pad 808 hard snare",
+    "clap_coverage": 1.0,
+    "clap_off": false,
+    "sample_ratio": 0.429,
+    "theme": "hybrid",
+    "n_samples": 5,
+    "n_tracks_with_available_samples": 5,
+    "sample_coverage_ratio": 1.0,
+    "fallback_gate": "PASS",
+    "fallback_tracks": [
+      {
+        "track": "snare",
+        "role": "snare_clap",
+        "reason": "sample_available_but_not_selected"
+      },
+      {
+        "track": "perc",
+        "role": "hihat_perc",
+        "reason": "sample_available_but_not_selected"
+      }
+    ],
+    "selection_trace": {
+      "mode": "db",
+      "user_samples_locked": false,
+      "roles": {},
+      "policy_excluded": {
+        "chord_keys": 1,
+        "pad_atmosphere": 1,
+        "lead_melody": 0,
+        "bass_sub": 0,
+        "kick": 22,
+        "snare_clap": 24,
+        "hihat_perc": 0
+      },
+      "range_excluded": {
+        "chord_keys": 0,
+        "pad_atmosphere": 3,
+        "lead_melody": 0,
+        "bass_sub": 1,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "pleasantness_excluded": {
+        "chord_keys": 0,
+        "pad_atmosphere": 0,
+        "lead_melody": 0,
+        "bass_sub": 0,
+        "kick": 0,
+        "snare_clap": 2,
+        "hihat_perc": 1
+      },
+      "gate_unmeasured": {
+        "chord_keys": 0,
+        "pad_atmosphere": 0,
+        "lead_melody": 0,
+        "bass_sub": 0,
+        "kick": 0,
+        "snare_clap": 0,
+        "hihat_perc": 0
+      },
+      "n_sample_candidates": {
+        "chord_keys": 0,
+        "pad_atmosphere": 0,
+        "lead_melody": 1,
+        "bass_sub": 2,
+        "kick": 5,
+        "snare_clap": 1,
+        "hihat_perc": 2
+      },
+      "total_excluded": 55
+    },
+    "timbre_coherence": {
+      "score": 0.35,
+      "max_bark_collision": 0.845972,
+      "pair_roughness": 0.0,
+      "notes": [
+        "chord_keys~pad_atmosphere centroids 1100/980 Hz (bande critique 167 Hz)"
+      ]
+    },
+    "project_samples_dir": null,
+    "user_samples_locked": false,
+    "sound_guard": {
+      "status": "OK",
+      "n_fixed": 0,
+      "summary_line": "sound_guard=OK"
+    },
+    "musical_safety": {
+      "ok": true,
+      "errors": 0,
+      "warnings": 2,
+      "catalog": "/home/gamo/Bureau/musicamical/samples_catalog.json",
+      "catalog_missing": false
+    }
+  }
+}

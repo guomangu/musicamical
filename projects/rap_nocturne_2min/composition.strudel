@@ -1,0 +1,8 @@
+// @meta 136 F:minor trap_rap V=-0.65 T=0.72 E=0.75 D=0.78 form=I4-V16-C8-V16-B8-C12-O4 dur=120s seed=2048 intent="dark melodic trap piano strings atmospheric pad 808 hard snare"
+kit("trap_half", {var: 3, hats: "rolls"})
+transition("before:chorus", "drum_fill_and_riser", {style: "snare_roll"})
+$chords: sectionGrid({default: "Fm7 Dbmaj7 Bbm7 Cm7", bridge: "Dbmaj7 Eb7 Fm7 Cm7"}).gain(0.58)
+$pad: sectionGrid({default: "Fm7 Dbmaj7 Bbm7 Cm7", bridge: "Dbmaj7 Eb7 Fm7 Cm7"}).gain(0.45).in("intro,chorus,bridge,outro")
+$arp: arp("0 _ ~ ~ 3 _ ~ ~ 6 _ ~ ~ 3 _ ~ ~", 4).slow(4).gain(0.28).in("verse,chorus,bridge")
+$bass: bassline("<1 _ _ ~ ~ ~ 1 ~ 1 _ ~ 1 ~ 1 _ ~>", {mode: "root", glide: 45}).slow(2).in("verse,chorus")
+$lead: deg("0 _ _ ~ 2 _ 1 ~ 0 _ ~ ~ 4 _ 3 _ 2 _ 1 _ 0 _ ~ ~", 4).slow(4).gain(0.56).only("chorus")
