@@ -226,7 +226,9 @@ class TestPaletteResolutionV2(unittest.TestCase):
                             "filepath": None, "midi_root": None, "comfort_score": 0.9},
                            {"role": "lead_melody", "source_type": "gridline_native", "plugin": "gl.warmsynth",
                             "filepath": None, "midi_root": None, "comfort_score": 0.9}]},
-                {"palette_id": "palette_B", "score": 0.50, "theme": "organic",
+                # score 0.70 : au-dessus du gate bloquant P1-5 (0.60) tout en restant
+                # sous palette_A (0.99) — le test vérifie que la richesse en samples prime.
+                {"palette_id": "palette_B", "score": 0.70, "theme": "organic",
                  "slots": [{"role": "kick", "source_type": "sample", "filepath": kick_wav,
                             "midi_root": 36, "recommended_fine_tune_ct": 3, "comfort_score": 0.9,
                             "centroid_hz": 200.0},

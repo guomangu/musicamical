@@ -31,7 +31,7 @@ Le LLM peut désormais écrire **un seul `composition.strudel` compact** (~300�
 `arrangement_plan.json` verbeux : `scripts/strudel_eval.mjs` l'évalue en **Node.js headless pur**
 (`@strudel/core` + `queryArc`, seed déterministe, 0 Chromium), puis `scripts/strudel_to_score_ir.py`
 convertit les Haps en `ScoreIR` + `arrangement_plan.json` **en appliquant les mêmes garde-fous 0 token**
-(registre 808 `[31,48]`, apex Lead, voice leading + LIL, b2, clamp 20 ms, `FullCoverageCoreValidator`) ;
+(registre 808 `[31,48]` au pont, puis `[26,41]` + fondamentale d'accord sur le ScoreIR final via `enforce_bass_register`, apex Lead, voice leading + LIL, b2, clamp 20 ms, `FullCoverageCoreValidator`) ; garde-fous bloquants de l'audit `rap_ombre_134` : pitch des percussions verrouillé sur `root_note` du sampler (`lock_percussive_root_notes`), cloisonnement taxonomique (`role_allows_asset` : `other/` et tokens tonaux exclus des slots percussifs), et gate de palette bloquant `score ≥ 0.60` / cohérence ≥ 0.60 / `max_bark_collision ≤ 0.65` (`validate_palette_gate`, échappatoire `ALLOW_WEAK_PALETTE=1`) ;
 le pipeline v3.x (`compile_song.py` → Gridline → quality gate) reste inchangé. Voir
 [`docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md`](docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md) et l'exemple
 [`assets/composition_trap_example.strudel`](assets/composition_trap_example.strudel).

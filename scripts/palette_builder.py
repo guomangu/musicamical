@@ -1551,12 +1551,14 @@ def propose_palettes(
 
     synth_pool = _build_gl_synth_pool(eff_roles, valence=valence, mix_profile=str(mix_profile or "trap_rap")) if allow_gl_synths else {r: [] for r in eff_roles}
 
-    # v3.1 ASSET-05: diagnostic de couverture — si un rôle critique a < 3 samples propres,
-    # basculer sur un synthé natif gl.* vérifié au lieu d'un sample douteux.
+    # v3.1 ASSET-05 + P1-4 (audit rap_ombre_134) : diagnostic de couverture — on ne bascule sur
+    # un synthé natif gl.* que si AUCUN sample propre ne survit aux gates (avant : < 3, ce qui
+    # faisait rejeter un vrai rimshot/perc disponible au profit de `gl.clap` :
+    # `sample_available_but_not_selected`). Un vrai sample propre prime toujours sur le synthé.
     fallback_synth_reason: dict[str, str] = {}
     for role in ("kick", "bass_sub", "snare_clap", "hihat_perc"):
         clean = [c for c in sample_pool.get(role, [])]
-        if len(clean) < 3 and synth_pool.get(role):
+        if len(clean) < 1 and synth_pool.get(role):
             fallback_synth_reason[role] = "insufficient_clean_samples"
 
     # Merge pools per role; keep samples & gl.* synths clearly distinguishable

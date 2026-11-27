@@ -293,6 +293,13 @@ Cocher quels rôles jouent dans chaque section afin de garantir un **arc dynamiq
 * **Noms reconnus** : Perc/FX ignorés (`kick, snare, clap, hat, perc, rim, cymbal, crash, tom, shaker, drum, fx, riser`) · `bass` (`808, bass, sub` ou pitch `< 48` hors accords `poly_ratio >= 0.45`) · `lead` (`lead, melody, topline, vox, vocal` ou `"piano"` si `poly_ratio < 0.45`) · `chords` (`chord, pad, string, rhodes, harmony` ou `poly_ratio >= 0.45`).
 * **Autofix** : Appeler `verify_midi_gate(..., time_signature=(num, den), phrase_plan=..., auto_fix=True)` ou `autofix_midi(...)`. Corrige en 1 passe + ré-audit : hors-gamme, bornes sub/apex, collisions `< MIDI 48` dans `Chords`, appuis temps forts et frottements `b2` (`fix_report`). Si un défaut structurel persiste (`melody_rest_ratio`, `stepwise`, `contrary`), ajuster le générateur Python.
 
+### 5.3 Garde-fous de hauteur & de palette bloquants (audit `rap_ombre_134`)
+* **Perc non transposées** : `score_ir.lock_percussive_root_notes` — invariant `pitch == root_note` du sampler sur kick/snare/perc/open_hat/drums (±2 st toléré sur les hi-hats), appliqué par `autofix_score_ir` ET par `compile_arrangement_plan` juste avant `compile_score_ir_to_notes` (rapport `post_groove_check.pitch_locks`).
+* **808 sub-grave** : `score_ir.enforce_bass_register` — 100 % des notes bass en MIDI `[26,41]` avec classe de hauteur = fondamentale de l'accord actif ; `strudel_to_score_ir.apply_808_legato_glide` — legato 1.5–3.5 temps (cut-itself) + `glide_to_next` 35–90 ms sur les sauts ≥ 5 st.
+* **Gate de palette bloquant** (`palette_selector.validate_palette_gate`, `_resolve_palette`, `render_and_audit`) : refus si `score < 0.60`, cohérence `< 0.60` ou `max_bark_collision > 0.65` (auto-correction : pad +12 st, LPF 1.8 kHz, séparation stéréo) ; échappatoire `ALLOW_WEAK_PALETTE=1`.
+* **Cloisonnement taxonomique** (`unified_indexer.role_allows_asset`, `sample_fit_guard.candidate_policy`) : `samples/other/` et tokens tonaux (stab/chord/pluck/pad/synth/lead) jamais assignés à kick/snare_clap/hihat_perc ; garde-fou acoustique snare (pas de hauteur tonale dominante).
+* **SFZ locaux prioritaires** (`palette_selector.prefer_sfz_for_intent`) : intent piano/keys/moody → banques `soundbanks/sfz` (headroom-piano, jRhodes3c) pour chords/lead.
+
 ---
 
 ## Chapitre 6 — LEGACY v2.1 : ancien patron `build_song.py` (historique uniquement)

@@ -463,6 +463,47 @@ def _transpose_lead_phrases(notes: list[dict[str, Any]], grid: list[dict[str, An
     return rep
 
 
+def apply_808_legato_glide(score: Any, haps: dict[str, Any],
+                           min_legato_beats: float = 1.5, max_legato_beats: float = 3.5,
+                           default_glide_ms: float = 45.0) -> dict[str, int]:
+    """P2-8 (audit rap_ombre_134 §P2-8) : 808 idiomatique du rap moderne —
+    legato monophonique (durées allongées à 1.5-3.5 temps, cut-itself à la note suivante)
+    + propagation du `glide` Strudel (`articulation="glide_to_next"`, glide_ms ∈ [35, 90])
+    sur les sauts de hauteur (quinte/octave) en fin de phrase."""
+    report = {"legato_extended": 0, "glide_marked": 0}
+    track_glide: dict[str, float] = {}
+    for tn, td in (haps.get("tracks") or {}).items():
+        if isinstance(td, dict):
+            g = td.get("glide")
+            if g is None and isinstance(td.get("opts"), dict):
+                g = td["opts"].get("glide")
+            try:
+                track_glide[tn] = float(g) if g is not None else 0.0
+            except Exception:
+                track_glide[tn] = 0.0
+    for name, tir in score.tracks.items():
+        if str(tir.role).lower() != "bass":
+            continue
+        ns = sorted(tir.notes, key=lambda n: (n.grid_beat, n.pitch))
+        g_ms = track_glide.get(name, 0.0)
+        for i, n in enumerate(ns):
+            if i + 1 >= len(ns):
+                continue
+            nxt = ns[i + 1]
+            gap = float(nxt.grid_beat) - (float(n.grid_beat) + float(n.duration_beats) * float(n.expression.gate_scale))
+            if gap < 0.02 and abs(int(nxt.pitch) - int(n.pitch)) >= 5:
+                # legato Strudel (glide -> legato()) + saut de hauteur : glide effectif
+                n.expression.articulation = "glide_to_next"
+                n.expression.glide_ms = float(min(90.0, max(35.0, g_ms or default_glide_ms)))
+                report["glide_marked"] += 1
+            cur = float(n.duration_beats) * float(n.expression.gate_scale)
+            target = min(max(float(nxt.grid_beat) - float(n.grid_beat) - 0.02, 0.0), max_legato_beats)
+            if target >= min_legato_beats and target > cur + 1e-6:
+                n.duration_beats = round(target / max(1e-6, float(n.expression.gate_scale)), 5)
+                report["legato_extended"] += 1
+    return report
+
+
 def apply_register_guards(
     tracks: dict[str, list[dict[str, Any]]],
     grid: list[dict[str, Any]],
@@ -799,6 +840,7 @@ def build_score_ir_from_strudel(
         tir.notes.sort(key=lambda n: (n.grid_beat, n.pitch))
         score.tracks[name] = tir
 
+    guard_report["legato_808"] = apply_808_legato_glide(score, haps)
     info = {
         "bpm": bpm, "key": key, "mode": mode, "bpb": bpb, "denom": denom, "bars": bars,
         "seed": seed, "valence": valence, "guards": guard_report,

@@ -261,6 +261,84 @@ def classify_role(track_key: str) -> str:
     return "drums"
 
 
+# ---------------------------------------------------------------------------
+# P0 (audit rap_ombre_134) — invariants durs de hauteur MIDI :
+#  - P0-1 : pistes percussives verrouillées sur le root_note de leur sampler ;
+#  - P0-2 : registre sub-grave strict de la 808 (MIDI 26-41) + fondamentale d'accord.
+# ---------------------------------------------------------------------------
+
+PERC_LOCK_ROLES = ("drums", "kick", "snare", "hihat", "open_hat", "perc", "clap", "fx")
+PERC_LOCK_NAME_HINTS = ("kick", "snare", "hihat", "hi-hat", "hat", "perc", "clap", "drum", "tom", "rim")
+BASS_REGISTER_MIN = 26   # P0-2 : registre sub 808 — D1..(audit : plage test MIDI 26-41)
+BASS_REGISTER_MAX = 41
+
+
+def lock_percussive_root_notes(score_ir: "ScoreIR", root_notes: dict[str, int] | None = None) -> dict[str, int]:
+    """P0-1 (audit rap_ombre_134 §P0-1) : invariant `pitch_note == root_note` du sampler sur
+    TOUTE piste percussive (kick/snare/hihat/open_hat/perc/drums) — aucune transposition MIDI
+    post-arrangement. Les hi-hats conservent un ±2 st explicite. Sans `root_notes` fourni, la
+    racine = hauteur modale de la piste (déterministe)."""
+    from collections import Counter
+
+    root_notes = root_notes or {}
+    report = {"locked": 0, "kept_hat_shift": 0, "tracks": 0}
+    for tkey, tir in score_ir.tracks.items():
+        role_l = str(tir.role).lower()
+        key_l = str(tkey).lower()
+        is_perc = role_l in PERC_LOCK_ROLES or any(k in key_l for k in PERC_LOCK_NAME_HINTS)
+        if not is_perc or not tir.notes:
+            continue
+        root = root_notes.get(tkey) or root_notes.get(tir.role) or root_notes.get(key_l)
+        if root is None:
+            root = Counter(int(n.pitch) for n in tir.notes).most_common(1)[0][0]
+        root = int(root)
+        report["tracks"] += 1
+        for n in tir.notes:
+            if int(n.pitch) == root:
+                continue
+            if role_l in ("hihat", "open_hat") and abs(int(n.pitch) - root) <= 2:
+                report["kept_hat_shift"] += 1
+                continue
+            n.pitch = root
+            report["locked"] += 1
+    return report
+
+
+def enforce_bass_register(score_ir: "ScoreIR", lo: int = BASS_REGISTER_MIN, hi: int = BASS_REGISTER_MAX) -> dict[str, int]:
+    """P0-2 (audit rap_ombre_134 §P0-2) : registre sub-grave strict de la 808 (MIDI 26-41,
+    pliage d'octave donc classe de hauteur préservée) + ancrage à la fondamentale de
+    l'accord actif quand la grille harmonique est disponible."""
+    grid = score_ir.harmonic_grid
+    report = {"clamped": 0, "root_locked": 0}
+    for tkey, tir in score_ir.tracks.items():
+        if str(tir.role).lower() != "bass":
+            continue
+        for note in tir.notes:
+            p = int(note.pitch)
+            np_ = p
+            while np_ < lo:
+                np_ += 12
+            while np_ > hi:
+                np_ -= 12
+            if np_ != p:
+                note.pitch = np_
+                report["clamped"] += 1
+                p = np_
+            if grid:
+                cidx = note.chord_idx if 0 <= note.chord_idx < len(grid) else segment_index_for_beat(grid, note.grid_beat)
+                seg = grid[cidx] if 0 <= cidx < len(grid) else (grid[0] if grid else {})
+                root_pc = int(seg.get("bass_pc", seg.get("root_pc", 0))) % 12
+                if p % 12 != root_pc:
+                    # plus petit t >= lo avec t % 12 == root_pc (lo=26 n'est PAS pc 0)
+                    target = lo + ((root_pc - lo) % 12)
+                    while target > hi:
+                        target -= 12
+                    if target != p:
+                        note.pitch = target
+                        report["root_locked"] += 1
+    return report
+
+
 def _is_clampable_role(role: str) -> bool:
     r = str(role).lower()
     return any(k in r for k in CLAMP_ROLE_SUBSTRINGS)
@@ -948,4 +1026,7 @@ def autofix_score_ir(score_ir: ScoreIR, thresholds: dict[str, Any] | None = None
                     new_len = max(0.02, ns[i + 1].real_start() - ns[i].real_start())
                     ns[i].duration_beats = round(min(float(ns[i].duration_beats), new_len / max(1e-6, float(ns[i].expression.gate_scale))), 5)
                     changes.append({"track": tkey, "beat": round(ns[i].grid_beat, 4), "kind": "mono_overlap_trim", "pitch": int(ns[i].pitch)})
-    return score_ir, {"changes": changes, "n_changes": len(changes)}
+    perc_report = lock_percussive_root_notes(score_ir)
+    bass_report = enforce_bass_register(score_ir)
+    return score_ir, {"changes": changes, "n_changes": len(changes),
+                      "perc_pitch_lock": perc_report, "bass_register": bass_report}

@@ -89,6 +89,66 @@ except Exception:  # pragma: no cover - exécution hors dépôt
 SOURCE_TYPES = ("wav_sample", "vst3_preset", "sfz_instrument")
 ROLE_CATEGORIES = ("kick", "snare", "hihat", "perc", "bass_808", "pad", "keys", "lead", "fx")
 
+# ---------------------------------------------------------------------------
+# P0-3 (audit rap_ombre_134 §P0-3) — cloisonnement taxonomique strict par rôle :
+# un son tonal (stab/chord/pluck/pad/synth/lead...) ou issu d'un dossier générique
+# `other/` ne peut JAMAIS remplir un rôle percussif (kick/snare/hihat/perc).
+# ---------------------------------------------------------------------------
+PERC_ROLE_CATEGORIES = ("kick", "snare", "hihat", "perc")
+TONAL_NAME_TOKENS = ("stab", "chord", "pluck", "pad", "synth", "lead", "arp", "bell",
+                     "melody", "piano", "rhodes", "organ", "keys", "vocal", "vox", "string", "brass")
+FORBIDDEN_PERC_PATH_SEGMENTS = ("other", "melodic", "tonal", "chords", "pads", "leads",
+                                "keys", "vocals", "melody", "oneshot_melodic")
+
+
+def role_allows_asset(role_category: str, file_path: str = "", is_pitched: Any = None,
+                      pitch_confidence: Any = None, ac_roughness: Any = None,
+                      air_band_energy: Any = None) -> tuple[bool, str]:
+    """Règles dures de compatibilité rôle↔asset (audit P0-3).
+
+    Rôles percussifs : rejet des noms à tokens tonaux, des dossiers interdits (`other/`,
+    `chords/`...), et — pour la caisse claire — garde-fou acoustique : pas de hauteur tonale
+    dominante (son pitché haute confiance + faible rugosité + peu d'air = stab métallique).
+    """
+    role = str(role_category or "").lower()
+    if role not in PERC_ROLE_CATEGORIES:
+        return True, "ok"
+    path = str(file_path or "")
+    low = path.lower()
+    base = os.path.basename(low)
+    parts = {p for p in low.replace("\\", "/").split("/") if p}
+    for tok in TONAL_NAME_TOKENS:
+        if tok in base:
+            return False, f"tonal_name_token({tok})"
+    bad_dir = parts & set(FORBIDDEN_PERC_PATH_SEGMENTS)
+    if bad_dir:
+        return False, f"forbidden_dir({sorted(bad_dir)[0]})"
+    pitched = bool(is_pitched) if is_pitched is not None else None
+    conf = float(pitch_confidence) if pitch_confidence is not None else 0.0
+    if role == "snare" and pitched and conf >= 0.9:
+        rough = float(ac_roughness) if ac_roughness is not None else 50.0
+        air = float(air_band_energy) if air_band_energy is not None else 0.5
+        if rough < 25.0 and air < 0.10:
+            return False, "snare_tonal_stab_guard(pitched, low roughness, no broadband air)"
+    if role in ("hihat", "perc") and pitched and conf >= 0.95:
+        return False, "pitched_tonal_not_percussive"
+    return True, "ok"
+
+
+def filter_role_compatible(rows: list[dict[str, Any]], role_category: str) -> list[dict[str, Any]]:
+    """Filtre une liste de lignes `sound_assets` avec `role_allows_asset`."""
+    out = []
+    for r in rows:
+        ok, _reason = role_allows_asset(
+            role_category,
+            str(r.get("file_path") or r.get("path") or ""),
+            r.get("is_pitched"), r.get("pitch_confidence"),
+            r.get("ac_roughness"), r.get("air_band_energy"),
+        )
+        if ok:
+            out.append(r)
+    return out
+
 # S_max (plafond de transposition) par nature de source — invariant v4.2 du dépôt.
 SAFE_SEMITONE_RANGE = {"wav_sample_acoustic": 5, "wav_sample_synth": 7, "sfz_instrument": 87, "vst3_preset": 87}
 

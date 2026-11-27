@@ -6,7 +6,7 @@
       "plugin": "gl.sampler",
       "params": {
         "attack_ms": 2,
-        "release_ms": 120,
+        "release_ms": 300,
         "glide_ms": 60
       },
       "dark_overrides": {}
@@ -28,12 +28,12 @@
       "plugin": "gl.analog",
       "preset": "Velvet Pad",
       "params": {
-        "cutoff_hz": 5500,
+        "cutoff_hz": 1800,
         "attack_ms": 240,
         "release_ms": 1200
       },
       "dark_overrides": {
-        "cutoff_hz": 4800,
+        "cutoff_hz": 1500,
         "release_ms": 1200
       }
     },
@@ -41,13 +41,13 @@
       "plugin": "gl.analog",
       "preset": "Glass Pluck",
       "params": {
-        "cutoff_hz": 5500,
+        "cutoff_hz": 2600,
         "attack_ms": 8,
         "release_ms": 400,
         "vibrato_delay_ms": 250
       },
       "dark_overrides": {
-        "cutoff_hz": 6500,
+        "cutoff_hz": 2200,
         "release_ms": 400
       }
     },

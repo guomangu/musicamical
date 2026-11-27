@@ -112,6 +112,66 @@ def rhythmic_lift(score_ir: ScoreIR, section_spans: list[Any] | None = None) -> 
     return n
 
 
+def chorus_variation_b(score_ir: ScoreIR, section_spans: list[Any] | None = None) -> int:
+    """P2-8 (audit rap_ombre_134) : casse la répétition stricte du lead/counter sur 4 mesures —
+    variation B dans la 2e moitié de chaque section chorus/drop/climax : syncopation en 16ths
+    (-1/16 de mesure sur une note sur deux), vélocité alternée ±15 %, et note d'approche
+    (1/16 avant, ±1 demi-ton dans la gamme) tous les 4 notes."""
+    targets = [k for k, t in score_ir.tracks.items() if t.role in ("lead", "counter") and t.notes]
+    if not targets:
+        return 0
+    bpb = float(score_ir.time_signature.get("numerator", 4))
+    half_bars: set[int] = set()
+    if section_spans:
+        for span in section_spans:
+            if isinstance(span, (tuple, list)) and len(span) >= 3:
+                name, sb, nb, kind = str(span[0]), int(span[1]), int(span[2]), str(span[3] if len(span) > 3 else span[0])
+            elif isinstance(span, dict):
+                name, sb, nb, kind = str(span.get("name", "")), int(span.get("start_bar", 0)), int(span.get("bars", 4)), str(span.get("kind", ""))
+            else:
+                continue
+            hay = (name + " " + kind).lower()
+            if any(c in hay for c in _CHORUS_KINDS):
+                half_bars.update(range(sb + nb // 2, sb + nb))
+    if not half_bars:
+        return 0
+    sixteenth = bpb / 16.0
+    n = 0
+    for key in targets:
+        tir = score_ir.tracks[key]
+        notes = sorted(tir.notes, key=lambda x: (x.grid_beat, x.pitch))
+        idx_in_zone = 0
+        for note in notes:
+            bar = int(note.grid_beat // bpb)
+            if bar not in half_bars:
+                continue
+            idx_in_zone += 1
+            if idx_in_zone % 2 == 0:
+                note.grid_beat = round(max(0.0, note.grid_beat - sixteenth), 5)
+                n += 1
+            delta = round(0.15 * max(1, int(note.velocity)))
+            note.expression.velocity_delta += delta if idx_in_zone % 4 in (1, 2) else -delta
+            n += 1
+            if idx_in_zone % 4 == 0:
+                cidx = segment_index_for_beat(score_ir.harmonic_grid, note.grid_beat)
+                seg = score_ir.harmonic_grid[cidx] if 0 <= cidx < len(score_ir.harmonic_grid) else {}
+                scale = set(seg.get("scale_pcs", [])) or {0, 2, 4, 5, 7, 9, 11}
+                appr = note.pitch - 1 if (note.pitch - 1) % 12 in scale else note.pitch + 1
+                if 0 <= appr <= 127:
+                    tir.notes.append(NoteEventIR(
+                        grid_beat=round(max(0.0, note.grid_beat - sixteenth), 5),
+                        duration_beats=sixteenth,
+                        pitch=int(appr),
+                        velocity=max(1, int(note.velocity) - 12),
+                        chord_idx=cidx,
+                        note_role="melody_passing",
+                        lock_harmony=False,
+                    ))
+                    n += 1
+        tir.notes.sort(key=lambda x: (x.grid_beat, x.pitch))
+    return n
+
+
 def call_and_response(score_ir: ScoreIR, max_gap_beats: float = 2.0, answer_len: float = 0.5) -> int:
     """Le Counter répond dans les silences >= `max_gap_beats` du Lead : 2 notes courtes
     (accord courant) au début du silence. Jamais de chevauchement avec le lead."""
@@ -271,6 +331,7 @@ def enforce_low_interval_limits(
 OPERATORS = {
     "motif_answer": motif_answer,
     "rhythmic_lift": rhythmic_lift,
+    "chorus_variation_b": chorus_variation_b,
     "call_and_response": call_and_response,
     "melodic_climax_arch": melodic_climax_arch,
 }
@@ -288,14 +349,14 @@ def apply_narrative_harmony(
     period_bars = int(phr.get("period_bars") or phr.get("consequent_bars", 0) + phr.get("antecedent_bars", 0) or 8)
     if period_bars <= 0:
         period_bars = 8
-    ops = [str(o) for o in (phr.get("operators") or ["motif_answer", "melodic_climax_arch"])]
+    ops = [str(o) for o in (phr.get("operators") or ["motif_answer", "melodic_climax_arch", "chorus_variation_b"])]
     report: dict[str, Any] = {"period_bars": period_bars, "operators": {}}
     for op in ops:
         fn = OPERATORS.get(op)
         if fn is None:
             report["operators"][op] = "unknown"
             continue
-        if op == "rhythmic_lift":
+        if op in ("rhythmic_lift", "chorus_variation_b"):
             report["operators"][op] = fn(score_ir, section_spans=section_spans)
         elif op in ("motif_answer", "melodic_climax_arch"):
             report["operators"][op] = fn(score_ir, period_bars=period_bars)
