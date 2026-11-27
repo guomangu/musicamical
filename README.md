@@ -11,7 +11,7 @@ Studio complet de production musicale assistée par IA sur **Fedora / Ultramarin
 - **Facette 2 — Composition Universelle, Émotion `(V, T, E, D)`, Harmonie, Mélodie & Rythmes Multi-Genres** : [`docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md`](docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md)
 - **Facette 3 — Blueprint, Arrangement, Top-Down, MIDI Gate & Patron `compile_song.py` (`build_song.py` LEGACY v2.1)** : [`docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md`](docs/02_COMPOSITION_ARCHITECTURE_ET_PIPELINE.md)
 - **Facette 4 — DSP Déterministe, Samples, APIs Audio, Remix & Chant (Vocaloid)** : [`docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md`](docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md)
-- **Facette 5 — Mixage Multi-Genres, Buses/FX, Quality Gate, Symptôme→Fix & Playbook** : [`docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md`](docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md)
+- **Facette 5 — Mixage Multi-Genres, Buses/FX, Quality Gate, Symptôme→Fix & Playbook** : [`docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md`](docs/04_MIXAGE_QUALITY_GATE_ET_APPRENTISSAGE.md) (§3.2b : **analyse des causes racines d'un rendu boomy/inaudible/artificiel — 17 causes + correctifs v4.3**)
 - **Facette 6 — v4.0 Pont Strudel headless (frontend de composition ultra-compact, économe en tokens)** : [`docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md`](docs/03_PRODUCTION_SAMPLES_ET_PONT_STRUDEL.md)
 
 ## Briques installées et actives

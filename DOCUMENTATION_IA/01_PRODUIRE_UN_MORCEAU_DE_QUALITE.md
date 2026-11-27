@@ -62,7 +62,7 @@ En rap, trap, drill, boom bap ou R&B, **un bon Lead est LENT, ESPACÉ et CHANTAN
 
 Toujours renseigner `intent="..."` dans `@meta` avec le **genre + ambiance + 3–4 familles d'instruments** :
 - Boom Bap / Jazz : `intent="warm soulful boom bap jazz rap rhodes piano acoustic bass"` → Rhodes + Piano + **Bass Guitar** réelle.
-- Dark Trap / Minimal (style Huntrill, voir [analyse_de_la_trap_sombre_et_minimale_aux_nappes_synth_tiques.md](analyse_de_la_trap_sombre_et_minimale_aux_nappes_synth_tiques.md)) : `intent="cold dark minimal synth pad drone atmospheric dark trap 808 sparse pluck"` → **808** (`35–60 Hz` + sauts d'octave, renfort `160 Hz`), **cordes/nappe sombre** (`LP 24 <= 1,2 kHz`, attaque lente `200–400 ms`, release `>= 750 ms`, creux vocal `180–450 Hz`), **micro-mélodie fantôme** espacée (`$arp`/`$lead` en `FX Delay`, jamais un thème envahissant), **snare sec** sans reverb.
+- Dark Trap / Minimal (style Huntrill, voir [analyse_de_la_trap_sombre_et_minimale_aux_nappes_synth_tiques.md](../analyse_de_la_trap_sombre_et_minimale_aux_nappes_synth_tiques.md)) : `intent="cold dark minimal synth pad drone atmospheric dark trap 808 sparse pluck"` → **808** (`35–60 Hz` + sauts d'octave, renfort `160 Hz`), **cordes/nappe sombre** (`LP 24 <= 1,2 kHz`, attaque lente `200–400 ms`, release `>= 750 ms`, creux vocal `180–450 Hz`), **micro-mélodie fantôme** espacée (`$arp`/`$lead` en `FX Delay`, jamais un thème envahissant), **snare sec** sans reverb.
 - Hard Drill : `intent="aggressive hard drill dark 808 slide punchy snare tense synth"` → **808** + Dark Pad + Synth Pluck.
 - EDM / Ambient : `intent="energetic club edm bright synth lead pluck"` / `intent="cinematic atmospheric dark pad strings airy bell ambient"`.
 
@@ -94,7 +94,7 @@ Toujours renseigner `intent="..."` dans `@meta` avec le **genre + ambiance + 3�
 |---|---|---|
 | `sectionGrid({default: "...", bridge: "..."})` | grille d'accords par section (**1 symbole = 1 mesure**, ne pas ajouter `.slow(2)`) | `$chords: sectionGrid({default: "Cm7 Abmaj7 Fm7 G7", bridge: "Abmaj7 Ebmaj7 Fm7 G7"}).gain(0.58)` |
 | `grid("Cm7 Abmaj7 Fm7 G7")` | grille simple (1 symbole = 1 mesure) | `$chords: grid("Cm7 Abmaj7 Fm7 G7").gain(0.62)` |
-| `arp("0 _ ~ ~ 2 _ ~ ~", 4)` | **(v4.4)** contre-chant/écho synchronisé sur la grille (`counter_melody` `-9 dB`, cloches inharmoniques interdites, **0 clash b2**) | `$arp: arp("0 _ ~ ~ 2 _ ~ ~", 4).slow(2).gain(0.28).in("verse,chorus,bridge")` |
+| `arp("0 _ ~ ~ 2 _ ~ ~", 4)` ou `arp("0 ~ 2 ~ 1 ~ 3 ~", 4)` | **(v4.4)** contre-chant/écho synchronisé sur la grille (`counter_melody` `-9 dB`, cloches inharmoniques interdites, **0 clash b2**) | `$arp: arp("0 _ ~ ~ 2 _ ~ ~", 4).slow(2).gain(0.28).in("verse,chorus,bridge")` |
 | `deg("0 _ _ ~ 3 _ 2 ~ ...", 4)` | mélodie en degrés diatoniques ; **`_` prolonge la note précédente**, **`@N` fixe la durée** | `$lead: deg("0 _ _ ~ 3 _ 2 ~ 0 _ ~ ~ 2 _ 4 _ 3 _ 2 _ 0 _ ~ ~", 4).slow(4).gain(0.58).only("chorus")` |
 | `bassline("<1 _ ~ 1 ~ 1 _ ~>", {mode:"root", glide:45})` | basse snappée sur la grille, registre `[31, 48]` garanti, supporte `_` | `$bass: bassline("<1 _ ~ 1 ~ 1 _ ~>", {mode:"root", glide:45}).slow(2).in("verse,chorus")` |
 | `kit("trap_half", {var:2, hats:"rolls"})` | **(v4.4)** émet 5 pistes atomiques (`kick`, `snare`, `hihat`, `open_hat`, `perc`) avec groove 2 mes. & sections auto | ligne seule, sans `$` (`trap_half`, `trap_full`, `boom_bap`, `drill`, `house`, `pop`, `ambient`) |
@@ -186,7 +186,7 @@ Retouches rapides (~20–40 tokens) :
 ### C. Mixage & fiabilité opérationnelle
 - **`math_mix_solver.py`** (1 passe < 1 s, propriétaire unique des faders/EQ/pan/sends) + calibrage nominal `NOMINAL_APPLIED` (`gain_staging_lib.py`) + master doux (`ceiling -1.2 dBTP`, LPF sources `>= 6.5 kHz` harmonie / `9 kHz` lead — SSOT `config/mix_profiles.json`). Ne jamais toucher aux faders à la main.
 - **Équilibre `Chords` / `Pad` / dynamique** : creuser le pocket vocal `180–450 Hz` (`-3..-4 dB`), lisser d'abord les pics batterie sur `BUS Drums` avant le `Master`, et conserver du contraste entre couplets/pont (`-2..-3 dB`) et refrains pour préserver `LRA >= 2.5 LU` sans dépassement True Peak.
-- **Guides stylistiques spécialisés** : [analyse_de_la_trap_sombre_et_minimale_aux_nappes_synth_tiques.md](analyse_de_la_trap_sombre_et_minimale_aux_nappes_synth_tiques.md) (trap sombre phrygienne, nappes filtrées `LP 24`, micro-mélodies fantômes, snare sec).
+- **Guides stylistiques spécialisés** : [analyse_de_la_trap_sombre_et_minimale_aux_nappes_synth_tiques.md](../analyse_de_la_trap_sombre_et_minimale_aux_nappes_synth_tiques.md) (trap sombre phrygienne, nappes filtrées `LP 24`, micro-mélodies fantômes, snare sec).
 - **Vérifier dans `handoff.txt`** : `palette=… samples=N/N`, `safety=0err`, `BU=PASS(4/4)`, `preflight=PASS` (et `lead_not_frantic=PASS`).
 - **Worker MCP éphémère** (`prod_worker.py`) : plus besoin de redémarrer après `git pull` (`RESTART session agent` uniquement si la signature des 3 outils change).
 - Toujours ranger les projets dans `projects/<nom>`, ne jamais éditer `arrangement_plan.json`/`score_ir.json` à la main.

@@ -1,6 +1,6 @@
 # DOCUMENTATION_IA — Runbook Production v4.4 (<= 750 tokens)
 
-Lecture prod (remplace [`docs/`](../docs/00_SOMMAIRE.md)) : ce `README.md` + [01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md](01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md) (8–10 pistes, Lead lent `_`, Strudel, façade 3 outils, qualité timbrale).
+Lecture prod (remplace [`docs/`](../docs/00_SOMMAIRE.md)) : **2 documents** — ce `README.md` + [01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md](01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md) (8–10 pistes, Lead lent `_`, Strudel, façade 3 outils, qualité timbrale).
 
 ## Flux (1 appel `auto_prepare=true`, ou 2 si B/C/D)
 1. `studio_prepare(project_dir, intent)` — **Scénarios B/C/D seuls** (`Samples/`, `remix`, `lyrics`). `project_dir="projects/<nom>"`.
