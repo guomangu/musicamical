@@ -729,6 +729,29 @@ class TestPhase2MusicalityAndTimbreFixes(unittest.TestCase):
             self.assertGreaterEqual(rep["total_fixes"], 3, rep)
             self.assertTrue(os.path.isfile(os.path.join(td, "renders", "diagnostics", "bottom_up_report.json")))
 
+    def test_phase4_two_note_loop_chop_rejected_by_p85_and_bottom_up(self):
+        """Régression guitar_pluck_b3_440.wav : une découpe 2 notes (65 % B3 + 35 % D3) trompait MAD,
+        mais DOIT être rejetée par audio_metrics (P85/frac_off) ET bottom_up_analyzer Niveau 1."""
+        from audio_metrics import analyze_single_file
+        import bottom_up_analyzer as bu
+        sr = 44100
+        n1 = int(0.30 * sr)
+        n2 = int(0.16 * sr)
+        t1 = np.arange(n1) / sr
+        t2 = np.arange(n2) / sr
+        # 65% B3 (246.94 Hz) + 35% E4 (329.63 Hz, +5 st) -> imite une découpe 2 notes non-basse
+        sig = np.concatenate([
+            0.7 * np.sin(2 * np.pi * 246.94 * t1),
+            0.7 * np.sin(2 * np.pi * 329.63 * t2),
+        ]).astype(np.float32)
+        with tempfile.TemporaryDirectory() as td:
+            p = _write_wav(os.path.join(td, "bad_2note_chop.wav"), sig, sr=sr)
+            entry, _ = analyze_single_file(p, with_clap=False)
+            self.assertFalse(entry["dsp"]["playable_chromatically"], entry["dsp"])
+            self.assertEqual(entry["dsp"]["sample_nature"], "melodic_sequence", entry["dsp"])
+            wf = bu._audit_tonal_sample_waveform(p, "lead_melody")
+            self.assertTrue(any("unstable_or_multinote_pitch" in w for w in wf), wf)
+
 
 if __name__ == "__main__":
     unittest.main()

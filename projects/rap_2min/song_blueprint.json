@@ -164,9 +164,9 @@
       "plugin": "gl.sampler",
       "mixer_track": 1,
       "archetype": "trap_rap:chords",
-      "sample_path": "/home/gamo/Bureau/musicamical/samples/piano/rhodes_mk1_d4.wav",
-      "root_note": 62,
-      "fine_tune_ct": -6,
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/piano/headroom_piano_c4.wav",
+      "root_note": 60,
+      "fine_tune_ct": -5,
       "plugin_params": {
         "cutoff_hz": 6500.0,
         "attack_ms": 8.0,
@@ -196,7 +196,7 @@
       "plugin": "gl.sampler",
       "mixer_track": 3,
       "archetype": "trap_rap:bass",
-      "sample_path": "/home/gamo/Bureau/musicamical/projects/rap_2min/derived_samples/808_5_sat_alt_oct36.wav",
+      "sample_path": "/home/gamo/Bureau/musicamical/projects/rap_2min/derived_samples/808_deep_pnl_oct36.wav",
       "root_note": 36,
       "fine_tune_ct": -14,
       "plugin_params": {
@@ -211,9 +211,8 @@
       "plugin": "gl.sampler",
       "mixer_track": 4,
       "archetype": "trap_rap:lead",
-      "sample_path": "/home/gamo/Bureau/musicamical/samples/guitar/guitar_pluck_b3_440.wav",
-      "root_note": 59,
-      "fine_tune_ct": -24,
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/piano/rhodes_tine_lead_f4.wav",
+      "root_note": 65,
       "plugin_params": {
         "cutoff_hz": 9000.0,
         "attack_ms": 6.0,
@@ -227,9 +226,9 @@
       "plugin": "gl.sampler",
       "mixer_track": 5,
       "archetype": "trap_rap:kick",
-      "sample_path": "/home/gamo/Bureau/musicamical/samples/kick/kick_tight.wav",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/kick/dt_-_farewell_(kick)_2_clean.wav",
       "root_note": 36,
-      "fine_tune_ct": -45
+      "fine_tune_ct": -42
     },
     {
       "name": "snare",
@@ -249,7 +248,7 @@
       "plugin": "gl.sampler",
       "mixer_track": 7,
       "archetype": "trap_rap:hihat",
-      "sample_path": "/home/gamo/Bureau/musicamical/samples/hat/MZ Hi Hat [Fast].wav",
+      "sample_path": "/home/gamo/Bureau/musicamical/samples/hat/hat_open_alt.wav",
       "root_note": 42,
       "fine_tune_ct": 0
     },
@@ -267,8 +266,8 @@
   ],
   "palette": {
     "palette_id": "palette_A",
-    "score": 0.7605,
-    "quality_score": 0.7005,
+    "score": 0.7009,
+    "quality_score": 0.6409,
     "sample_ratio": 1.0,
     "theme": "organic",
     "n_samples": 8,
@@ -281,8 +280,8 @@
       "user_samples_locked": false,
       "roles": {},
       "policy_excluded": {
-        "chord_keys": 8,
-        "pad_atmosphere": 8,
+        "chord_keys": 5,
+        "pad_atmosphere": 5,
         "bass_sub": 1,
         "lead_melody": 0,
         "kick": 0,
@@ -290,10 +289,10 @@
         "hihat_perc": 0
       },
       "range_excluded": {
-        "chord_keys": 9,
-        "pad_atmosphere": 11,
+        "chord_keys": 8,
+        "pad_atmosphere": 10,
         "bass_sub": 1,
-        "lead_melody": 7,
+        "lead_melody": 6,
         "kick": 0,
         "snare_clap": 0,
         "hihat_perc": 0
@@ -302,7 +301,7 @@
         "chord_keys": 0,
         "pad_atmosphere": 2,
         "bass_sub": 0,
-        "lead_melody": 3,
+        "lead_melody": 1,
         "kick": 0,
         "snare_clap": 4,
         "hihat_perc": 0
@@ -320,19 +319,19 @@
         "chord_keys": 4,
         "pad_atmosphere": 2,
         "bass_sub": 16,
-        "lead_melody": 13,
+        "lead_melody": 12,
         "kick": 12,
         "snare_clap": 10,
         "hihat_perc": 24
       },
-      "total_excluded": 54
+      "total_excluded": 43
     },
     "timbre_coherence": {
-      "score": 0.35,
+      "score": 0.0,
       "max_bark_collision": 2.95316,
-      "pair_roughness": 0.0,
+      "pair_roughness": 1.0,
       "notes": [
-        "chord_keys~lead_melody centroids 529/618 Hz (bande critique 122 Hz)"
+        "chord_keys~pad_atmosphere centroids 529/529 Hz (bande critique 119 Hz)"
       ]
     },
     "project_samples_dir": null,
@@ -345,7 +344,7 @@
     "musical_safety": {
       "ok": true,
       "errors": 0,
-      "warnings": 1,
+      "warnings": 0,
       "catalog": "/home/gamo/Bureau/musicamical/samples_catalog.json",
       "catalog_missing": false
     }

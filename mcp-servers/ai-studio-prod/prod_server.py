@@ -576,6 +576,7 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
         PERC_SLOT_ROLES = {"kick", "snare_clap", "hihat_perc"}
 
         used_paths: set[str] = set()
+        proj_seed = int(bp.get("seed") or 0)
 
         def _pick_unique_from_pool(slot_role: str, track_key: str) -> dict[str, Any] | None:
             pool_cands = list(candidate_pool.get(slot_role) or [])
@@ -590,6 +591,14 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                     return (is_crash, cat_ok, -sc)
 
                 pool_cands.sort(key=_perc_rank)
+            elif track_key in ("snare", "clap"):
+                def _snare_rank(c: dict[str, Any]) -> tuple[int, float]:
+                    fp_l = os.path.basename(str(c.get("filepath") or "")).lower()
+                    is_dirty = 1 if any(w in fp_l for w in ("distort", "crunch", "clip", "noisy", "bitcrush")) else 0
+                    sc = float(c.get("role_score", 0.5)) * 0.6 + float(c.get("comfort_score", 0.5)) * 0.4
+                    return (is_dirty, -sc)
+
+                pool_cands.sort(key=_snare_rank)
             elif track_key in ("hihat", "hat", "open_hat"):
                 # Un hi-hat doit venir de hat/ ou open_hat/ (jamais un tom grave perc/ comme dnb_perc_ghost !)
                 hat_only = [
@@ -604,8 +613,8 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                 )
             elif slot_role in TONAL_SLOTS:
                 # Préférer un vrai clavier/piano/rhodes pour `chords`, un pad soutenu pour `pad`,
-                # et un instrument à attaque nette (guitare/pluck/piano) pour `lead`/`arp`
-                # (jamais un swell/reverse sur un lead ou un arpège rythmique !).
+                # et un instrument lead/tine/piano/guitare propre (jamais un swell/reverse ni loop chop)
+                # pour `lead`/`arp`.
                 def _tonal_rank(c: dict[str, Any]) -> tuple[int, float]:
                     fp_l = os.path.basename(str(c.get("filepath") or "")).lower()
                     cat_c = infer_sample_category(c.get("category"), c.get("filepath"))
@@ -629,23 +638,23 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                     elif "chord" in track_key or "key" in track_key or "piano" in track_key:
                         if is_swell_rev or is_loop_name:
                             pref = 4
-                        elif "rhodes" in fp_l:
+                        elif ("rhodes" in fp_l or "piano" in fp_l) and "lead" not in fp_l and "pizz" not in fp_l:
                             pref = 0
-                        elif "piano" in fp_l and "pizz" not in fp_l:
-                            pref = 1
                         elif cat_c in ("piano", "guitar"):
-                            pref = 2
+                            pref = 1
                         elif "pad" in fp_l:
-                            pref = 3
+                            pref = 2
                     elif any(k in track_key for k in ("lead", "arp", "counter", "melody")):
                         if is_swell_rev or is_loop_name:
                             pref = 4
-                        elif cat_c == "guitar" or "pizz" in fp_l:
-                            pref = 0
-                            # Séparation spectrale : préférer un lead légèrement plus clair (centroid >= 550 Hz)
-                            # pour ne pas chevaucher la bande critique des accords (320-520 Hz)
-                            sc = float(c.get("centroid_hz") or 500.0) / 2000.0 + float(c.get("comfort_score", 0.5)) * 0.5
-                            return (pref, -sc)
+                        elif "headroom_piano_lead" in fp_l or "lead" in fp_l or "tine" in fp_l or "pizz" in fp_l or cat_c == "guitar":
+                            # Éviter d'empiler 2 Rhodes (chords=rhodes + lead=rhodes -> 86 % lowmid) :
+                            # si un Rhodes est déjà utilisé par `chords`, préférer un vrai piano lead (500-2000 Hz)
+                            chords_has_rhodes = any("rhodes" in p for p in used_paths)
+                            if chords_has_rhodes and "rhodes" in fp_l:
+                                pref = 1
+                            else:
+                                pref = 0
                         elif cat_c == "piano" and "pad" not in fp_l and att <= 80.0:
                             pref = 1
                         elif ("pluck" in fp_l or cat_c == "synth") and "pad" not in fp_l and att <= 80.0:
@@ -658,7 +667,12 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                 pool_cands.sort(key=_tonal_rank)
 
             trk_notes = notes_by_track.get(track_key)
-            for c in pool_cands:
+            valid_cands: list[tuple[int, dict[str, Any]]] = []
+            try:
+                from bottom_up_analyzer import _audit_tonal_sample_waveform
+            except Exception:
+                _audit_tonal_sample_waveform = None
+            for idx_c, c in enumerate(pool_cands):
                 if c.get("source_type") not in ("sample", "project_sample"):
                     continue
                 rp = reroute_sample_path(c.get("filepath"))
@@ -672,6 +686,9 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                         continue
                     if trk_notes and not register_fit(c.get("midi_root"), trk_notes, c, role=slot_role)["ok"]:
                         continue
+                    # Garde audio directe sur la forme d'onde (bloque tout chop multi-notes)
+                    if _audit_tonal_sample_waveform is not None and _audit_tonal_sample_waveform(rp, slot_role):
+                        continue
                 if pleasantness_gate({
                     "r_harsh": c.get("r_harsh"), "roughness": c.get("roughness"),
                     "peak_harsh_db": c.get("peak_harsh_db"), "comfort_score": c.get("comfort_score"),
@@ -682,8 +699,27 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                     continue
                 copied = dict(c)
                 copied["filepath"] = rp
-                return copied
-            return None
+                if slot_role in TONAL_SLOTS:
+                    tier_k = _tonal_rank(c)[0]
+                elif track_key in ("perc", "rim"):
+                    tier_k = _perc_rank(c)[0] * 10 + _perc_rank(c)[1]
+                elif track_key in ("snare", "clap"):
+                    tier_k = _snare_rank(c)[0]
+                else:
+                    tier_k = 0
+                valid_cands.append((tier_k, copied))
+                if len(valid_cands) >= 4:
+                    break
+            if not valid_cands:
+                return None
+            # Diversité déterministe pilotée par le seed du morceau parmi les meilleurs candidats
+            # du même rang de préférence (évite que 2 morceaux distincts choisissent les mêmes sons)
+            best_tier = valid_cands[0][0]
+            top_same_tier = [vc[1] for vc in valid_cands if vc[0] == best_tier][:3]
+            if proj_seed and len(top_same_tier) > 1:
+                slot_h = int(hashlib.sha256(f"{proj_seed}:{track_key}:{slot_role}".encode("utf-8")).hexdigest()[:8], 16)
+                return top_same_tier[slot_h % len(top_same_tier)]
+            return top_same_tier[0]
 
         for tr in bp.get("tracks", []):
             role = str(tr.get("role") or "")
@@ -694,8 +730,9 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
             slot = role_to_slot.get(slot_role)
             chosen_slot = slot
 
-            # F6 : éviter le partage de fichier (ex. perc == hihat) et préférer `hat/` pour hihat, `perc/` pour perc
-            if key in ("perc", "rim", "hihat", "hat", "open_hat") and candidate_pool.get(slot_role):
+            # F6 + variété déterministe par seed : éviter le partage de fichier (perc != hihat)
+            # et varier proprement les kits (kick/snare/808/hats) entre 2 morceaux de seeds différents
+            if (key in ("perc", "rim", "hihat", "hat", "open_hat") or (proj_seed and key in ("kick", "snare", "clap", "bass", "808"))) and candidate_pool.get(slot_role):
                 alt_drum = _pick_unique_from_pool(slot_role, key)
                 if alt_drum is not None:
                     chosen_slot = alt_drum

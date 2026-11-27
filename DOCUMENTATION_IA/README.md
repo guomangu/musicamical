@@ -7,9 +7,9 @@ Seule lecture nécessaire pour produire un morceau (remplace les 5 docs dev [`do
 2. `studio_compose(project_dir, strudel_code, palette_id="auto", auto_master=true, auto_prepare=true)` → eval Node headless → `ScoreIR` → **vrais samples `samples/` en priorité absolue** (dérivés `±12 st` dans `derived_samples/`) → **boucle d'analyse ascendante 4 niveaux** (`bottom_up_analyzer.py` : **Sons → Accords → Pistes → Morceau**, 0 token) → master + `handoff.txt` (`palette=… samples=N/N`, `BU=PASS(4/4)`).
 3. Retouche : `studio_refine(project_dir, semantic_patch={"lead": {"oct": -1, "rests": "+15%"}})` ou `strudel_patch={"replace_track":"lead","code":"..."}`.
 
-## Contrat `composition.strudel` & exemple canonique (testé CI, 0 fix)
+## Contrat `composition.strudel` & exemple de syntaxe (NE PAS copier la mélodie/grille !)
 - En-tête 1 ligne : `// @meta 140 C:minor trap_rap V=0.0 form=I4-V8-C8-O4 [seed=1337] [ts=4/4]` ; durée : `bars = round(180 * bpm / 240)`.
-- Primitives seules (jamais de notes brutes `c2`, `f1`…) : `grid(...)`, `deg(..., oct)`, `bassline(..., {mode:"root|stepwise", glide:40})`, `kit("trap_half", {var:2, hats:"rolls"})`, `.in()`/`.only()`/`.muteIn()`.
+- **Originalité obligatoire** : varier tonalité (`D:minor`, `F:minor`, `G:minor`, `A:minor`, `Eb:minor`…), progression, BPM, `kit(...)` et motif Lead à chaque morceau. Primitives seules (jamais de notes brutes) : `grid(...)`, `deg(..., oct)`, `bassline(...)`, `kit(...)`, `.in()`/`.only()`/`.muteIn()`.
 
 ```js
 // @meta 140 C:minor trap_rap V=-0.6 form=I4-V8-C8-O4

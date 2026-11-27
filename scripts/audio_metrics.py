@@ -484,6 +484,7 @@ def analyze_pitch_and_purity(
     # 2. Frame-by-frame YIN pitch & stability
     med_f0: float | None = None
     f0_std_st = 0.0
+    frac_off_pitch = 0.0
     detected_note: str | None = None
     midi_root: int | None = None
     cents_offset: float | None = None
@@ -505,12 +506,16 @@ def analyze_pitch_and_purity(
             med_f0 = float(np.median(body_f0))
             med_f0 = _refine_f0_harmonic(sig, sr, med_f0)  # avoid inharmonic-partial lock (bells/FM)
             midi_vals = 69.0 + 12.0 * np.log2(np.maximum(body_f0, 1e-6) / 440.0)
-            # Robust pitch stability: fold YIN octave-tracking jumps (+-12 st in quiet decay tails)
-            # and use MAD (1.4826 * median|dev|) so single real plucks/pads/vocals aren't falsely
-            # flagged as melodic_sequence, while true multi-pitch melodies still show large MAD.
+            # Robust pitch stability: fold YIN octave-tracking jumps (+-12 st in quiet decay tails),
+            # then combine MAD (50th pct) AND P85 (85th pct) + fraction of off-pitch frames (>0.75 st).
+            # MAD alone has a 50% breakdown point and misses 2-note loop chops where a second note
+            # occupies 15-45% of the file (e.g. guitar_pluck_b3_440.wav: B3 then E2/D3 at 280 ms!).
             med_midi_body = float(np.median(midi_vals))
-            folded_devs = ((midi_vals - med_midi_body + 6.0) % 12.0) - 6.0
-            f0_std_st = round(float(1.4826 * np.median(np.abs(folded_devs))), 3)
+            abs_folded = np.abs(((midi_vals - med_midi_body + 6.0) % 12.0) - 6.0)
+            mad_st = float(1.4826 * np.median(abs_folded))
+            p85_st = float(np.percentile(abs_folded, 85)) if len(abs_folded) >= 4 else mad_st
+            frac_off_pitch = float(np.mean(abs_folded > 0.75))
+            f0_std_st = round(max(mad_st, p85_st), 3)
             # Snap exact FFT peak around med_f0 for sub-cent precision
             n_fft_hi = 65536
             s_body = min(len(sig) - 2048, int(skip_s * sr)) if dur_s > 0.30 else 0
@@ -646,8 +651,11 @@ def analyze_pitch_and_purity(
             pass
 
     # 6. Classify sample_nature & playable_chromatically
-    # Notice: if f0_std_st is super stable (<= 0.25 st) and polyphony_ratio < 0.42, extra onsets from slow reverb/tremolo are NOT a melodic sequence
-    is_melodic_seq = (f0_std_st > 0.75 and not is_low) or (onset_count >= 3 and f0_std_st > 0.35)
+    # Catch 2-note/multi-note loop chops via P85 (> 0.75 st) OR frac_off_pitch (> 14% frames > 0.75 st)
+    is_melodic_seq = (
+        ((f0_std_st > 0.75 or frac_off_pitch > 0.14) and not is_low)
+        or (onset_count >= 3 and f0_std_st > 0.35)
+    )
     is_chord = (chord_peak_count >= 2 and (polyphony_ratio >= 0.42 or chroma_strong >= 3)) or (med_f0 is None and chroma_strong >= 3)
     is_sustained_harmonic = bool(med_f0 is not None and dur_s >= 0.35 and r_harm >= 0.70 and (hnr_db is None or hnr_db >= 8.0))
     if is_perc_heavy or (not is_low and not is_sustained_harmonic and r_harm < 0.30 and (hnr_db is None or hnr_db < 4.5)):

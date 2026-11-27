@@ -39,7 +39,9 @@ Le fichier `<projet>/composition.strudel` est la **seule entrée composition** (
 | `.slow(N)` | ralentit ×N (voir table §5) | `.slow(2)`, `.slow(4)` |
 | `track(role, pat)`, `glide(ms)` | piste nommée / legato | rarement nécessaire |
 
-## 3. Exemple canonique — recopier tel quel (testé en CI : 0 correction de garde-fou **et** pre-flight gate PASS)
+## 3. Exemple de syntaxe (testé CI — **NE JAMAIS recopier la grille ni le motif tel quel !**)
+
+> **Anti-clonage créatif obligatoire** : cet exemple montre uniquement la *syntaxe* valide. Pour chaque nouveau morceau, **inventer une tonalité, un BPM, une progression d'accords, un kit (`boom_bap`, `trap_half`, `trap_full`, `drill`, `house`, `ambient`) et un motif Lead originaux** adaptés à la demande (ex. `F:minor` `Fm7 Dbmaj7 Bbm7 C7`, `D:minor` `Dm7 Bbmaj7 Gm7 A7`, `G:minor` `Gm7 Ebmaj7 Cm7 D7`, `A:minor` `Am7 Fmaj7 Dm7 E7`).
 
 ```js
 // @meta 140 C:minor trap_rap V=-0.6 form=I4-V8-C8-O4

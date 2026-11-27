@@ -1032,10 +1032,10 @@
       "pan": 0,
       "pitch": 0,
       "plugin": {
-        "data": "/home/gamo/Bureau/musicamical/samples/kick/kick_tight.wav",
+        "data": "/home/gamo/Bureau/musicamical/samples/kick/dt_-_farewell_(kick)_2_clean.wav",
         "params": [
           36,
-          -45,
+          -42,
           0.0010000000474974513,
           10,
           1,
@@ -1188,7 +1188,7 @@
       "pan": 0.2199999988079071,
       "pitch": 0,
       "plugin": {
-        "data": "/home/gamo/Bureau/musicamical/samples/hat/MZ Hi Hat [Fast].wav",
+        "data": "/home/gamo/Bureau/musicamical/samples/hat/hat_open_alt.wav",
         "params": [
           42,
           0,
@@ -1266,10 +1266,10 @@
       "pan": 0,
       "pitch": 0,
       "plugin": {
-        "data": "/home/gamo/Bureau/musicamical/samples/piano/rhodes_mk1_d4.wav",
+        "data": "/home/gamo/Bureau/musicamical/samples/piano/headroom_piano_c4.wav",
         "params": [
-          62,
-          -6,
+          60,
+          -5,
           0.0080000003799796104,
           10,
           1,
@@ -1344,7 +1344,7 @@
       "pan": 0,
       "pitch": 0,
       "plugin": {
-        "data": "/home/gamo/Bureau/musicamical/projects/rap_2min/derived_samples/808_5_sat_alt_oct36.wav",
+        "data": "/home/gamo/Bureau/musicamical/projects/rap_2min/derived_samples/808_deep_pnl_oct36.wav",
         "params": [
           36,
           -14,
@@ -1422,10 +1422,10 @@
       "pan": 0,
       "pitch": 0,
       "plugin": {
-        "data": "/home/gamo/Bureau/musicamical/samples/guitar/guitar_pluck_b3_440.wav",
+        "data": "/home/gamo/Bureau/musicamical/samples/piano/rhodes_tine_lead_f4.wav",
         "params": [
-          59,
-          -24,
+          65,
+          0,
           0.0060000000521540642,
           10,
           1,
@@ -2412,7 +2412,7 @@
           "to": 22
         },
         {
-          "level": 0.069700002670288086,
+          "level": 0.096000000834465027,
           "to": 23
         },
         {
@@ -2420,7 +2420,7 @@
           "to": 24
         },
         {
-          "level": 0.043600000441074371,
+          "level": 0.059999998658895493,
           "to": 25
         }
       ],

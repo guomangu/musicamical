@@ -66,6 +66,50 @@ def _build_catalog_index(catalog_path: str | None) -> dict[str, dict[str, Any]]:
     return idx
 
 
+def _audit_tonal_sample_waveform(filepath: str, slot: str) -> list[str]:
+    """Vérification directe sur le signal WAV d'un sample tonal (< 25 ms, 0 PyTorch) :
+    détecte les découpes multi-notes (P85 > 0.75 st ou >14 % de trames hors pitch,
+    ex. guitar_pluck_b3_440.wav : B3 puis saut E2/D3 à 280 ms), les fins coupées net
+    et les attaques brusques non-fondues."""
+    if slot == "bass_sub":
+        return []  # les 808 ont un pitch-drop d'attaque naturel
+    try:
+        import librosa
+        import numpy as np
+        import soundfile as sf
+
+        y, sr = sf.read(filepath, dtype="float32", always_2d=True)
+        m = y.mean(axis=1)
+        dur = len(m) / float(sr)
+        issues: list[str] = []
+        if dur < 0.28:
+            issues.append(f"too_short_tonal({dur:.2f}s)")
+        peak = float(np.max(np.abs(m))) + 1e-12
+        end_amp = float(np.max(np.abs(m[-min(64, len(m)) :]))) / peak
+        if end_amp > 0.18:
+            issues.append(f"abrupt_end_click(end={end_amp:.2f})")
+        if len(m) >= 2048:
+            max_len = min(len(m), int(4.0 * sr))
+            m_sl = m[:max_len]
+            f0 = librosa.yin(m_sl, fmin=65.0, fmax=2000.0, sr=sr, frame_length=2048, hop_length=256)
+            rms = librosa.feature.rms(y=m_sl, frame_length=2048, hop_length=256)[0]
+            vf0 = f0[(rms > float(np.max(rms)) * 0.15) & (f0 > 68.0) & (f0 < 1950.0)]
+            if len(vf0) >= 5:
+                # Ignorer les 45 premières ms de transitoire d'attaque
+                skip = min(len(vf0) // 3, int(0.045 * sr / 256))
+                body = vf0[skip:] if len(vf0[skip:]) >= 4 else vf0
+                midi_v = 69.0 + 12.0 * np.log2(np.maximum(body, 1e-6) / 440.0)
+                med = float(np.median(midi_v))
+                abs_folded = np.abs(((midi_v - med + 6.0) % 12.0) - 6.0)
+                p85 = float(np.percentile(abs_folded, 85))
+                frac_off = float(np.mean(abs_folded > 0.75))
+                if p85 > 0.75 or frac_off > 0.14:
+                    issues.append(f"unstable_or_multinote_pitch(p85={p85:.2f}st,off={frac_off*100:.0f}%)")
+        return issues
+    except Exception:
+        return []
+
+
 # ---------------------------------------------------------------------------
 # Niveau 1 — Analyse des SONS (du sample individuel vers le placement sur accords)
 # ---------------------------------------------------------------------------
@@ -183,6 +227,11 @@ def analyze_sounds_level(
                         if g["verdict"] == "SWAP":
                             info["status"] = "FAIL"
                             issues.append({"track": name, "code": "pleasantness_swap", "detail": g["reasons"]})
+                    wf_issues = _audit_tonal_sample_waveform(sp, slot)
+                    if wf_issues:
+                        info["status"] = "FAIL"
+                        info["waveform_issues"] = wf_issues
+                        issues.append({"track": name, "code": "tonal_waveform_defect", "detail": wf_issues})
         else:
             info["status"] = "WARN"
             issues.append({"track": name, "code": "synthetic_fallback", "detail": str(tr.get("plugin") or "")})
