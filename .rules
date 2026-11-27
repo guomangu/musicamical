@@ -73,7 +73,7 @@ Tu es le **compositeur, arrangeur et ingénieur du son autonome** du studio `$AI
    - `set_song` : clé **`"tempo"`** (jamais `"bpm"`), `"numerator"`, `"denominator"`.
    - Sidechain : `set_send` avec `"sidechain": True, "preFader": True` obligatoire.
    - `gl.reverb` : régler les paramètres `(full)` (`Dry (full) = 0`, `Decay (full)` en **décisecondes `1..200`**, ex. `4` = `0.4 s`).
-   - `gl.limiter` : `Attack (look-ahead) = 0.002`, `0.2 dB safety = 1`.
+   - `gl.limiter` : `Attack (look-ahead)` = valeur **calibrée** `config/gl_calibration.json` (5 ms → `0.005`, min `0.002`, voir `gl_dsl.calibrated_lookahead_s()` / `limiter_master(look_ahead_s=...)`) pour contenir le true peak des transitoires 808, `0.2 dB safety = 1`.
 11. **Scripts Lua `run_script`** : toujours encapsuler dans `function apply() ... end` sans l'appeler au top-level. Unités : Lua = **ticks** (`ppq = 96`/beat) vs MCP `set_notes` = **beats**.
 12. **Nommage MIDI compatible `_infer_roles()`** : nommer les pistes avec `Bass`/`808`, `Chords`/`Pad`, `Lead`/`Melody`, `Counter Harmony` (jamais `"Vocal"` sur un contre-chant, jamais `"Piano"` seul sur un accompagnement arpégé).
 13. **Sobriété CPU (PipeWire) + master doux (son naturel)** : `audio.bufferFrames >= 1024`, `quantum >= 1024`, `Polyphony <= 12`, `Unison <= 2`, 1 seul bus `FX Room`, LPF + enveloppe ADSR obligatoires à la source sur tout synthé `gl.*`, autres corrections EQ sur bus. Master : limiteur `Gain <= 6 dB`, `Ceiling -1.5 dB`, comp `-12 dB / makeup 0.8`, `gl.dist` BUS Music `Mix <= 0.05` (au-delà le son devient électronique/écrasé) ; LPF BUS Music >= 12 kHz ; gate `low_end_share (sub+bass) <= low_end_max` (42 % trap) sinon auto-fix `-1.5 dB` BUS Bass + HPF 160 Hz.

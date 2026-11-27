@@ -114,6 +114,25 @@ def tuning_invariants(explicit_path: str | None = None) -> dict[str, float]:
     }
 
 
+def summary_bands_pct(summary: dict[str, Any]) -> dict[str, float]:
+    """Extrait les parts de bandes spectrales (%) d'un summary `render_and_evaluate`.
+
+    Le summary expose `bands_pct` (dict plat {band: pct}); on retombe sur
+    `spectral_bands` imbriqué ({band: {"energy_pct": ...}}) pour les appels internes.
+    """
+    out: dict[str, float] = {}
+    for k, v in (summary.get("bands_pct") or {}).items():
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            out[str(k)] = float(v)
+    if not out:
+        for k, v in (summary.get("spectral_bands") or {}).items():
+            if isinstance(v, dict):
+                out[str(k)] = float(v.get("energy_pct", 0.0) or 0.0)
+            elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                out[str(k)] = float(v)
+    return out
+
+
 def resolve_limiter_params(
     ceiling_db: float | None,
     gain_db: float | None,

@@ -1703,6 +1703,10 @@ def _default_channels_for_plan(
             spec = ChannelSpec("Snare", role, idx, "drums", plugin="gl.snare", volume=0.68, fx_send=0.08)
         elif "clap" in rl:
             spec = ChannelSpec("Clap", role, idx, "drums", plugin="gl.clap", volume=0.64, fx_send=0.10)
+        elif "open" in rl and "hat" in rl:
+            # v4.3 fix — nom de canal UNIQUE : "open_hat" contenait "hat" et créait un 2e canal
+            # "HiHat" (nommage dupliqué qui casse `_infer_roles` et l'autofix par nom de piste)
+            spec = ChannelSpec("OpenHat", role, idx, "drums", plugin="gl.hat", volume=0.50, pan=0.30)
         elif "hat" in rl:
             spec = ChannelSpec("HiHat", role, idx, "drums", plugin="gl.hat", volume=0.52, pan=0.22)
         elif "perc" in rl or "rim" in rl:
