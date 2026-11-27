@@ -1,6 +1,6 @@
-# DOCUMENTATION_IA — Runbook Production v4.4 (2 documents, <= 750 tokens)
+# DOCUMENTATION_IA — Runbook Production v4.4 (<= 750 tokens)
 
-Seule lecture pour produire un morceau (remplace [`docs/`](../docs/00_SOMMAIRE.md)) : **2 documents** — ce `README.md` + [01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md](01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md) (architecture 8–10 pistes, phrasé Lead lent `_`, Strudel, façade 3 outils, qualité timbrale).
+Lecture prod (remplace [`docs/`](../docs/00_SOMMAIRE.md)) : ce `README.md` + [01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md](01_PRODUIRE_UN_MORCEAU_DE_QUALITE.md) (8–10 pistes, Lead lent `_`, Strudel, façade 3 outils, qualité timbrale).
 
 ## Flux (1 appel `auto_prepare=true`, ou 2 si B/C/D)
 1. `studio_prepare(project_dir, intent)` — **Scénarios B/C/D seuls** (`Samples/`, `remix`, `lyrics`). `project_dir="projects/<nom>"`.
@@ -9,7 +9,7 @@ Seule lecture pour produire un morceau (remplace [`docs/`](../docs/00_SOMMAIRE.m
 
 ## Contrat `composition.strudel` (8–10 pistes — varier tonalité, grille, BPM, motif !)
 - `// @meta 140 C:minor trap_rap V=-0.6 T=0.7 E=0.75 D=0.7 form=I4-V12-C8-V12-B4-C8-O4 [dur=120s] [intent="..."]`
-- `kit(...)` émet **5 pistes** (`kick` syncopé 2 mes., `snare`, `hihat` rolls ponctuels, `open_hat` refrain, `perc` — silencieux auto en intro/outro) + **4–5 tonales** (`$chords`, `$pad`, `$arp`, `$bass`, `$lead`) + `transition(...)`.
+- `kit(...)` émet **5 pistes** (`kick`, `snare`, `hihat` rolls, `open_hat`, `perc`) + **4–5 tonales** (`$chords`, `$pad`, `$arp`, `$bass`, `$lead`) + `transition(...)`.
 - **Lead lent & aéré** : `_` (tenue) + `.slow(4)` (`0.7–1.8 notes/s`, silences `35–68 %`, `>= 5` hauteurs) — **JAMAIS** de croches `.slow(2)` en boucle !
 
 ```js
@@ -24,9 +24,9 @@ $lead: deg("0 _ _ ~ 3 _ 2 ~ 0 _ ~ ~ 2 _ 4 _ 3 _ 2 _ 0 _ ~ ~", 4).slow(4).gain(0.
 ```
 
 ## 6 règles absolues
-1. `8–10 pistes atomiques` (`1 $ = 1 rôle`, 0 note brute) ; intro/outro harmoniques, refrain enrichi (`$open_hat`+`$pad`+`$lead`).
+1. `8–10 pistes atomiques` (`1 $ = 1 rôle`, 0 note brute) ; `$arp` = `counter_melody` discret (0 cloche inharmonique, jamais niveau Lead) ; intro/outro harmoniques.
 2. **Lead anti-mitraillette** : `_` + `.slow(4)`, `0.7–1.8 notes/s`, `rest ∈ [0.20, 0.72]`, `.only("chorus")` ou question-réponse.
-3. **Vrais samples `samples/`** (`palette_id="auto"`, `intent=` → `samples=N/N`, `BU=PASS(4/4)`, `safety=0err`).
+3. **Timbres naturels (`samples/` ou `gl.*` sculptés)** : éviter PWM/Saw ouverts (`song_builder` applique `cutoff_hz`/`LP 24`/`Chorus=0` même sur `preset`) ; `BU=PASS(4/4)`.
 4. MCP `ai-studio-prod` seul (3 outils, < 1 800 tokens) ; `project_dir="projects/<nom>"`.
 5. Pré-flight 0 rendu : `preflight_strudel_gate.py <projet>` (`gf>=0.60`, `sw>=0.65`, `lead_not_frantic=PASS`).
 6. Worker MCP éphémère : pas de redémarrage après `git pull`.

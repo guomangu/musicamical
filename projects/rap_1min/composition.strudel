@@ -1,5 +1,0 @@
-// @meta 144 C:minor trap_rap V=0.0 form=I4-V8-C8-B4-C8-O4 seed=2026
-kit("trap_half", {var: 2, hats: "rolls"})
-$chords: grid("Cm7 Abmaj7 Fm7 G7").slow(2).gain(0.7).muteIn("outro")
-$bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 40}).slow(4).in("verse,chorus,outro")
-$lead: deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~", 4).slow(2).gain(0.6).in("verse,chorus")

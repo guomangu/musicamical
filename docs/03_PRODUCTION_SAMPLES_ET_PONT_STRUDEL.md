@@ -360,9 +360,9 @@ inter-sections comptent dans `gap_fill`. Règles pour `gap_fill = 1.0` :
 1. Chaque motif commence et finit sur le **même degré** → diff de frontière = 0.
 2. Tout leap (|d| ≥ 5 st) doit être suivi d'un mouvement **contraire de 1 à 3 st**
    (`(d * next < 0) and (1 <= abs(next) <= 3)`).
-3. Pattern éprouvé (16 pas, `.slow(2)`, 2 rests) : `0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~` →
-   diffs +5, −2, −1, −1, +3, −2… le +5 est suivi de −2 ✓ (pre-flight : gf=1.0, sw=0.93, rest=0.42).
-   C'est le lead de l'exemple canonique de [`DOCUMENTATION_IA/README.md`](../DOCUMENTATION_IA/README.md).
+3. Pattern éprouvé (24 pas, `.slow(4)`, notes tenues `_` + silences `~`) : `deg("0 _ _ ~ 3 _ 2 ~ 0 _ ~ ~ 2 _ 4 _ 3 _ 2 _ 0 _ ~ ~", 4).slow(4)` →
+   notes chantantes `0.8–1.5 notes/s`, `rest ~0.35–0.55`, `lead_not_frantic = PASS`.
+   C'est le lead de l'exemple canonique de [`DOCUMENTATION_IA/README.md`](../DOCUMENTATION_IA/README.md) (éviter `.slow(2)` en croches continues).
 4. `rest_ratio` ∈ [0.20, 0.50] : ~2 `~` sur 16 éléments avec durées < step → ~0.23–0.42.
    Ne pas mettre de `.legato()` (allonge les notes, `rest_ratio` peut tomber sous 0.20).
 
@@ -384,13 +384,16 @@ le motif dans `composition.strudel` — jamais `arrangement_plan.json` à la mai
 
 | # | Piège | Symptôme | Fix |
 |---|---|---|---|
-| 1 | `V < -0.2` dans `@meta` | split de registre sombre plie le lead par octaves → leaps ±12 | Garder `V=0.0` |
+| 1 | `V < -0.2` avec octave-fold brutal | split de registre qui plie une note isolée → leaps ±12 | Résolu en v4.3+ : transposition par phrase entière préservant `gap_fill` (valences sombres libres) |
 | 2 | `sometimesBy(x>0, degradeBy)` sur lead/counter | clashes b2 bloquants au gate final | `sometimesBy(0.0, …)` ou supprimer sur le lead mélodique |
 | 3 | `.slow(32).fast(2)` ou `.legato(1.2)` | notes trop denses/allongées → `rest_ratio` < 0.20 | durées < step, ~2 rests/16 |
 | 4 | seq longue sans `.slow()` | notes de 1/64 de mesure | `.slow(8)` avec seq = 8×bars voulues |
 | 5 | base montante degrés 0→4 | deg 11 = 79 → clamp −12 → gap_fill 0.2–0.4 | base max 1, motif max deg 7 |
 | 6 | modifier `arrangement_plan.json` à la main | écrasé au prochain `--eval` | toujours éditer `composition.strudel` |
 | 7 | motif conçu sans penser à `fix_lead_b2_clashes` | ~500 notes réécrites, gap_fill détruit | pre-flight + degrés b2-safe (§4) |
+| 8 | `.slow(2)` sur `sectionGrid(...)` | accords tenus 8 temps alors que `harmonic_grid` avance toutes les 4 temps (clash harmonique) | ne jamais mettre `.slow(2)` sur `sectionGrid` ; répéter le symbole (`"Gm Gm Ebmaj7 Gm"`) |
+| 9 | `$arp` classé `lead` + cloche inharmonique | `Arp Z1/Z2` à `+6 dB` sur les accords avec partiels faux (`-237 ct`) | `"arp"` → `"counter_melody"` (`-9 dB`) et `inharmonic_bell_or_fx` interdit sur `arp`/`counter` |
+| 10 | `ch.preset` sur `gl.analog` (*PWM Strings* / *Velvet Pad*) | Pulse+Saw ouvert `LP 12 @ 3.2 kHz` + Chorus 50 % + Reverb 35 % → timbre électrique artificiel | `song_builder.py` honore `cutoff_hz`/`attack`/`release` + force `LP 24`, `Chorus=0`, `Reverb=0` sous `2.2 kHz` ; privilégier samples organiques (`DBD_HI STR_C_1`, `headroom_piano_c4`) |
 
 ## 9. Références rapides
 

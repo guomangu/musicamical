@@ -1,5 +1,0 @@
-// @meta 144 E:minor trap_rap V=-0.75 T=0.85 E=0.9 D=0.5 form=I4-V16-C8-V16-C8-B8-C8-O4 dur=120s seed=3003 intent="aggressive hard drill dark 808 slide punchy snare tense synth"
-kit("drill", {var: 3, hats: "rolls"})
-$chords: sectionGrid({default: "Em7 C Am7 Em7", chorus: "C Am7 Em7 Am7", bridge: "Am7 Em7 C Am7"}).slow(2).gain(0.65).muteIn("intro,outro")
-$bass: bassline("<1 ~ 1 ~>", {mode: "root", glide: 60}).slow(4).in("verse,chorus,bridge")
-$lead: deg("0 2 3 2 ~ 0 2 3 ~ 2 0 ~ 2 3 2 0", 4).slow(2).gain(0.62).lift("chorus", {energy: "+1.5dB"}).in("verse,chorus,bridge")

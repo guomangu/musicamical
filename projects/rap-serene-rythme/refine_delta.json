@@ -1,6 +1,0 @@
-{
-  "master_gain_db": 7.0,
-  "limiter_ceiling_dbtp": -1.0,
-  "eq_low_mids_cut_db": -3.0,
-  "eq_low_mids_freq_hz": 300
-}

@@ -1,9 +1,0 @@
-// @meta 96 C:minor trap_rap V=-0.15 form=I8-V16-C8-V16-C8-B8-O8 seed=202611
-$kick: s("<[bd ~ ~ bd ~ bd ~ ~] [bd ~ ~ bd ~ [bd ~] ~ bd] [bd ~ ~ bd ~ bd ~ ~] [bd ~ ~ bd ~ bd [~ bd] ~]>").in("verse,chorus")
-$snare: s("<[~ ~ cp ~ ~ ~ cp ~] [~ ~ cp ~ ~ ~ cp [~ cp]] [~ ~ cp ~ ~ ~ cp ~] [~ ~ cp ~ ~ [cp ~] cp ~]>").in("verse,chorus")
-$hihat: s("<[hh hh hh hh hh hh hh hh] [hh hh [hh hh] hh hh hh [hh hh] hh] [hh hh hh hh hh [hh hh] hh hh] [hh hh [hh hh] hh hh hh oh hh]>").gain(0.7).sometimesBy(0.18, x => x.degradeBy(0.4)).muteIn("outro")
-$perc: s("<[~ rim ~ ~ ~ ~ rim ~] [~ ~ ~ sh ~ rim ~ ~]>").gain(0.6).sometimesBy(0.2, x => x.degradeBy(0.4)).in("intro,verse,chorus,bridge")
-$chords: grid("Cm Ab Fm Gm Cm Ab Bb Gm").gain(0.65)
-$bass: bassline("1 ~ ~ 1 ~ 1 ~ ~ 1 ~ ~ 1 ~ ~ 1 ~ 1 ~ ~ 1 ~ 1 ~ ~ 1 ~ 1 ~ 1 ~ 1 ~ 1 ~ ~ 1 ~ 1 ~ ~ 1 ~ ~ 1 ~ ~ 1 ~ 1 ~ ~ 1 ~ 1 ~ ~ 1 ~ 1 ~ ~ 1 ~ ~", {mode: "root", glide: 35}).slow(8).gain(0.85).in("verse,chorus,bridge,outro")
-$lead: deg("0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~ 0 3 2 1 ~ 1 2 3 2 1 0 ~ 2 1 0 ~ 0 3 2 1 ~ 1 2 3 4 ~ 3 2 1 0 ~ 0 3 2 1 ~ 1 2 1 0 ~ 2 3 2 1 0 ~ ~", 4).slow(8).gain(0.65).in("verse,chorus")
-$counter: deg("0 ~ 3 2 1 ~ 2 1 0 ~ 3 2 1 ~ 0 ~", 4).slow(2).gain(0.45).in("chorus")

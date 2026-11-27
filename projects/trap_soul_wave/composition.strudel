@@ -1,5 +1,0 @@
-// @meta 124 E:minor trap_rap V=0.2 T=0.4 E=0.55 D=0.8 form=I4-V12-C8-V12-C8-B6-C8-O4 dur=120s seed=3033 intent="atmospheric soulful chill rhodes guitar pad trap"
-kit("trap_half", {var: 1, hats: "rolls"})
-$chords: sectionGrid({default: "Em7 C Am7 Em", bridge: "Am7 Em C Am7"}).slow(2).gain(0.68).muteIn("intro,outro")
-$bass: bassline("<1 ~ 1 ~ ~ 1 ~ 1>", {mode: "root", glide: 55}).slow(4).in("verse,chorus,outro")
-$lead: deg("0 2 3 2 ~ 0 3 2 0 ~ 2 3 2 0 0 ~", 4).slow(2).gain(0.62).in("verse,chorus")

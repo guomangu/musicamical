@@ -428,7 +428,7 @@ def add_transition_fx(
             filter_sweep(
                 automations,
                 mixer_idx=int(fx_mixer_idx),
-                slot_idx=1,
+                slot_idx=2 if int(fx_mixer_idx) in (21, 22) else 1,
                 start_beat=t_start,
                 end_beat=max(t_start + 0.25, t_end - 0.25),
                 start_hz=300.0,

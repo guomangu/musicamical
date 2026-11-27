@@ -807,6 +807,7 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                     is_rhodes = "rhodes" in fp_l
                     is_synth_pad = cat_c in ("synth", "pad") or any(w in fp_l for w in ("synth", "pad", "cloud", "hi str", "string", "pluck", "bell"))
                     is_bell_pluck = any(w in fp_l for w in ("bell", "pluck", "kalimba", "mallet", "chime"))
+                    is_inharmonic = str(c.get("sample_nature") or "") == "inharmonic_bell_or_fx" or float(c.get("inharmonicity") or 0.0) > 0.15
                     pref = 2
                     if slot_role == "bass_sub":
                         if wants_acoustic_bass:
@@ -891,7 +892,9 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                                 pref = 1 if wants_bell else 2
                             elif cat_c == "vocal" and not is_swell_rev:
                                 pref = 3
-                    bell_bonus = 0.14 if (wants_bell and any(w in fp_l for w in ("bell", "chime"))) else 0.0
+                    if is_inharmonic:
+                        pref = max(pref, 4)
+                    bell_bonus = 0.14 if (wants_bell and not is_inharmonic and any(w in fp_l for w in ("bell", "chime"))) else 0.0
                     str_bonus = 0.12 if (wants_strings and any(w in fp_l for w in ("hi str", "string", "pad", "cloud"))) else 0.0
                     sc = float(c.get("role_score", 0.5)) * 0.45 + float(c.get("comfort_score", 0.5)) * 0.30 + im + bell_bonus + str_bonus
                     return (pref, -sc)
@@ -923,13 +926,14 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                     # Garde audio directe sur la forme d'onde (bloque tout chop multi-notes)
                     if _audit_tonal_sample_waveform is not None and _audit_tonal_sample_waveform(rp, slot_role):
                         continue
+                gate_role = track_key if any(k in track_key for k in ("arp", "counter")) else slot_role
                 if pleasantness_gate({
                     "r_harsh": c.get("r_harsh"), "roughness": c.get("roughness"),
                     "peak_harsh_db": c.get("peak_harsh_db"), "comfort_score": c.get("comfort_score"),
                     "centroid_hz": c.get("centroid_hz"), "crest_factor_db": c.get("crest_factor_db"),
                     "sample_nature": c.get("sample_nature"), "category": c.get("category"),
                     "inharmonicity": c.get("inharmonicity"), "filepath": rp,
-                }, slot_role)["verdict"] == "SWAP":
+                }, gate_role)["verdict"] == "SWAP":
                     continue
                 copied = dict(c)
                 copied["filepath"] = rp
@@ -1004,6 +1008,7 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                     chosen_slot = None
                     rpath = None
 
+            gate_role_chosen = key if any(k in key for k in ("arp", "counter")) else str(chosen_slot.get("role") or slot_role)
             if (chosen_slot and chosen_slot.get("source_type") in ("sample", "project_sample") and rpath
                     and pleasantness_gate({
                         "r_harsh": chosen_slot.get("r_harsh"), "roughness": chosen_slot.get("roughness"),
@@ -1011,7 +1016,7 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                         "centroid_hz": chosen_slot.get("centroid_hz"), "crest_factor_db": chosen_slot.get("crest_factor_db"),
                         "sample_nature": chosen_slot.get("sample_nature"), "category": chosen_slot.get("category"),
                         "inharmonicity": chosen_slot.get("inharmonicity"), "filepath": rpath,
-                    }, str(chosen_slot.get("role") or slot_role))["verdict"] != "SWAP"):
+                    }, gate_role_chosen)["verdict"] != "SWAP"):
                 is_perc_track = role == "drums" or key in GM_DRUM or str(chosen_slot.get("role")) in PERC_SLOT_ROLES
                 if is_perc_track:
                     rn = notated.get(key) or GM_DRUM.get(key) or chosen_slot.get("midi_root")

@@ -662,11 +662,32 @@ def build_gridline_project(
                 patches.extend(spatches)
                 param_changes.extend(sparams)
             elif ch.preset:
-                # Preset factory chargé sur le canal : préserver son sound-design (oscillateurs,
-                # filtre, stéréo, enveloppe) — n'appliquer que l'EQ LPF d'insert si nécessaire !
-                if voice_cfg is not None and voice_cfg.needs_insert_lpf:
-                    auto_insert_eq_mixers.append(ch.mixer)
-                    auto_insert_lpf_params.extend(voice_cfg.to_insert_eq_tuples(ch.mixer, slot=1))
+                # Preset factory chargé sur le canal : préserver son timbre d'oscillateurs tout en
+                # honorant les overrides explicites de sculpture (cutoff_hz/lpf_hz, attack_ms,
+                # release_ms, glide_ms) pour éviter qu'un preset brillant (ex. 3.2 kHz LP12)
+                # sonne électrique/criard dans un morceau sombre.
+                if voice_cfg is not None:
+                    from gl_dsl import SYNTH_REGISTRY as _SYNTH_REG
+                    spec_p = _SYNTH_REG.get(ch.plugin)
+                    pp_ov = ch.plugin_params or {}
+                    has_cut_ov = (ch.lpf_hz is not None) or (ch.cutoff_hz is not None) or (pp_ov.get("cutoff_hz") is not None)
+                    if spec_p is not None:
+                        if has_cut_ov and spec_p.cutoff_param and spec_p.cutoff_param in voice_cfg.channel_params:
+                            param_changes.append((f"channel/{idx}/{spec_p.cutoff_param}", voice_cfg.channel_params[spec_p.cutoff_param]))
+                            if ch.plugin == "gl.analog" and float(voice_cfg.cutoff_hz) <= 2200.0:
+                                param_changes.append((f"channel/{idx}/Filter mode", 1))  # LP 24
+                                param_changes.append((f"channel/{idx}/Chorus", 0))
+                                param_changes.append((f"channel/{idx}/Reverb", 0))
+                        for ov_k, adsr_k in (("attack_ms", "attack"), ("release_ms", "release")):
+                            if pp_ov.get(ov_k) is not None and adsr_k in spec_p.adsr_params:
+                                pname_adsr = spec_p.adsr_params[adsr_k]
+                                if pname_adsr in voice_cfg.channel_params:
+                                    param_changes.append((f"channel/{idx}/{pname_adsr}", voice_cfg.channel_params[pname_adsr]))
+                        if pp_ov.get("glide_ms") is not None and spec_p.glide_param and spec_p.glide_param in voice_cfg.channel_params:
+                            param_changes.append((f"channel/{idx}/{spec_p.glide_param}", voice_cfg.channel_params[spec_p.glide_param]))
+                    if voice_cfg.needs_insert_lpf:
+                        auto_insert_eq_mixers.append(ch.mixer)
+                        auto_insert_lpf_params.extend(voice_cfg.to_insert_eq_tuples(ch.mixer, slot=1))
             elif voice_cfg is not None:
                 param_changes.extend(voice_cfg.to_channel_tuples(idx))
                 if voice_cfg.needs_insert_lpf:
@@ -728,6 +749,12 @@ def build_gridline_project(
             if m_auto not in existing_eq_set:
                 eq_mixers.append(m_auto)
                 existing_eq_set.add(m_auto)
+        for a in (automations or []):
+            if "mixer" in a and str(a.get("param", "")).startswith("Band "):
+                m_id = int(a["mixer"])
+                if m_id not in (0, 17, 18, 19, 20, 21, 22) and m_id not in existing_eq_set:
+                    eq_mixers.append(m_id)
+                    existing_eq_set.add(m_id)
         for p_str, val in auto_insert_lpf_params:
             m_id = int(p_str.split("/")[1])
             if m_id in existing_band7_mixers and "Band 7" in p_str:
@@ -837,7 +864,13 @@ def build_gridline_project(
         # Hygiène des automations : aucun clip plat (no-op), aucune collision (owner, index)
         auto_list, _auto_sanitize_report = sanitize_automations(auto_list)
         for a in auto_list:
-            mcp.call("add_automation", a)
+            try:
+                mcp.call("add_automation", a)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"add_automation failed for {a.get('name')!r} "
+                    f"(mixer={a.get('mixer')}, slot={a.get('slot')}, param={a.get('param')!r}): {exc}"
+                ) from exc
 
         issues = check_pattern_audibility(mcp, min_lufs=min_pattern_lufs)
         if issues:
@@ -1576,7 +1609,13 @@ def _expand_multizone_sampler_channels(
             z_ch.track_key = z_key
             z_ch.sample_file = str(desc["wav_path"])
             z_ch.root_note = int(desc["base_midi"])
-            z_ch.fine_tune = 0  # déjà accordé < 3 ct par build_multizone_samples
+            res_ct = desc.get("tuning_ct")
+            if abs(float(desc.get("shift_from_source_st", 0.0))) < 0.05:
+                z_ch.fine_tune = int(ch.fine_tune or 0)
+            elif res_ct is not None:
+                z_ch.fine_tune = int(max(-50, min(50, -round(float(res_ct)))))
+            else:
+                z_ch.fine_tune = 0
             zone_specs.append(z_ch)
             new_tracks[z_key] = z_evs
 

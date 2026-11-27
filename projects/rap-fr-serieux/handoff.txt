@@ -1,9 +1,0 @@
-HANDOFF v4 rap-fr-serieux
-strudel=composition.strudel#50838373d4 seed=42
-bridge_ok=True tracks=8 notes=1592
-sections=intro,verse,chorus,verse,chorus,bridge,chorus
-eval_passed=True compile_passed=True fc_passed=True
-guards={"bass_register_clamped":0,"lead_apex_clamped":0,"chords_revoiced":200,"mono_onset_dedup":8,"chord_symbols_expanded":272}
-score_ir=score_ir.json plan=arrangement_plan.json haps=composition.strudel.haps.json
-master=n/a (gridline absent ou auto_master off)
-next: studio_refine(delta_json=...) ou strudel_patch={{"replace_track":"lead","code":"..."}}

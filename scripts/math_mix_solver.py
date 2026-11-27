@@ -158,9 +158,15 @@ def _rbj_mag2(kind: str, f0: np.ndarray, gain_db: np.ndarray, q: float, z1: np.n
 def _role_of(name: str) -> str:
     low = str(name).lower()
     for r in ("kick", "snare", "hihat", "hat", "clap", "bass", "808", "sub", "chords", "pad",
-              "lead", "counter", "vocals", "fx", "perc"):
+              "arp", "counter", "lead", "vocals", "fx", "perc"):
         if r in low:
-            return "bass" if r in ("808", "sub") else ("hihat" if r in ("hat",) else r)
+            if r in ("808", "sub"):
+                return "bass"
+            if r == "hat":
+                return "hihat"
+            if r == "arp":
+                return "counter"
+            return r
     return "fx"
 
 
@@ -171,7 +177,7 @@ ROLE_ALIASES = {
     "kick": ("kick",),
     "snare": ("snare", "clap"),
     "hihat": ("hihat", "hat", "perc"),
-    "counter": ("counter",),
+    "counter": ("counter", "arp", "arpeggio"),
     "vocals": ("vocals", "vox"),
 }
 

@@ -233,10 +233,11 @@ def nature_verdict(role: str, sample_nature: str | None = None, inharmonicity: f
 
     is_bell_fx = (nat == "inharmonic_bell_or_fx") or (inh > BELL_INHARMONICITY_MAX)
     if is_bell_fx:
-        if slot in ("chord_keys", "pad_atmosphere", "bass_sub"):
-            return ("forbidden", -1.0, f"inharmonic_bell_or_fx interdit pour {slot} (inh={inh:.2f})")
+        raw_l = str(role or "").lower()
+        if slot in ("chord_keys", "pad_atmosphere", "bass_sub") or any(t in raw_l for t in ("arp", "counter")):
+            return ("forbidden", -1.0, f"inharmonic_bell_or_fx interdit pour {role} (inh={inh:.2f})")
         if slot == "lead_melody":
-            return ("discouraged", -0.30, f"inharmonic_bell_or_fx pénalisé sur {slot} (inh={inh:.2f})")
+            return ("discouraged", -0.75, f"inharmonic_bell_or_fx pénalisé sur {slot} (inh={inh:.2f})")
 
     if slot in TONAL_SLOTS and nat in ("poly_chord_or_dyad", "melodic_sequence", "ambient_bed", "percussion"):
         return ("forbidden", -1.0, f"nature={nat} interdite pour rôle tonal {slot}")

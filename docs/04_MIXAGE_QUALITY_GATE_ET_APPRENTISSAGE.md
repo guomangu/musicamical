@@ -245,6 +245,7 @@ règle de mix n'est affaiblie par le pont Strudel. Doc : [03_PRODUCTION_SAMPLES_
 * **Stéréo `BUS Music` hors phase** : `gl.stereo` calibré à `Width=1.15, Side=1.5` (`studio_lib.py` ; l'ancien `Width=2.0 / Side=+12 dB` provoquait une anti-phase `-0.34`).
 * **Boucle 140 BPM dans projet 142 BPM** → flam dès 2 mesures : verrou BPM `0.05` + stretch exact (`sample_prep_lib.py`).
 * **Vibrato ±12 ct lu comme désaccordé sur le master** → mesurer la justesse sur stems fondation `<= 6 ct`.
+* **Couplage ISP `gl.limiter` ↔ `LRA` en `trap_rap`** → à `Gain >= 12 dB`, `gl.limiter` peut laisser passer `~+1.3..+1.5 dB` de pics inter-échantillons au-dessus de `Ceiling` ; inversement, écraser `Ceiling` sous `-2.75 dB` avec un compresseur `Master` agressif effondre `LRA < 2.5 LU`. Recette vérifiée : écrêter proprement les transitoires sur `BUS Drums (17)` (`gl.comp` `Ratio ~ 2.6, Attack 8 ms`), garder `Master gl.comp` léger (`Ratio <= 1.5, Threshold ~ -11.5 dB`) et préserver le contraste `Chorus` vs `Bridge`/`Intro`.
 * **Chemins personnels absolus en dur** → test `tests/test_docs_hygiene.py` bloquant (0 occurrence de tout chemin personnel).
 
 ### 10.2 Journal des morceaux validés & benchmarks
@@ -259,6 +260,10 @@ règle de mix n'est affaiblie par le pont Strudel. Doc : [03_PRODUCTION_SAMPLES_
 | `scripts/render_and_audit.py` | `_tp_limit` absent dans `_apply_autofix_mutations` | Recalcul via `limiter_invariants()` + `get_invariant()` |
 | `scripts/strudel_to_score_ir.py` | `--seed 42` écrasait `seed` du `@meta` | `seed` = `meta.seed` ou SHA-256 du source |
 | `scripts/song_builder.py` & `prod_server.py` | `preset="Velvet Pad"` et `vibrato_delay_ms` transmis à `gl.sampler` | `spec.preset = ""`, purge `plugin_params` synthé lors du passage en sample |
+| `scripts/gain_staging_lib.py` & `math_mix_solver.py` | `"arp"` classé `"lead"` (`-1 dB`) ou `"fx"` au lieu de `"counter_melody"` (`-9 dB`), faisant hurler `Arp Z1/Z2` | Reclassement `"arp"`/`"arpeggio"` → `"counter_melody"` / `"counter"` |
+| `scripts/sample_fit_guard.py` & `prod_server.py` | Cloches FX `inharmonic_bell_or_fx` (`Tubular Bell 2` `-237 ct`, `Bell 2`) sélectionnées sur `arp`/`lead` | `inharmonic_bell_or_fx` interdit sur `arp`/`counter`, rétrogradé (`pref=4`, `bell_bonus=0`) dans `_tonal_rank` |
+| `scripts/song_builder.py` | Overrides `cutoff_hz`/`attack`/`release` ignorés si `ch.preset` défini (`gl.analog` bloqué à `3.2 kHz LP12` électrique) ; `fine_tune=0` en multizone | Application des overrides de sculpture + `LP 24`, `Chorus=0`, `Reverb=0` sous `2.2 kHz` même avec `preset` ; préservation de `tuning_ct`/`ch.fine_tune` en multizone `Z1/Z2` |
+| `scripts/transitions_lib.py` & `song_builder.py` | `Riser Cutoff` sur `mixer=21/22` ciblant `slot=1` (`gl.delay`/`gl.reverb`) au lieu de `gl.eq` (`slot=2`), et insert sans `gl.eq` en automation `Band` | Ciblage `slot=2` sur bus `21/22` et ajout auto de `gl.eq` sur les inserts ciblés par automation EQ |
 
 ### 10.4 Formules & réglages opérationnels utiles
 * **Durée visée ~3 min** : `bars = round(180 * bpm / 240)` (90 BPM → 68 mes. ≈ 3 min 02 s ; 136 BPM → 68 mes. = 2 min 00 s).

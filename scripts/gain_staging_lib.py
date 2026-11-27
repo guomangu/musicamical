@@ -179,7 +179,7 @@ def normalize_role_for_gain_staging(name_or_role: str) -> str:
 
     if any(k in raw for k in ("vocal", "vox", "chant", "sing", "voice")):
         return "vocals"
-    if any(k in raw for k in ("counter", "contre")):
+    if any(k in raw for k in ("counter", "contre", "arp")):
         return "counter_melody"
     if any(k in raw for k in ("kick", "bd", "kicksculpt")):
         return "kick"
@@ -191,7 +191,7 @@ def normalize_role_for_gain_staging(name_or_role: str) -> str:
         return "hihat_perc"
     if any(k in raw for k in ("ear_candy", "candy", "riser", "impact", "sweep", "noise", "foley")) or raw == "fx":
         return "ear_candy_fx"
-    if any(k in raw for k in ("lead", "melody", "topline", "solo", "pluck", "bell", "arp")):
+    if any(k in raw for k in ("lead", "melody", "topline", "solo", "pluck", "bell")):
         return "lead"
     if any(k in raw for k in ("chord", "pad", "keys", "piano", "organ", "rhodes", "string", "harmony", "bed", "guitar")):
         return "chords_pad"
