@@ -183,3 +183,48 @@ def autofix_step_bounds(explicit_path: str | None = None) -> dict[str, float]:
         "max_step_db": float(get_invariant("autofix_max_step_db", 4.0, explicit_path)),
         "max_cumulative_db": float(get_invariant("autofix_max_cumulative_db", 8.0, explicit_path)),
     }
+
+
+def sample_guard_invariants(explicit_path: str | None = None) -> dict[str, Any]:
+    """v4.3 (chantier D3) — section `sample_guard_invariants` : plafonds de transposition
+    single-zone vs multi-zone/dérivé, LPF du `gl.sampler` par rôle, plafonds de crest."""
+    return load_mix_config(explicit_path).get("sample_guard_invariants", {}) or {}
+
+
+def max_semitone_shift_single_zone(role: str, explicit_path: str | None = None) -> int:
+    caps = sample_guard_invariants(explicit_path).get("max_semitone_shift_single_zone", {}) or {}
+    return int(caps.get(role, 7))
+
+
+def max_semitone_shift_multizone(role: str, explicit_path: str | None = None) -> int:
+    caps = sample_guard_invariants(explicit_path).get("max_semitone_shift_multizone_or_derived", {}) or {}
+    return int(caps.get(role, 10))
+
+
+def sampler_lpf_hz(role: str, explicit_path: str | None = None) -> float | None:
+    """v4.3 — LPF du `gl.sampler` par rôle (plancher harmonie 6.5 kHz ; SSOT exclusif)."""
+    floors = sample_guard_invariants(explicit_path).get("sampler_lpf_hz", {}) or {}
+    r = (role or "").lower()
+    for key in (r, "chords" if r in ("keys", "chord", "piano") else None,
+                "pad" if r in ("string", "strings", "atmosphere") else None,
+                "lead" if r in ("melody", "pluck", "arp", "arpeggio", "counter") else None):
+        if key and key in floors:
+            return float(floors[key])
+    return None
+
+
+def crest_max_db(role: str, explicit_path: str | None = None) -> float | None:
+    caps = (sample_guard_invariants(explicit_path).get("pleasantness_caps", {}) or {}).get("crest_max_db", {}) or {}
+    return float(caps[role]) if role in caps else None
+
+
+def palette_scoring_weights(explicit_path: str | None = None) -> dict[str, float]:
+    """v4.3 (chantier D1) — pondérations du score composite de palette S(p)."""
+    w = load_mix_config(explicit_path).get("palette_scoring_weights", {}) or {}
+    return {
+        "alpha": float(w.get("alpha_intent", 0.45)),
+        "beta": float(w.get("beta_coherence", 0.35)),
+        "gamma": float(w.get("gamma_coverage", 0.20)),
+        "lambda": float(w.get("lambda_fallback_penalty", 0.25)),
+        "coverage_saturation": float(w.get("coverage_saturation", 0.85)),
+    }

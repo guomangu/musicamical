@@ -1,6 +1,42 @@
 {
-  "schema_version": "3.0",
-  "description": "Source unique de verite pour toutes les constantes de mixage et seuils (v3.0). Lu par studio_lib, gl_dsl, render_and_audit, deep_diagnostics, gain_staging_lib via scripts/mix_config.py.",
+  "schema_version": "4.3",
+  "description": "Source unique de verite pour toutes les constantes de mixage et seuils (v3.0, etendu v4.3 : sample_guard_invariants + palette_scoring_weights). Lu par studio_lib, gl_dsl, render_and_audit, deep_diagnostics, gain_staging_lib, blueprint_safety, sample_fit_guard, timbre_pleasantness, song_builder, palette_builder via scripts/mix_config.py.",
+  "sample_guard_invariants": {
+    "max_semitone_shift_single_zone": {
+      "bass_sub": 7,
+      "chord_keys": 7,
+      "pad_atmosphere": 7,
+      "lead_melody": 7
+    },
+    "max_semitone_shift_multizone_or_derived": {
+      "bass_sub": 9,
+      "chord_keys": 10,
+      "pad_atmosphere": 10,
+      "lead_melody": 9
+    },
+    "sampler_lpf_hz": {
+      "pad": 6500,
+      "chords": 6800,
+      "lead": 9500,
+      "arp": 9500
+    },
+    "pleasantness_caps": {
+      "crest_max_db": {
+        "lead_melody": 19.5,
+        "chord_keys": 19.5,
+        "pad_atmosphere": 14.5,
+        "bass_sub": 15.0
+      }
+    }
+  },
+  "palette_scoring_weights": {
+    "alpha_intent": 0.45,
+    "beta_coherence": 0.35,
+    "gamma_coverage": 0.20,
+    "lambda_fallback_penalty": 0.25,
+    "coverage_saturation": 0.85,
+    "description": "Score composite S(p) = a*S_intent + b*S_coherence + g*S_coverage - l*P_fallback (v4.3, chantier D1). Si intent est vide, alpha est transfere sur beta."
+  },
   "global_invariants": {
     "master_limiter_ceiling_dbtp": -1.2,
     "master_limiter_max_gain_db": 5.5,

@@ -108,6 +108,7 @@ def format_prepare_compact(prep: dict[str, Any]) -> str:
     lines.append(
         f"CTX: {prep.get('mix_profile', '?')} | {prep.get('bpm', '?')}bpm | {prep.get('key', '?')} | "
         f"V={valence} | lock={bool(prep.get('user_samples_locked'))}"
+        + (" | clap=OFF(dsp_fallback)" if prep.get("clap_off") else "")
     )
     lines.append("PALETTES:")
     for i, p in enumerate((prep.get("palettes") or [])[:3], 1):
@@ -236,6 +237,8 @@ def _palette_line(report: dict[str, Any]) -> str:
         line += f" FALLBACK_GATE={pal['fallback_gate']} ({names})"
     if pal.get("theme"):
         line += f" theme={pal.get('theme')}"
+    if pal.get("clap_off"):
+        line += " clap=OFF(dsp_fallback)"
     if pal.get("error"):
         line += f" err={str(pal['error'])[:60]}"
     return line
@@ -244,6 +247,50 @@ def _palette_line(report: dict[str, Any]) -> str:
 def _run_bridge(proj: str, bars: int = 0, seed: int = 0) -> dict[str, Any]:
     import strudel_to_score_ir as bridge
     return bridge.strudel_to_score_ir(proj, run_eval=True, bars=bars, seed=seed)
+
+
+def _run_preview(proj: str) -> dict[str, Any]:
+    """v4.3 (D7) — rendu `preview` rapide : sonde composite 12 mesures (`compile_song.py
+    --probe`) rendue si Gridline est présent, puis montage 24 s
+    `renders/preview_highlights.wav` (3 x 8 s, crossfade 150 ms) depuis le master ou la sonde.
+    Ne rend JAMAIS le morceau complet."""
+    out: dict[str, Any] = {"ok": False, "mode": "preview"}
+    try:
+        compile_song = os.path.join(SCRIPTS, "compile_song.py")
+        proc = subprocess.run([sys.executable, compile_song, proj, "--probe", "--no-validate-full"],
+                              capture_output=True, text=True, timeout=900)
+        try:
+            crep = json.loads(proc.stdout)
+            out["compile_probe"] = {"ok": crep.get("ok"), "stage": crep.get("stage"), "out": crep.get("out")}
+        except Exception:
+            out["compile_probe"] = {"ok": proc.returncode == 0, "rc": proc.returncode, "stderr_tail": proc.stderr[-200:]}
+        renders_dir = os.path.join(proj, "renders")
+        os.makedirs(renders_dir, exist_ok=True)
+        source_wav = None
+        probe_gridline = os.path.join(proj, "core_probe.gridline")
+        if shutil.which("gridline") and os.path.isfile(probe_gridline) and out["compile_probe"].get("ok"):
+            ra = os.path.join(SCRIPTS, "render_and_audit.py")
+            probe_wav = os.path.join(renders_dir, "preview_probe.wav")
+            rproc = subprocess.run([sys.executable, ra, probe_gridline, "-o", probe_wav, "--no-neural"],
+                                   capture_output=True, text=True, timeout=600)
+            if rproc.returncode == 0 and os.path.isfile(probe_wav):
+                source_wav = probe_wav
+                out["preview_probe"] = probe_wav
+        master_wav = os.path.join(renders_dir, "master.wav")
+        if os.path.isfile(master_wav):
+            source_wav = master_wav
+        if source_wav is not None:
+            from preview_lib import build_preview_highlights
+            prev = build_preview_highlights(source_wav, os.path.join(renders_dir, "preview_highlights.wav"))
+            out.update(prev)
+            out["ok"] = bool(prev.get("ok"))
+            out["source_wav"] = source_wav
+        else:
+            out["ok"] = bool(out["compile_probe"].get("ok"))
+            out["note"] = "gridline absent : preview = sonde symbolique 12 mesures uniquement (0 rendu audio)"
+    except Exception as exc:
+        out["error"] = str(exc)[:200]
+    return out
 
 
 ROLE_PLUGIN = {
@@ -407,13 +454,21 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
     valence = float(meta.get("valence") or 0.0)
     sections = meta.get("sections") or [{"name": "song", "bars": 16}]
     structure = blueprint_structure(sections)
+    # v4.3 (D2) : V/T/E/D optionnels dans @meta alimentent fidèlement emotion_vector
+    ev = {
+        "valence": valence,
+        "tension": float(meta.get("tension", 0.5)),
+        "energy": float(meta.get("energy", 0.7)),
+        "depth": float(meta.get("depth", 0.5)),
+    }
     bp = {
         "title": os.path.basename(proj),
         "genre": str(meta.get("mix_profile") or "trap_rap"),
         "mix_profile": str(meta.get("mix_profile") or "trap_rap"),
         "has_drums": any(classify_role(n) == "drums" for n in (haps.get("tracks") or {})),
         "seed": int(meta.get("seed") or 42),
-        "emotion_vector": {"valence": valence, "tension": 0.5, "energy": 0.7, "depth": 0.5},
+        "emotion_vector": ev,
+        "intent": str(meta.get("intent") or ""),
         "bpm": float(meta.get("bpm") or 120.0),
         "time_signature": {"numerator": int((meta.get("time_signature") or {}).get("numerator") or 4),
                            "denominator": int((meta.get("time_signature") or {}).get("denominator") or 4)},
@@ -426,6 +481,23 @@ def _ensure_blueprint(proj: str, report: dict[str, Any]) -> dict[str, Any]:
         "structure": structure,
         "tracks": tracks,
     }
+    # v4.3 (D5) : sectionGrid(...) -> harmonic_core.section_progressions (NarrativeHarmony)
+    narr = haps.get("narrative") or {}
+    sec_grids = narr.get("section_grids") or {}
+    if sec_grids:
+        from strudel_to_score_ir import symbol_to_roman, parse_key_tonic_pc, _SECTION_KIND_MAP
+        tonic_pc = parse_key_tonic_pc(str(meta.get("key") or "C")) or 0
+        prog_by_kind: dict[str, list[str]] = {}
+        for sname, syms in sec_grids.items():
+            if str(sname).lower() == "default" or not syms:
+                continue
+            low = str(sname).lower().replace("-", "_").replace(" ", "_")
+            kind = _SECTION_KIND_MAP.get(low)
+            if kind is None:
+                kind = "chorus" if any(k in low for k in ("chorus", "refrain", "drop", "climax", "hook")) else "verse"
+            prog_by_kind[kind] = [symbol_to_roman(str(s), tonic_pc) if s else "i" for s in syms]
+        if prog_by_kind:
+            bp["harmonic_core"]["section_progressions"] = prog_by_kind
     import jsonschema
     with open(os.path.join(ROOT, "schemas", "song_blueprint.schema.json"), encoding="utf-8") as fh:
         jsonschema.validate(bp, json.load(fh))  # échec = bug : le blueprint auto doit être valide
@@ -444,9 +516,13 @@ _SLOT_FOR = {"kick": "kick", "snare": "snare_clap", "clap": "snare_clap", "hihat
              "fx": "fx"}
 
 
-def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
+def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
+                     palette_strategy: str = "semantic") -> dict:
     """v4.2 — branche les VRAIS samples de l'index sur les pistes du blueprint, quel que soit
     `palette_id` ("auto" = meilleure palette ; sinon la palette demandée, repli meilleure).
+    v4.3 (D1) : `intent` (paramètre ou `@meta intent="..."`) pilote le score composite
+    S(p) = α·S_intent + β·S_cohérence + γ·S_couverture − λ·P_fallback de `palette_builder` ;
+    sans intent, la sélection retombe sur « max samples » + score (comportement v4.2).
     - Scénario B (dossier `Samples/`/`samples/` projet ou `PROJECT_SAMPLES_DIR`) : verrouillé.
     - Scénario A (aucun dossier projet) : interroge `samples.db` (global) sans verrouiller
       faussement la banque racine, avec repli `<racine>/samples` si la DB est vide.
@@ -521,6 +597,8 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
             bpm=float(bp.get("bpm") or 0) or None,
             note_ranges=note_ranges or None,
             include_pool=True,
+            intent=str(intent or bp.get("intent") or ""),
+            palette_strategy=str(palette_strategy or "semantic"),
         )
         if proj_samples is not None:
             res = propose_palettes(project_samples_dir=proj_samples, user_samples_locked=user_locked, **common_kw)
@@ -553,6 +631,10 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
                        if s.get("source_type") in ("sample", "project_sample") and s.get("filepath"))
 
         def _rank(p: dict) -> tuple:
+            # v4.3 (D1) : avec intent, le score composite (qui inclut déjà la couverture
+            # samples saturante à 85 %) prime ; sinon on garde « max samples » (v4.2).
+            if intent or bp.get("intent"):
+                return (float(p.get("score") or 0.0), _n_samples(p))
             return (_n_samples(p), float(p.get("score") or 0.0))
 
         if palette_id and palette_id != "auto":
@@ -893,6 +975,11 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
             "palette_id": chosen.get("palette_id"),
             "score": chosen.get("score"),
             "quality_score": chosen.get("quality_score", chosen.get("score")),
+            "composite_score": chosen.get("composite_score"),
+            "intent_score": chosen.get("intent_score"),
+            "intent": str(intent or bp.get("intent") or ""),
+            "clap_coverage": res.get("clap_coverage"),
+            "clap_off": bool(res.get("clap_off")),
             "sample_ratio": chosen.get("sample_ratio"),
             "theme": chosen.get("theme"),
             "n_samples": n_samples,
@@ -910,6 +997,9 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
         out.update({
             "resolved": True,
             "palette_id": chosen.get("palette_id"),
+            "intent": str(intent or bp.get("intent") or ""),
+            "clap_coverage": res.get("clap_coverage"),
+            "clap_off": bool(res.get("clap_off")),
             "n_samples": n_samples,
             "n_tracks_with_available_samples": gate_res["n_tracks_with_available_samples"],
             "sample_coverage_ratio": gate_res["sample_coverage_ratio"],
@@ -926,12 +1016,16 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str) -> dict:
 
 
 def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto",
+                    intent: str = "", palette_strategy: str = "semantic",
                     auto_master: bool = True, auto_prepare: bool = False,
+                    render_mode: str = "full",
                     remix_source_path: str | None = None, lyrics_spec: dict | None = None) -> dict[str, Any]:
     """Tour 2 atomique : écrit composition.strudel, évalue (Node headless), compile le pont
     (ScoreIR + garde-fous 0 token), puis enchaîne compile_song + master si auto_master.
     v4.1 : `auto_prepare=True` (Scénario A sans Samples/) résout localement (0 token) un blueprint
-    valide ; `remix_source_path` (Scénario C) / `lyrics_spec` (Scénario D) sont consignés dans le blueprint."""
+    valide ; `remix_source_path` (Scénario C) / `lyrics_spec` (Scénario D) sont consignés dans le blueprint.
+    v4.3 : `intent` (ou `@meta intent="..."`) pilote la sélection sémantique de palette (D1) ;
+    `render_mode="preview"` valide 100 % du symbolique mais ne rend qu'une sonde/preview (D7)."""
     proj = _resolve_project_dir(project_dir)
     os.makedirs(proj, exist_ok=True)
     strudel_path = os.path.join(proj, "composition.strudel")
@@ -955,10 +1049,21 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
     report["palette_id"] = palette_id
     if _server_stale():
         report["stale_server"] = True  # code changé depuis le démarrage du serveur MCP (git pull)
+    # v4.3 (D1) : intent déclaré dans l'en-tête @meta (repli déclaratif si l'agent concentre
+    # tout dans le code Strudel) : `// @meta 136 C:minor trap_rap V=-0.5 intent="dark hypnotic ..."`
+    resolved_intent = str(intent or "")
+    if not resolved_intent:
+        try:
+            with open(os.path.join(proj, "composition.strudel.haps.json"), encoding="utf-8") as fh:
+                resolved_intent = str((json.load(fh).get("meta") or {}).get("intent") or "")
+        except Exception:
+            resolved_intent = ""
+    report["intent"] = resolved_intent
     bp = _ensure_blueprint(proj, report)
     # v4.1 : résolution de palette SYSTÉMATIQUE — branche les vrais samples de l'index
     # (samples.db + Samples/ projet) sur les pistes, quel que soit palette_id ("auto" = meilleure)
-    report["palette"] = _resolve_palette(proj, bp, palette_id)
+    report["palette"] = _resolve_palette(proj, bp, palette_id, intent=resolved_intent,
+                                         palette_strategy=palette_strategy)
     if isinstance(report["palette"], dict):
         if report["palette"].get("sound_guard"):
             report["sound_guard"] = report["palette"]["sound_guard"]
@@ -996,6 +1101,17 @@ def compose_project(project_dir: str, strudel_code: str, palette_id: str = "auto
         pass
 
     master = None
+    render_mode = str(render_mode or "full")
+    report["render_mode"] = render_mode
+    if render_mode == "preview" and report.get("ok"):
+        # v4.3 (D7) : mode preview rapide — validation symbolique/timbrale 100 % à coût nul,
+        # puis sonde composite 12 mesures (compile_song --probe) et montage 24 s
+        # (preview_lib.build_preview_highlights) au lieu du rendu complet 2-3 min.
+        report["preview"] = _run_preview(proj)
+        if report["preview"].get("ok"):
+            report["master"] = None
+            report["handoff"] = write_handoff(proj, report)
+            return report
     if auto_master and report.get("ok"):
         compile_song = os.path.join(SCRIPTS, "compile_song.py")
         proc = subprocess.run([sys.executable, compile_song, proj], capture_output=True, text=True, timeout=900)
@@ -1172,10 +1288,42 @@ def _summarize(report: dict[str, Any], limit: int = 400) -> str:
     return " | ".join(parts)[:limit]
 
 
-@_tool()
-def studio_prepare(project_dir: str, intent: str = "", refs: list[str] | None = None,
-                   remix: str | None = None, lyrics: dict | None = None) -> str:
-    """Tour 1 : contexte + 3 palettes (format tabulaire <=450 cars)."""
+def _worker_python() -> str:
+    venv_py = os.path.join(ROOT, ".venv", "bin", "python")
+    if os.path.isfile(venv_py):
+        return venv_py
+    return sys.executable or "python3"
+
+
+def _run_worker(action: str, payload: dict[str, Any], timeout_s: float = 3600.0) -> dict[str, Any] | None:
+    """v4.3 (chantier D6 — hot-execution MCP) : exécute l'action dans un worker subprocess
+    éphémère (`prod_worker.py`) qui importe le code EXACTEMENT présent sur disque à chaque
+    appel → plus de `RESTART session agent` après un `git pull` / `install.sh` (sauf si la
+    signature des 3 outils change). Retourne le dict JSON de stdout, ou None si le worker
+    échoue (l'appelant retombe en in-process). Désactivable : AI_STUDIO_WORKER=0."""
+    if os.environ.get("AI_STUDIO_WORKER", "1").strip().lower() in ("0", "false", "no", "off"):
+        return None
+    worker = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prod_worker.py")
+    if not os.path.isfile(worker):
+        return None
+    try:
+        proc = subprocess.run([_worker_python(), worker],
+                              input=json.dumps({"action": action, "payload": payload}, default=str),
+                              capture_output=True, text=True, timeout=timeout_s)
+        lines = [ln for ln in (proc.stdout or "").strip().splitlines() if ln.strip()]
+        if not lines:
+            return None
+        res = json.loads(lines[-1])
+        if isinstance(res, dict) and "ok" in res:
+            return res
+    except Exception:
+        return None
+    return None
+
+
+def prepare_project(project_dir: str, intent: str = "", refs: list[str] | None = None,
+                    remix: str | None = None, lyrics: dict | None = None) -> str:
+    """Logique métier in-process de `studio_prepare` (aussi appelée par le worker D6)."""
     from audio_analyzer_server import studio_prepare_session
     proj = _resolve_project_dir(project_dir)
     raw = studio_prepare_session(proj, intent, reference_paths=refs,
@@ -1188,14 +1336,38 @@ def studio_prepare(project_dir: str, intent: str = "", refs: list[str] | None = 
 
 
 @_tool()
+def studio_prepare(project_dir: str, intent: str = "", refs: list[str] | None = None,
+                   remix: str | None = None, lyrics: dict | None = None) -> str:
+    """Tour 1 : contexte + 3 palettes (format tabulaire <=450 cars)."""
+    w = _run_worker("prepare", {"project_dir": project_dir, "intent": intent, "refs": refs,
+                                "remix": remix, "lyrics": lyrics}, timeout_s=300.0)
+    if w is not None and w.get("ok"):
+        return str(w.get("result") or "")[:PREPARE_LIMIT]
+    return prepare_project(project_dir, intent=intent, refs=refs, remix=remix, lyrics=lyrics)
+
+
+@_tool()
 def studio_compose(project_dir: str, strudel_code: str, palette_id: str = "auto",
+                   intent: str = "", palette_strategy: str = "semantic",
                    auto_master: bool = True, auto_prepare: bool = False,
+                   render_mode: str = "full",
                    remix_source_path: str | None = None, lyrics_spec: dict | None = None) -> str:
     """Tour 2 atomique : strudel -> ScoreIR + garde-fous 0 token -> blueprint valide (auto_prepare,
-    0 token, Scénario A) -> master. Scénarios C/D : remix_source_path / lyrics_spec consignés dans
-    le blueprint. Retour compact <=400 cars."""
-    report = compose_project(project_dir, strudel_code, palette_id=palette_id, auto_master=auto_master,
-                             auto_prepare=auto_prepare, remix_source_path=remix_source_path, lyrics_spec=lyrics_spec)
+    0 token, Scénario A) -> master. `intent=` (ou @meta intent="...") = sélection sémantique de
+    palette ; `render_mode="preview"` = validation complète + sonde 12 mesures sans rendu full.
+    Scénarios C/D : remix_source_path / lyrics_spec consignés dans le blueprint. Retour <=400 cars."""
+    w = _run_worker("compose", {"project_dir": project_dir, "strudel_code": strudel_code,
+                                "palette_id": palette_id, "intent": intent,
+                                "palette_strategy": palette_strategy, "auto_master": auto_master,
+                                "auto_prepare": auto_prepare, "render_mode": render_mode,
+                                "remix_source_path": remix_source_path, "lyrics_spec": lyrics_spec},
+                    timeout_s=3600.0)
+    if w is not None and w.get("ok"):
+        return str(w.get("result") or "")[:400]
+    report = compose_project(project_dir, strudel_code, palette_id=palette_id, intent=intent,
+                             palette_strategy=palette_strategy, auto_master=auto_master,
+                             auto_prepare=auto_prepare, render_mode=render_mode,
+                             remix_source_path=remix_source_path, lyrics_spec=lyrics_spec)
     return _summarize(report)
 
 
@@ -1205,6 +1377,11 @@ def studio_refine(project_dir: str, delta_json: dict | None = None, strudel_patc
     """Tour 3b : delta_json (mix), strudel_patch {replace_track, code}, ou semantic_patch
     {"lead": {"oct": -1, "rests": "+15%"}} / {"section": "chorus", "ops": {"energy": "+2dB"}} (20-40 tokens).
     Retour compact <=400 cars + handoff.txt."""
+    w = _run_worker("refine", {"project_dir": project_dir, "delta_json": delta_json,
+                               "strudel_patch": strudel_patch, "semantic_patch": semantic_patch,
+                               "export_mp3": export_mp3}, timeout_s=3600.0)
+    if w is not None and w.get("ok"):
+        return str(w.get("result") or "")[:400]
     report = refine_project(project_dir, delta_json=delta_json, strudel_patch=strudel_patch,
                             semantic_patch=semantic_patch, export_mp3=export_mp3)
     return _summarize(report)

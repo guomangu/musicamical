@@ -132,17 +132,21 @@ def preflight_from_score(score, bpm: float = 120.0, tracks: dict | None = None,
         if abs(diffs[i]) >= 5 and not (diffs[i] * diffs[i + 1] < 0 and 1 <= abs(diffs[i + 1]) <= 3)
     ]
 
-    # b2 restants après fix (grille du ScoreIR)
+    # b2 restants après fix (grille du ScoreIR) — v4.3 (D2) : les appoggiatures résolues
+    # conservées par fix_lead_b2_clashes (temps faible, durée <= 0.5, résolution 1-2 st)
+    # ne comptent plus comme des clashes illicites.
+    import strudel_to_score_ir as _st
     grid = score.harmonic_grid
     lead_track = score.tracks.get("lead")
+    _bpb = int(getattr(score, "time_signature", {}).get("numerator", 4) or 4)
+    _val = float(getattr(score, "valence", 0.0) or 0.0)
     remaining_b2 = 0
     if lead_track is not None:
-        for note in lead_track.notes:
-            cidx = note.chord_idx if 0 <= note.chord_idx < len(grid) else segment_index_for_beat(grid, note.grid_beat)
-            seg = grid[cidx] if 0 <= cidx < len(grid) else (grid[0] if grid else {})
-            chord_pcs = set(seg.get("chord_pcs", []))
-            pc = int(note.pitch) % 12
-            if chord_pcs and any(min((pc - c) % 12, (c - pc) % 12) == 1 for c in chord_pcs):
+        notes_sorted = sorted(lead_track.notes, key=lambda x: (float(x.grid_beat), int(x.pitch)))
+        for i, note in enumerate(notes_sorted):
+            nxt = notes_sorted[i + 1] if i + 1 < len(notes_sorted) else None
+            cls = _st.classify_b2_conflict(note, grid, _bpb, next_note=nxt, valence=_val)
+            if cls == "fix":
                 remaining_b2 += 1
 
     th = MusicalityThresholds()

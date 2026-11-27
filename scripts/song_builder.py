@@ -70,6 +70,7 @@ from score_ir import (  # v3.1 IR-02 — ScoreIR + clamp de frontière harmoniqu
 )
 from musicality_metrics import adapt_voicing_to_timbre, optimize_voice_leading  # noqa: F401 (re-exported for song scripts)
 from blueprint_safety import summarize_musical_safety  # noqa: E402
+from mix_config import sampler_lpf_hz as _mc_sampler_lpf_hz  # noqa: E402 (v4.3 D3 : SSOT des LPF gl.sampler)
 from phrasing_engine import apply_instrumental_prosody  # noqa: F401 (re-exported for song scripts)
 from studio_lib import (
     TEMPLATE_EMPTY_MIXER,
@@ -1571,13 +1572,15 @@ def _default_channels_for_plan(
                     spec.attack = 0.005
                     spec.release = 0.22
                 # Chaîne douce systématique sur pistes tonales sample (§5) si aucun LPF spécifié
+                # v4.3 (D3) : LPF lus dans le SSOT `sample_guard_invariants.sampler_lpf_hz`
+                # (plancher harmonie 6.5 kHz) — plus de constante 6.0 kHz codée en dur.
                 if spec.lpf_hz is None and spec.cutoff_hz is None and not (bp_tr.get("plugin_params") or {}).get("cutoff_hz"):
                     if any(k in rl for k in ("pad", "string")):
-                        spec.lpf_hz = 6000.0
+                        spec.lpf_hz = _mc_sampler_lpf_hz("pad") or 6500.0
                     elif any(k in rl for k in ("chord", "keys")):
-                        spec.lpf_hz = 6500.0
+                        spec.lpf_hz = _mc_sampler_lpf_hz("chords") or 6800.0
                     elif any(k in rl for k in ("lead", "melody", "counter", "arp", "pluck")):
-                        spec.lpf_hz = 9000.0
+                        spec.lpf_hz = _mc_sampler_lpf_hz("lead") or 9500.0
             elif bp_tr.get("plugin") and str(bp_tr["plugin"]).startswith("gl."):
                 spec.plugin = str(bp_tr["plugin"])
                 if bp_tr.get("preset"):

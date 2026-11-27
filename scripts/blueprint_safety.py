@@ -40,6 +40,21 @@ import os
 import re
 from typing import Any, Iterable
 
+try:
+    from mix_config import get_invariant as _mc_get_invariant
+except Exception:  # import isolé hors scripts/
+    _mc_get_invariant = None
+
+
+def _shift_cap_st(category: str) -> int:
+    """v4.3 (D3) — plafond mono-zone par catégorie lu dans le SSOT `config/mix_profiles.json`
+    (`global_invariants.max_semitone_shift_st`), jamais codé en dur."""
+    if _mc_get_invariant is not None:
+        raw = _mc_get_invariant("max_semitone_shift_st", {}) or {}
+        if isinstance(raw, dict) and raw.get(category) is not None:
+            return int(raw[category])
+    return {"acoustic": 5, "synth": 7}.get(category, 7)
+
 TONIC_TO_PC: dict[str, int] = {
     "C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3, "E": 4, "Fb": 4,
     "E#": 5, "F": 5, "F#": 6, "Gb": 6, "G": 7, "G#": 8, "Ab": 8,
@@ -73,7 +88,7 @@ PERCUSSIVE_ROLE_SUBSTRINGS = (
 )
 
 # v3.0 -- per-category mono-zone transposition caps (semitones).
-SAMPLE_SHIFT_CAP_ST = {"acoustic": 5, "synth": 7}
+SAMPLE_SHIFT_CAP_ST = {"acoustic": _shift_cap_st("acoustic"), "synth": _shift_cap_st("synth")}
 ACOUSTIC_CATEGORY_TOKENS = ("piano", "guitar", "string", "violin", "cello", "brass", "woodwind", "flute", "voice", "vocal", "choir", "acoustic", "rhodes", "organ", "harp", "cello")
 # Auto-multizone is only possible when the total ambitus stays small enough.
 MULTIZONE_MAX_AMBITUS_ST = {"acoustic": 18, "synth": 20}
