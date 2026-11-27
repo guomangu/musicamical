@@ -56,6 +56,18 @@ BASS_REGISTER = (31, 48)
 LEAD_APEX_MAX = 74
 MUTATION_RATIO_MAX = 0.25  # v4.1 : au-delà, la piste est « rabotée » -> ERR_OVER_REPAIRED
 CHORDS_REGISTER = (48, 72)
+# v4.3 (D2) — registre sombre : apex 72, plancher 58 (split Chords 48-60 / Lead 60-72)
+DARK_APEX_MAX = 72
+DARK_LEAD_MIN = 58
+NEUTRAL_LEAD_MIN = 55
+PHRASE_SILENCE_BEATS = 0.75  # une phrase = bloc séparé par un silence >= 0.75 beat ou une frontière de section
+
+
+def apex_bounds(valence: float) -> tuple[int, int]:
+    """v4.3 (D2) — (APEX_MAX, LEAD_MIN_MIDI) selon la valence : 72/58 en sombre (V < -0.2), 74/55 sinon."""
+    if float(valence) < -0.2:
+        return DARK_APEX_MAX, DARK_LEAD_MIN
+    return LEAD_APEX_MAX, NEUTRAL_LEAD_MIN
 
 DRUM_PITCH_BY_NAME = (
     ("kick", 36), ("bd", 36), ("snare", 38), ("cp", 39), ("clap", 39), ("sidestick", 37),
@@ -311,11 +323,106 @@ def dedup_mono_onsets(tracks: dict[str, list[dict[str, Any]]]) -> int:
     return n
 
 
+def _split_phrases(notes: list[dict[str, Any]], bpb: int,
+                   sections: list | None = None) -> list[tuple[int, int]]:
+    """v4.3 (D2) — découpe une piste mélodique en phrases : délimitées par un silence
+    >= PHRASE_SILENCE_BEATS ou par une frontière de section (start_bar*bpb)."""
+    bounds = sorted({int(round(sb * bpb)) for (_n, sb, _nb, _k) in (sections or []) if sb > 0})
+    phrases: list[tuple[int, int]] = []
+    start = 0
+    for i in range(1, len(notes)):
+        gap = float(notes[i]["start"]) - (float(notes[i - 1]["start"]) + float(notes[i - 1]["length"]))
+        at_boundary = any(abs(float(notes[i]["start"]) - b) < 1e-6 for b in bounds)
+        if gap >= PHRASE_SILENCE_BEATS - 1e-9 or at_boundary:
+            if i > start:
+                phrases.append((start, i))
+            start = i
+    if len(notes) > start:
+        phrases.append((start, len(notes)))
+    return phrases
+
+
+def _gap_fill_ok(prev: int | None, cur: int, nxt: int | None) -> bool:
+    """Leap+fill : un saut |d| >= 5 st doit être suivi d'un mouvement contraire de 1 à 3 st."""
+    if prev is None or nxt is None:
+        return True
+    d1 = cur - prev
+    d2 = nxt - cur
+    if abs(d1) >= 5:
+        return (d1 * d2 < 0) and (1 <= abs(d2) <= 3)
+    return True
+
+
+def _transpose_lead_phrases(notes: list[dict[str, Any]], grid: list[dict[str, Any]], bpb: int,
+                            valence: float, sections: list | None) -> dict[str, int]:
+    """v4.3 (D2) — remplace le pliage note-à-note `while p > apex: p -= 12` par une
+    transposition de PHRASE entière d'octave : k = ceil((p_max - APEX_MAX)/12), appliquée
+    à toute la phrase si elle reste au-dessus du plancher (min(P) - 12k >= LEAD_MIN) ;
+    tous les intervalles internes et le gap_fill sont préservés à 100 %.
+    Si l'ambitus d'une phrase dépasse l'intervalle autorisé, seuls les pics extrêmes sont
+    compressés vers la note d'accord la plus proche en vérifiant le gap_fill."""
+    apex_max, lead_min = apex_bounds(valence)
+    rep = {"lead_apex_clamped": 0, "lead_phrases_transposed": 0, "lead_phrase_notes": 0,
+           "lead_peaks_compressed": 0, "octave_folds_breaking_gap_fill": 0}
+    for (a, b) in _split_phrases(notes, bpb, sections):
+        phrase = notes[a:b]
+        idxs = [i for i, n in enumerate(phrase) if int(n.get("pitch", -1)) >= 0]
+        if not idxs:
+            continue
+        pitches = [int(phrase[i]["pitch"]) for i in idxs]
+        p_max = max(pitches)
+        if p_max <= apex_max:
+            continue
+        k = -(-(p_max - apex_max) // 12)  # ceil
+        if min(pitches) - 12 * k >= lead_min:
+            # transposition de TOUTE la phrase : gap_fill préservé à 100 %
+            for i in idxs:
+                phrase[i]["pitch"] = int(phrase[i]["pitch"]) - 12 * int(k)
+                rep["lead_apex_clamped"] += 1
+                rep["lead_phrase_notes"] += 1
+            rep["lead_phrases_transposed"] += 1
+            continue
+        # ambitus trop grand : compresser uniquement les pics extrêmes vers l'accord le plus proche
+        for j, i in enumerate(idxs):
+            p = int(phrase[i]["pitch"])
+            if p <= apex_max:
+                continue
+            cidx = segment_index_for_beat(grid, float(phrase[i]["start"]))
+            seg = grid[cidx] if 0 <= cidx < len(grid) else (grid[0] if grid else {})
+            chord_pcs = set(seg.get("chord_pcs", []) or [])
+            scale_pcs = set(seg.get("scale_pcs", []) or [])
+            prev_p = int(phrase[idxs[j - 1]]["pitch"]) if j > 0 else None
+            next_p = int(phrase[idxs[j + 1]]["pitch"]) if j + 1 < len(idxs) else None
+            best = None
+            # pics compressés vers la note d'accord la plus proche DANS le registre [lead_min, apex_max]
+            for cand in range(max(lead_min, apex_max - 12), apex_max + 1):
+                pc = cand % 12
+                if chord_pcs and pc not in chord_pcs and pc not in scale_pcs:
+                    continue
+                j_cost = float(abs(cand - p))
+                if prev_p is not None and p != prev_p:
+                    s_orig = 1 if (p - prev_p) > 0 else -1
+                    s_cand = 1 if (cand - prev_p) > 0 else (-1 if (cand - prev_p) < 0 else 0)
+                    if s_cand != s_orig:
+                        j_cost += 2.0  # changement de direction mélodique
+                if not _gap_fill_ok(prev_p, cand, next_p):
+                    j_cost += 3.0  # casse le leap+fill
+                if best is None or j_cost < best[0]:
+                    best = (j_cost, cand)
+            if best is not None and best[1] != p:
+                phrase[i]["pitch"] = int(best[1])
+                rep["lead_apex_clamped"] += 1
+                rep["lead_peaks_compressed"] += 1
+    return rep
+
+
 def apply_register_guards(
     tracks: dict[str, list[dict[str, Any]]],
     grid: list[dict[str, Any]],
     bpb: int,
     bass_modes: dict[str, str] | None = None,
+    valence: float = 0.0,
+    sections: list | None = None,
 ) -> dict[str, int]:
     report = {"bass_register_clamped": 0, "bass_root_locked": 0, "lead_apex_clamped": 0, "chords_revoiced": 0,
               "mono_onset_dedup": dedup_mono_onsets(tracks)}
@@ -342,15 +449,13 @@ def apply_register_guards(
                     report["bass_register_clamped"] += 1
                     ev["pitch"] = newp
         elif role == "lead":
-            for ev in notes:
-                if ev.get("pitch", 0) < 0:
-                    continue
-                newp = int(ev["pitch"])
-                while newp > LEAD_APEX_MAX:
-                    newp -= 12
-                if newp != int(ev["pitch"]):
-                    report["lead_apex_clamped"] += 1
-                    ev["pitch"] = newp
+            # v4.3 (D2) : transposition par PHRASE (gap_fill préservé), jamais de pliage note à note
+            lead_rep = _transpose_lead_phrases(notes, grid, bpb, valence=valence, sections=sections)
+            report["lead_apex_clamped"] += lead_rep["lead_apex_clamped"]
+            report["lead_phrases_transposed"] = lead_rep["lead_phrases_transposed"]
+            report["lead_peaks_compressed"] = lead_rep["lead_peaks_compressed"]
+            report["octave_folds_breaking_gap_fill"] = lead_rep["octave_folds_breaking_gap_fill"]
+            report.setdefault("lead_phrase_transposed_by_track", {})[name] = lead_rep["lead_phrase_notes"]
         elif role == "chords":
             groups: dict[float, list[dict[str, Any]]] = {}
             for ev in notes:
@@ -424,45 +529,149 @@ def expand_chord_symbols(tracks: dict[str, list[dict[str, Any]]], grid: list[dic
     return n
 
 
-def fix_lead_b2_clashes(score: ScoreIR) -> int:
+def _strong_beats(bpb: int) -> set[float]:
+    """Temps forts par signature : 4/4 -> {0, 2}, 3/4 -> {0}, sinon {0}."""
+    if int(bpb) == 4:
+        return {0.0, 2.0}
+    return {0.0}
+
+
+def classify_b2_conflict(note, grid: list[dict[str, Any]], bpb: int, next_note=None,
+                         valence: float = 0.0, tension: float = 0.5) -> str:
+    """v4.3 (D2) — classification d'un conflit b2 Lead/accord :
+    'ok' (pas de conflit), 'keep' (appoggiature/note de passage résolue sur temps faible,
+    quota non dépassé) ou 'fix' (dissonance tenue ou temps fort)."""
+    cidx = note.chord_idx if 0 <= getattr(note, "chord_idx", -1) < len(grid) else segment_index_for_beat(grid, note.grid_beat)
+    seg = grid[cidx] if 0 <= cidx < len(grid) else (grid[0] if grid else {})
+    chord_pcs = set(seg.get("chord_pcs", []) or [])
+    pc = int(note.pitch) % 12
+    if not chord_pcs or pc in chord_pcs:
+        return "ok"
+    if not any(min((pc - c) % 12, (c - pc) % 12) == 1 for c in chord_pcs):
+        return "ok"
+    beat_in_bar = float(note.grid_beat) % max(1, int(bpb))
+    is_strong = any(abs(beat_in_bar - s) < 1e-6 for s in _strong_beats(bpb))
+    is_short = float(note.duration_beats) <= 0.5 + 1e-9
+    resolved = False
+    if next_note is not None:
+        cidx2 = next_note.chord_idx if 0 <= getattr(next_note, "chord_idx", -1) < len(grid) else segment_index_for_beat(grid, next_note.grid_beat)
+        seg2 = grid[cidx2] if 0 <= cidx2 < len(grid) else seg
+        chord2 = set(seg2.get("chord_pcs", []) or chord_pcs)
+        if (int(next_note.pitch) % 12) in chord2 and abs(int(next_note.pitch) - int(note.pitch)) in (1, 2):
+            resolved = True
+    if (not is_strong) and is_short and resolved:
+        return "keep"
+    return "fix"
+
+
+def fix_lead_b2_clashes(score: ScoreIR, bpb: int = 4, valence: float = 0.0, tension: float = 0.5,
+                        return_detail: bool = False):
+    """v4.3 (D2) — `fix_lead_b2_clashes` contextuel :
+    - conserve les appoggiatures/notes de passage résolues sur temps faible
+      (durée <= 0.5 beat, note suivante dans l'accord à 1-2 st), quota <= 2 par fenêtre
+      de 4 mesures en mode sombre (V < -0.3 ou T >= 0.5), <= 1 en mode neutre ;
+    - corrige les vraies dissonances (tenues > 0.5 beat ou temps fort) par un snap
+      conservant le contour : J(p*) = |p*-p| + 2·I[changement de direction] + 3·I[casse gap_fill],
+      parmi les 2 candidats de gamme les plus proches (au-dessus/en-dessous) sans b2 avec l'accord ;
+    - budget de mutation MUTATION_RATIO_MAX conservé ; si > 15 % des notes d'une piste doivent
+      être corrigées, `detail['faulty_measures']` liste les mesures fautives + degrés alternatifs.
+    Retourne n (int) ou (n, detail) si return_detail=True."""
     n = 0
+    n_kept = 0
     grid = score.harmonic_grid
-    for tir in score.tracks.values():
+    bpb = int(bpb or 4)
+    dark = float(valence) < -0.3 or float(tension) >= 0.5
+    quota = 2 if dark else 1
+    detail: dict[str, Any] = {"n_fixed": 0, "n_kept": 0, "quota_per_4bars": quota,
+                              "faulty_measures": [], "per_track_ratio": {}}
+    for tname, tir in score.tracks.items():
         if tir.role not in ("lead", "counter"):
             continue
-        for note in tir.notes:
+        notes = sorted(tir.notes, key=lambda x: (float(x.grid_beat), int(x.pitch)))
+        kept_windows: dict[int, int] = {}
+        n_track_fixed = 0
+        for i, note in enumerate(notes):
+            next_note = notes[i + 1] if i + 1 < len(notes) else None
+            cls = classify_b2_conflict(note, grid, bpb, next_note=next_note, valence=valence, tension=tension)
+            if cls == "ok":
+                continue
+            if cls == "keep":
+                win = int(float(note.grid_beat) // (4 * max(1, bpb)))
+                if kept_windows.get(win, 0) < quota:
+                    kept_windows[win] = kept_windows.get(win, 0) + 1
+                    n_kept += 1
+                    continue
+                # quota dépassé -> on corrige quand même
             cidx = note.chord_idx if 0 <= note.chord_idx < len(grid) else segment_index_for_beat(grid, note.grid_beat)
             seg = grid[cidx] if 0 <= cidx < len(grid) else (grid[0] if grid else {})
-            chord_pcs = set(seg.get("chord_pcs", []))
-            scale_pcs = set(seg.get("scale_pcs", []))
+            chord_pcs = set(seg.get("chord_pcs", []) or [])
+            scale_pcs = set(seg.get("scale_pcs", []) or [])
             pc = int(note.pitch) % 12
-            # Une note d'accord (ex. Ab ou G sur Abmaj7) n'est JAMAIS un frottement b2 illicite !
-            if not chord_pcs or pc in chord_pcs or not any(min((pc - c) % 12, (c - pc) % 12) == 1 for c in chord_pcs):
+            prev_note = notes[i - 1] if i > 0 else None
+            prev_p = int(prev_note.pitch) if prev_note is not None else None
+            next_p = int(next_note.pitch) if next_note is not None else None
+            # 2 candidats de gamme les plus proches (au-dessus / en-dessous) sans b2 avec l'accord
+            cands: list[int] = []
+            for cand_pc in sorted(scale_pcs):
+                if cand_pc == pc:
+                    continue
+                if any(min((cand_pc - c) % 12, (c - cand_pc) % 12) == 1 for c in chord_pcs):
+                    continue
+                for delta in ((cand_pc - pc) % 12, -((pc - cand_pc) % 12)):
+                    if delta == 0:
+                        continue
+                    d = delta - 12 if delta > 6 else (delta + 12 if delta < -6 else delta)
+                    cands.append(int(note.pitch) + d)
+            if not cands:
                 continue
-            best: tuple[int, int] | None = None
-            for cand in sorted(scale_pcs):
-                if cand == pc:
+            best = None
+            apex_max, _ = apex_bounds(valence)
+            for cand in sorted(set(cands), key=lambda c: abs(c - int(note.pitch)))[:6]:
+                # v4.3 (D2) : candidat borné au registre [48, apex] AVANT le coût -> aucun pliage d'octave
+                if not (48 <= cand <= apex_max):
                     continue
-                if any(min((cand - c) % 12, (c - cand) % 12) == 1 for c in chord_pcs):
-                    continue
-                d = min((cand - pc) % 12, (pc - cand) % 12)
-                if best is None or d < best[0]:
-                    best = (d, cand)
+                j_cost = float(abs(cand - int(note.pitch)))
+                if prev_p is not None and int(note.pitch) != prev_p:
+                    s_orig = 1 if (int(note.pitch) - prev_p) > 0 else -1
+                    s_cand = 1 if (cand - prev_p) > 0 else (-1 if (cand - prev_p) < 0 else 0)
+                    if s_cand != s_orig:
+                        j_cost += 2.0
+                if not _gap_fill_ok(prev_p, cand, next_p):
+                    j_cost += 3.0
+                if best is None or j_cost < best[0]:
+                    best = (j_cost, cand)
             if best is None:
                 continue
-            delta = best[1] - pc
-            if delta > 6:
-                delta -= 12
-            if delta < -6:
-                delta += 12
-            new_pitch = int(note.pitch) + delta
-            while new_pitch > LEAD_APEX_MAX:
-                new_pitch -= 12
-            while new_pitch < 48:
-                new_pitch += 12
+            new_pitch = int(best[1])
             if new_pitch != int(note.pitch) and 0 <= new_pitch <= 127:
                 note.pitch = new_pitch
                 n += 1
+                n_track_fixed += 1
+        if notes:
+            ratio = n_track_fixed / max(1, len(notes))
+            detail["per_track_ratio"][tname] = round(ratio, 4)
+            if ratio > 0.15:
+                # mesures fautives + degrés alternatifs recommandés (safe, non b2)
+                seen = set()
+                for note in notes:
+                    bar = int(float(note.grid_beat) // max(1, bpb)) + 1
+                    cidx = note.chord_idx if 0 <= note.chord_idx < len(grid) else segment_index_for_beat(grid, note.grid_beat)
+                    seg = grid[cidx] if 0 <= cidx < len(grid) else (grid[0] if grid else {})
+                    chord_pcs = set(seg.get("chord_pcs", []) or [])
+                    scale_pcs = sorted(set(seg.get("scale_pcs", []) or []))
+                    pc = int(note.pitch) % 12
+                    if chord_pcs and pc not in chord_pcs and any(min((pc - c) % 12, (c - pc) % 12) == 1 for c in chord_pcs):
+                        alts = [c for c in scale_pcs if not any(min((c - cc) % 12, (cc - c) % 12) == 1 for cc in chord_pcs)]
+                        key = (bar, tuple(sorted(chord_pcs)))
+                        if key not in seen:
+                            seen.add(key)
+                            detail["faulty_measures"].append(
+                                {"track": tname, "bar": bar, "chord_pcs": sorted(chord_pcs),
+                                 "safe_pcs": alts[:6]})
+    detail["n_fixed"] = n
+    detail["n_kept"] = n_kept
+    if return_detail:
+        return n, detail
     return n
 
 
@@ -490,11 +699,15 @@ def build_score_ir_from_strudel(
     }
     grid = build_grid(progression, key, mode, bpb, bars)
     n_chord_notes = expand_chord_symbols(tracks, grid)
+    # v4.3 (D2) : sections pour les frontières de phrases (transposition par phrase du lead)
+    _sections = normalize_sections(haps)
     # v4.1 : la mutation se mesure APRES expansion des accords (by design), AVANT les garde-fous
     pre_pitches = {k: sorted(int(n["pitch"]) for n in v) for k, v in tracks.items()}
-    guard_report = apply_register_guards(tracks, grid, bpb, bass_modes=bass_modes)
+    guard_report = apply_register_guards(tracks, grid, bpb, bass_modes=bass_modes,
+                                          valence=valence, sections=_sections)
     guard_report["chord_symbols_expanded"] = n_chord_notes
     post_pitches = {k: sorted(int(n["pitch"]) for n in v) for k, v in tracks.items()}
+    phrase_transposed = guard_report.get("lead_phrase_transposed_by_track") or {}
     mutation = {}
     for k in tracks:
         pre, post = pre_pitches.get(k, []), post_pitches.get(k, [])
@@ -502,7 +715,9 @@ def build_score_ir_from_strudel(
             continue
         # v4.1 : seules les mutations d'octave (>= 12 st, ex. octave-folds) et les suppressions
         # comptent comme « rabotage » ; le revoicing LIL intra-registre est by design.
+        # v4.3 (D2) : une transposition de PHRASE entière préserve le gap_fill -> hors « rabotage ».
         shifted = sum(1 for a, b in zip(pre, post) if abs(a - b) >= 12)
+        shifted -= min(shifted, int(phrase_transposed.get(k, 0)))
         removed = abs(len(pre) - len(post))
         mutation[k] = round((shifted + removed) / len(pre), 4)
 
@@ -799,7 +1014,11 @@ def strudel_to_score_ir(
     score, info = build_score_ir_from_strudel(haps, blueprint)
 
     score, fix = autofix_score_ir(score)
-    n_b2 = fix_lead_b2_clashes(score)
+    # v4.3 (D2) : fix b2 contextuel (appoggiatures résolues conservées, snap contour-preserving)
+    _ev = (blueprint or {}).get("emotion_vector") or {}
+    n_b2, b2_detail = fix_lead_b2_clashes(
+        score, bpb=int(info["bpb"]), valence=float(info["valence"]),
+        tension=float(_ev.get("tension", 0.5)), return_detail=True)
     evaluation = evaluate_score_ir(score)
     try:
         from determinism import resolve_seed
@@ -846,6 +1065,10 @@ def strudel_to_score_ir(
     try:
         from preflight_strudel_gate import preflight_from_score
         preflight_rep = preflight_from_score(score, bpm=float(info["bpm"]), tracks=flat_tracks, sections=sections)
+        # v4.3 (D2) : si > 15 % des notes d'une piste ont dû être corrigées, remonter la liste
+        # exacte des mesures fautives et des degrés alternatifs recommandés dans le preflight.
+        if b2_detail.get("faulty_measures"):
+            preflight_rep["b2_faulty_measures"] = b2_detail["faulty_measures"][:20]
     except Exception as exc:  # jamais bloquant
         preflight_rep = {"error": str(exc)[:200]}
     report = {
@@ -860,6 +1083,7 @@ def strudel_to_score_ir(
         "plan_valid": plan_valid,
         "guards": info["guards"],
         "lead_b2_fixed": n_b2,
+        "b2_fix": b2_detail,
         "autofix": {"n_changes": fix.get("n_changes"), "changes": fix.get("changes", [])[:20]},
         "evaluate": {"passed": evaluation.get("passed"), "n_notes": evaluation.get("n_notes"),
                      "errors": evaluation.get("errors", [])[:20], "warnings": evaluation.get("warnings", [])[:10]},
