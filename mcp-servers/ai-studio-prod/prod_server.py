@@ -30,6 +30,33 @@ except Exception:
     pass
 
 ROOT = os.environ.get("AI_STUDIO_DIR") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def _sound_source_path(proj: str, bp: dict | None = None) -> str | None:
+    """Source de métadonnées samples : catalogue projet si présent, sinon `samples.db`
+    racine (SSOT, chantier 1) — résout `catalog_missing = true` de l'audit rap_ombre_134 :
+    `musical_safety` s'appuie toujours sur un catalogue réel (`blueprint_safety.load_catalog_index`
+    lit directement `sound_assets`)."""
+    try:
+        from sample_fit_guard import resolve_catalog_path
+        cat = resolve_catalog_path(proj, bp=bp or {})
+        if cat and os.path.isfile(cat):
+            return cat
+    except Exception:
+        pass
+    proj_cat = os.path.join(proj, "samples_catalog.json")
+    if os.path.isfile(proj_cat):
+        return proj_cat
+    try:
+        _idx = os.path.join(ROOT, "mcp-servers", "audio-index")
+        if _idx not in sys.path:
+            sys.path.insert(0, _idx)
+        from unified_indexer import DEFAULT_DB_PATH
+        if os.path.isfile(DEFAULT_DB_PATH) and os.path.getsize(DEFAULT_DB_PATH) > 0:
+            return DEFAULT_DB_PATH
+    except Exception:
+        pass
+    return None
 SCRIPTS = os.path.join(ROOT, "scripts")
 
 
@@ -685,10 +712,44 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                 return (float(p.get("score") or 0.0), _n_samples(p))
             return (_n_samples(p), float(p.get("score") or 0.0))
 
+        # P1-5 (audit rap_ombre_134 §P1-5/§6) : gate BLOQUANT de palette — toute palette avec
+        # score < 0.60, cohérence < 0.60 ou collision Bark > 0.65 est REFUSÉE avant sélection :
+        # on relance la recherche sur les palettes restantes (SWAP) ; si aucune ne passe, le
+        # pipeline échoue (resolved=False) au lieu d'un rendu PASS forcé sur une palette
+        # médiocre (audit : score 0.3805, collision 0.846, PASS). Échappatoire : ALLOW_WEAK_PALETTE=1.
+        try:
+            import palette_selector as _ps
+            _allow_weak = str(os.environ.get("ALLOW_WEAK_PALETTE", "")).lower() in ("1", "true", "yes")
+
+            def _gate_of(p: dict) -> dict:
+                return _ps.validate_palette_gate({
+                    "S_palette": float(p.get("composite_score") or p.get("score") or 0.0),
+                    "M_spectral": float(p.get("spectral_overlap") or 0.0),
+                    "max_bark_collision": float(p.get("max_bark_collision") or 0.0),
+                })
+
+            if not _allow_weak:
+                _passing = [p for p in pals if _gate_of(p)["accepted"]]
+                if not _passing:
+                    out["palette_gate"] = _gate_of(max(pals, key=_rank))
+                    out["reason"] = "palette_gate_rejected: " + "; ".join(out["palette_gate"]["reasons"])
+                    return out
+                pals = _passing
+        except Exception:
+            pass
         if palette_id and palette_id != "auto":
             chosen = next((p for p in pals if p.get("palette_id") == palette_id), None) or max(pals, key=_rank)
         else:
             chosen = max(pals, key=_rank)
+        try:
+            import palette_selector as _ps
+            out["palette_gate"] = _ps.validate_palette_gate({
+                "S_palette": float(chosen.get("composite_score") or chosen.get("score") or 0.0),
+                "M_spectral": float(chosen.get("spectral_overlap") or 0.0),
+                "max_bark_collision": float(chosen.get("max_bark_collision") or 0.0),
+            })
+        except Exception:
+            pass
         slots = chosen.get("slots") or []
         role_to_slot = {str(s.get("role")): s for s in slots}
         candidate_pool: dict[str, list[dict[str, Any]]] = res.get("candidate_pool") or {}
@@ -1096,7 +1157,7 @@ def _resolve_palette(proj: str, bp: dict, palette_id: str, intent: str = "",
                     tr.pop(stale_k, None)
 
         # Garde finale (F3/F4/F5/F6) : vérifie cohérence complète du blueprint, substitue sinon gl.*
-        cat_path = resolve_catalog_path(proj, bp={"palette": {"project_samples_dir": proj_samples}})
+        cat_path = _sound_source_path(proj, bp={"palette": {"project_samples_dir": proj_samples}})
         guard_rep = enforce_blueprint_sample_fit(
             bp,
             notes_by_track=notes_by_track,
@@ -1389,7 +1450,7 @@ def refine_project(project_dir: str, delta_json: dict | None = None, strudel_pat
             with open(bp_path, encoding="utf-8") as fh:
                 bp = json.load(fh)
             notes_by_track = notes_by_track_from_score_ir(proj)
-            cat_path = resolve_catalog_path(proj, bp=bp)
+            cat_path = _sound_source_path(proj, bp=bp)
             guard_rep = enforce_blueprint_sample_fit(
                 bp,
                 notes_by_track=notes_by_track,

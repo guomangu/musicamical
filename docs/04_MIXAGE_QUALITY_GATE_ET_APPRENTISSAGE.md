@@ -334,3 +334,11 @@ règle de mix n'est affaiblie par le pont Strudel. Doc : [03_PRODUCTION_SAMPLES_
 * **Groove statistique (pocket)** : `groove_lib.apply_pocket_humanization` — covariance vélocité-timing (notes fantômes `v<50` retardées `+6..+16 ms`, accents `v>105` avancés `-5..-1 ms`) et caisse claire *laid-back* `+4..+10 ms` sur les temps 2 & 4 en Lo-Fi/Boom-Bap/R&B.
 * **Garde-fou harmonique** : `narrative_harmony.enforce_low_interval_limits` — sous C3 (MIDI 48), tout intervalle entre notes simultanées `≥ 7` demi-tons (Low Interval Limit).
 * **Synthèse expressive v2** : `synth_render.py` `build_automation` — couplage vélocité→cutoff, respiration macro-structurelle (sinusoïde 8–16 mesures sur pad/lead), release adaptatif à l'intervalle inter-notes.
+
+### 10.6 Sound design & mixage idiomatiques Trap (audit `rap_ombre_134`, P1-6/P2-7/P2-8)
+* **Archétypes `trap_rap`** (`config/timbre_archetypes.json`) : pad `gl.analog` cutoff 900–2200 Hz (attaque douce, HPF canal 200 Hz) au lieu de 6500 Hz ; lead cutoff 1800–3500 Hz au lieu de 9000 Hz ; 808 `release_ms` 250–450 + `glide_ms` 45–60.
+* **Kick** : `eq_kick_clean` HPF 30 Hz, **0 dB à 50 Hz** (fondamentale jamais coupée ; clamp dur à −3 dB max sur appel explicite), −2 dB à 210 Hz, punch +3 dB à 95 Hz ; ancre de gain kick `0.95` (sommet de la hiérarchie), sidechain BUS Music allégé (0.25).
+* **Chords/Pad** : gain canal 0.78, EQ médiums allégée (HPF 200 Hz, jamais −3 dB sur 3 bandes consécutives 300/480/1600 Hz) ; pad élargi (BUS Music `gl.stereo` Width 2.0, mono < 250 Hz, sends hall) ; centre mono strict kick/bass/snare (pan 0).
+* **Variation B** (`narrative_harmony.chorus_variation_b`, opérateur par défaut) : 2e moitié du chorus/drop — syncopation en 16ths, vélocité ±15 %, notes d'approche, pour casser la boucle stricte de 4 mesures.
+* **Gate de palette bloquant au rendu** : `render_and_audit.py` ajoute `palette_gate_rejected` à `gate_failures` si `score < 0.60`, cohérence `< 0.60` ou `max_bark_collision > 0.65` (échappatoire `ALLOW_WEAK_PALETTE=1`) ; `catalog_missing` résolu via `samples.db` racine (SSOT).
+* **Tests de non-régression** : `tests/test_audit_rap_ombre_fixes.py` (audit §6 : pitch des percussions == `root_note`, registre 808 `[26,41]` + fondamentale d'accord, anti-fuite taxonomique `other/`/tokens tonaux, seuils bloquants de palette).

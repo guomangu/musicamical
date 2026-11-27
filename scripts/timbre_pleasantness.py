@@ -72,6 +72,12 @@ CREST_MAX_DB_TONAL = _crest_max_db_tonal()
 
 TONAL_ROLES = ("lead_melody", "chord_keys", "pad_atmosphere", "bass_sub")
 
+# P1-4 (audit rap_ombre_134 §P1-4) : rôles percussifs — un snare trap claquant / un kick punchy
+# ont naturellement une rugosité, une brillance et un crest élevés : on ne pénalise PAS ces
+# métriques (seuls les défauts physiques durs restent bloquants), sinon 24 snares et 22 kicks
+# sont exclus à tort par `pleasantness_excluded`.
+PERCUSSIVE_GATE_ROLES = ("kick", "snare_clap", "hihat_perc", "perc", "clap", "drums")
+
 
 def _critical_bandwidth_hz(f_hz: float) -> float:
     """Bande critique Zwicker (ERB approché) : b = 25 + 75*(1 + 1.4*(f/1000)^2)^0.69."""
@@ -137,6 +143,11 @@ def pleasantness_gate(metrics: dict, role: str = "lead_melody") -> dict:
     crest_factor_db) + optionnels (category, sample_nature, inharmonicity, filepath)."""
     caps = dict(DEFAULT_CAPS)
     caps.update(PLEASANTNESS_CAPS.get(role, {}))
+    if role in PERCUSSIVE_GATE_ROLES:
+        # P1-4 : seuils percussifs relâchés (rugosité/brillance naturelles d'une frappe)
+        for _k in ("r_harsh", "roughness", "peak_harsh_db"):
+            caps[_k] = float(caps[_k]) * 4.0
+        caps["comfort_min"] = min(float(caps["comfort_min"]), 0.05)
     reasons: list[str] = []
     worst = 0.0
     policy_rejected = False

@@ -33,6 +33,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sqlite3
 import sys
 from typing import Any
@@ -128,7 +129,12 @@ def _fetch(conn: sqlite3.Connection, role: str, limit: int = 200) -> list[dict[s
         "SELECT * FROM sound_assets WHERE role_category=? ORDER BY indexed_at DESC LIMIT ?",
         (role, limit),
     ).fetchall()
-    return [dict(r) for r in rows]
+    rows = [dict(r) for r in rows]
+    # P0-3 (audit rap_ombre_134) : cloisonnement taxonomique strict des rôles percussifs
+    # (jamais de sample tonal / dossier `other/` en kick, snare, hihat ou perc).
+    if role in ui.PERC_ROLE_CATEGORIES:
+        rows = ui.filter_role_compatible(rows, role)
+    return rows
 
 
 def _score(row: dict[str, Any], **targets: float) -> float:
@@ -376,20 +382,116 @@ def score_palette(
     }
 
 
+# ---------------------------------------------------------------------------
+# P1-5 / P1-6 (audit rap_ombre_134) — gates bloquants de palette, auto-correction
+# des collisions Bark, et priorité aux banques SFZ locales selon l'intent.
+# ---------------------------------------------------------------------------
+
+PALETTE_MIN_SCORE = 0.60          # P1-5 : une palette sous 0.60 est refusée (retry/recherche)
+PALETTE_MIN_COHERENCE = 0.60      # cohérence timbrale minimale (1 - chevauchement moyen)
+PALETTE_MAX_BARK_COLLISION = 0.65 # pire collision Bark autorisée entre deux pistes
+
+# P1-6 : tokens d'intent qui doivent mobiliser les banques SFZ locales (samples.db)
+SFZ_INTENT_TOKENS = ("piano", "keys", "rhodes", "epiano", "organ", "moody", "string", "melodic")
+
+
+def max_bark_collision(palette: dict[str, dict[str, Any]], cache: dict | None = None) -> float:
+    """Pire chevauchement spectral Bark24 entre deux pistes choisies (1 = collision totale)."""
+    cache = cache if cache is not None else {}
+    barks = {r: row_to_bark24(row, cache) for r, row in palette.items() if row}
+    keys = list(barks.keys())
+    vals = [spectral_overlap_m(barks[keys[i]], barks[keys[j]])
+            for i in range(len(keys)) for j in range(i + 1, len(keys))]
+    return float(max(vals)) if vals else 0.0
+
+
+def resolve_bark_collision(palette: dict[str, dict[str, Any]], cache: dict | None = None) -> dict[str, Any]:
+    """P1-5 : auto-correction d'une collision Bark détectée (ex. chords vs pad à 0.846) :
+    le pad monte d'une octave (+12 st), est filtré plus bas (LPF 1.8 kHz) et séparé en stéréo
+    (pan), le centre restant au chords. Retourne les `role_modifiers` à appliquer au build."""
+    cache = cache if cache is not None else {}
+    barks = {r: row_to_bark24(row, cache) for r, row in palette.items() if row}
+    keys = list(barks.keys())
+    worst, pair = 0.0, None
+    for i in range(len(keys)):
+        for j in range(i + 1, len(keys)):
+            v = spectral_overlap_m(barks[keys[i]], barks[keys[j]])
+            if v > worst:
+                worst, pair = v, (keys[i], keys[j])
+    fix: dict[str, Any] = {"max_bark_collision": round(worst, 4), "pair": pair, "applied": []}
+    if worst > PALETTE_MAX_BARK_COLLISION and pair:
+        pad_role = "pad" if "pad" in pair else (pair[0] if "pad" in pair[1] or "chords" in pair[1] else pair[1])
+        other = pair[1] if pair[0] == pad_role else pair[0]
+        fix["applied"] = [
+            {"role": pad_role, "octave_up_st": 12},
+            {"role": pad_role, "lpf_hz": 1800.0},
+            {"role": pad_role, "pan": 0.35, "other_role": other, "other_pan": -0.15},
+        ]
+    return fix
+
+
+def validate_palette_gate(result: dict[str, Any]) -> dict[str, Any]:
+    """P1-5 §6 (test de non-régression) : seuils BLOQUANTS — score >= 0.60, cohérence >= 0.60,
+    max_bark_collision <= 0.65. Toute palette sous le seuil est refusée (`accepted=False`),
+    le pipeline doit relancer une recherche (SWAP) au lieu de rendre PASS."""
+    score = float(result.get("S_palette", 0.0))
+    coherence = 1.0 - float(result.get("M_spectral", 0.0))
+    collision = float(result.get("max_bark_collision", 0.0))
+    reasons = []
+    if score < PALETTE_MIN_SCORE:
+        reasons.append(f"S_palette={score:.3f} < {PALETTE_MIN_SCORE}")
+    if coherence < PALETTE_MIN_COHERENCE:
+        reasons.append(f"coherence={coherence:.3f} < {PALETTE_MIN_COHERENCE}")
+    if collision > PALETTE_MAX_BARK_COLLISION:
+        reasons.append(f"max_bark_collision={collision:.3f} > {PALETTE_MAX_BARK_COLLISION}")
+    return {"accepted": not reasons, "reasons": reasons,
+            "score": round(score, 4), "coherence": round(coherence, 4), "collision": round(collision, 4)}
+
+
+def prefer_sfz_for_intent(conn: sqlite3.Connection, intent: str) -> dict[str, Any] | None:
+    """P1-6 : si l'intent mentionne piano/keys/rhodes/moody/strings/melodic, privilégier les
+    banques SFZ locales indexées dans `samples.db` (soundbanks/sfz : headroom-piano, jRhodes3c...)
+    pour l'harmonie (pad/keys) et le lead, plutôt qu'un synthé gl.* générique."""
+    low = (intent or "").lower()
+    if not any(t in low for t in SFZ_INTENT_TOKENS):
+        return None
+    out: dict[str, Any] = {}
+    for out_key, cats in (("harmony", ("pad", "keys")), ("lead", ("lead", "keys"))):
+        rows: list[dict[str, Any]] = []
+        for rc in cats:
+            rows += [dict(r) for r in conn.execute(
+                "SELECT * FROM sound_assets WHERE source_type='sfz_instrument' AND role_category=? "
+                "ORDER BY indexed_at DESC LIMIT 50", (rc,)).fetchall()]
+        if rows:
+            out[out_key] = max(rows, key=lambda r: (float(r["ac_warmth"] or 0) + float(r["ac_depth"] or 0))
+                               - float(r["ac_roughness"] or 0))
+    return out or None
+
+
 def select_palette(
     db_path: str = DEFAULT_DB_PATH,
     profile: str = "trap_rap",
     bpm: float | None = None,
     key: str = "C:minor",
     corridors_path: str = DEFAULT_CORRIDORS_PATH,
+    intent: str = "",
 ) -> dict[str, Any]:
-    """Assemblage séquentiel complet en 4 étapes + score S_palette."""
+    """Assemblage séquentiel complet en 4 étapes + score S_palette + gate bloquant P1-5."""
     conn = init_db(db_path)
     try:
         anchor = select_rhythmic_anchor(conn, profile)
         bass = select_bass(conn, anchor["f_kick_hz"])
         harmony = select_harmony(conn, bpm)
         lead = select_lead(conn, harmony["harmony"])
+        # P1-6 : intent piano/keys/moody -> banques SFZ locales prioritaires (chords/lead)
+        sfz_pref = prefer_sfz_for_intent(conn, intent)
+        if sfz_pref:
+            if sfz_pref.get("harmony"):
+                harmony = {"harmony": sfz_pref["harmony"], "dense_rhythm": harmony.get("dense_rhythm", False)}
+            if sfz_pref.get("lead"):
+                lead = {"lead": sfz_pref["lead"],
+                        "min_safe_midi": int((sfz_pref["lead"].get("min_safe_midi") or 21)),
+                        "max_safe_midi": int((sfz_pref["lead"].get("max_safe_midi") or 108))}
     finally:
         conn.close()
     palette = {
@@ -401,11 +503,13 @@ def select_palette(
         "lead": lead["lead"],
     }
     scoring = score_palette(palette, profile, corridors_path)
+    collision = max_bark_collision(palette)
     ok, lil_msg = low_interval_limit_ok([C3_MIDI, C3_MIDI + 7, C3_MIDI + 12])  # accord de référence C3-G3-C4
-    return {
+    result = {
         "profile": profile,
         "bpm": bpm,
         "key": key,
+        "intent": intent,
         "f_kick_hz": anchor["f_kick_hz"],
         "steps": {
             "1_rhythmic_anchor": {k: (v or {}).get("asset_id") for k, v in anchor.items() if isinstance(v, dict)},
@@ -417,8 +521,16 @@ def select_palette(
         "assets": {k: v for k, v in palette.items()},
         "lead_range": [lead["min_safe_midi"], lead["max_safe_midi"]],
         "low_interval_limit": {"ok": ok, "message": lil_msg},
+        "sfz_preferred": bool(sfz_pref),
+        "max_bark_collision": round(collision, 4),
         **scoring,
     }
+    # P1-5 : collision Bark détectée -> auto-correction (octave + LPF + stéréo) rapportée
+    if collision > PALETTE_MAX_BARK_COLLISION:
+        result["collision_fix"] = resolve_bark_collision(palette)
+    result["gate"] = validate_palette_gate(result)
+    result["accepted"] = result["gate"]["accepted"]
+    return result
 
 
 def search_assets_hybrid(
@@ -472,6 +584,7 @@ def main() -> int:
     parser.add_argument("--key", default="C:minor")
     parser.add_argument("--corridors", default=DEFAULT_CORRIDORS_PATH)
     parser.add_argument("--out", default=None, help="fichier JSON de sortie")
+    parser.add_argument("--intent", default="", help="intention texte (ex. \"moody piano dark rap\") : priorité SFZ locales + filtrage sémantique")
     parser.add_argument("--search", default=None, help="recherche hybride sémantique (ex. \"dark analog pad\")")
     parser.add_argument("--search-role", default=None, help="rôle cible pour --search")
     parser.add_argument("--top-k", type=int, default=10)
@@ -489,7 +602,7 @@ def main() -> int:
         print(json.dumps({"db": args.db, "query": args.search, "count": len(slim), "results": slim},
                          ensure_ascii=False, default=str))
         return 0
-    result = select_palette(args.db, args.profile, args.bpm, args.key, args.corridors)
+    result = select_palette(args.db, args.profile, args.bpm, args.key, args.corridors, intent=args.intent)
     slim = {k: v for k, v in result.items() if k != "assets"}
     slim["assets"] = {k: {kk: vv for kk, vv in (v or {}).items()
                           if kk in ("asset_id", "source_type", "file_path", "preset_name",

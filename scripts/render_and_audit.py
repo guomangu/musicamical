@@ -339,6 +339,7 @@ def render_and_evaluate(
     # non-playable samples in melodic roles, key-fit): error-severity issues block the gate
     # so a dissonant/"etrange" track can never ship in a render silently.
     musical_safety: dict[str, Any] = {"checked": False, "issues": [], "errors": 0, "warnings": 0, "ok": True}
+    bp_dict: dict[str, Any] = {}
     bp_safety_path = blueprint_used or os.path.join(proj_dir, "song_blueprint.json")
     if bp_safety_path and os.path.isfile(bp_safety_path):
         try:
@@ -350,9 +351,25 @@ def render_and_evaluate(
                 cat_path = resolve_catalog_path(proj_dir, bp=bp_dict)
                 notes_by_track = notes_by_track_from_score_ir(proj_dir) or None
             except Exception:
-                _c0 = os.path.join(proj_dir, "samples_catalog.json")
-                cat_path = _c0 if os.path.isfile(_c0) else None
+                cat_path = None
                 notes_by_track = None
+            # P1-5 (audit rap_ombre_134) : `catalog_missing` résolu — repli sur samples.db
+            # racine (SSOT, table sound_assets lue directement par blueprint_safety).
+            if not cat_path or not os.path.isfile(str(cat_path)):
+                _c0 = os.path.join(proj_dir, "samples_catalog.json")
+                if os.path.isfile(_c0):
+                    cat_path = _c0
+                else:
+                    try:
+                        import sys as _sys
+                        _idx = os.path.join(ROOT, "mcp-servers", "audio-index")
+                        if _idx not in _sys.path:
+                            _sys.path.insert(0, _idx)
+                        from unified_indexer import DEFAULT_DB_PATH
+                        if os.path.isfile(DEFAULT_DB_PATH) and os.path.getsize(DEFAULT_DB_PATH) > 0:
+                            cat_path = DEFAULT_DB_PATH
+                    except Exception:
+                        cat_path = None
             musical_safety = summarize_musical_safety(
                 bp_dict,
                 catalog_path=cat_path,
@@ -365,6 +382,23 @@ def render_and_evaluate(
     for _iss in musical_safety.get("issues") or []:
         if _iss.get("severity") == "error":
             gate_failures.append(f"musical_safety[{_iss.get('code')}] track={_iss.get('track')} role={_iss.get('role')}")
+    # P1-5 (audit rap_ombre_134 §6) : seuils BLOQUANTS de palette — si le blueprint embarque des
+    # métriques de palette, score < 0.60 / cohérence < 0.60 / collision Bark > 0.65 bloque le
+    # gate (fin du PASS forcé sur palette médiocre). Échappatoire : ALLOW_WEAK_PALETTE=1.
+    _bp_pal = bp_dict.get("palette") if isinstance(bp_dict.get("palette"), dict) else {}
+    if _bp_pal:
+        try:
+            from palette_selector import validate_palette_gate
+            _pg = validate_palette_gate({
+                "S_palette": float(_bp_pal.get("composite_score") or _bp_pal.get("score") or 0.0),
+                "M_spectral": float(_bp_pal.get("spectral_overlap") or 0.0),
+                "max_bark_collision": float(_bp_pal.get("max_bark_collision") or 0.0),
+            })
+            _allow_weak = str(os.environ.get("ALLOW_WEAK_PALETTE", "")).lower() in ("1", "true", "yes")
+            if not _pg["accepted"] and not _allow_weak:
+                gate_failures.append("palette_gate: " + "; ".join(_pg["reasons"]))
+        except Exception:
+            pass
     if base["clipped_samples"] > 0:
         gate_failures.append(f"clipped_samples={base['clipped_samples']} > 0")
     if base["true_peak_dbtp"] > _tp_limit:

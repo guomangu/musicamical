@@ -331,16 +331,17 @@ def eq_music_pocket(
     ])
 
 
-def eq_kick_clean(mixer: int, hpf_hz: float = 42.0, sub_cut_db: float = -3.0, punch_db: float = 3.0) -> list[tuple[str, Any]]:
-    """Standard Trap/Rap kick EQ (removes sub rumble, keeps 95 Hz punch).
-    La fondamentale du kick (45-70 Hz) n'est JAMAIS atténuée de plus de -3.0 dB."""
+def eq_kick_clean(mixer: int, hpf_hz: float = 30.0, sub_cut_db: float = 0.0, punch_db: float = 3.0) -> list[tuple[str, Any]]:
+    """Standard Trap/Rap kick EQ (audit rap_ombre_134 P2-7) : HPF 28-30 Hz, AUCUN cut à 50 Hz
+    (la fondamentale 45-70 Hz du kick reste intacte), cut 210 Hz réduit à -2 dB, punch 95 Hz.
+    Garde-fou conservé : un appel explicite ne peut JAMAIS couper la fondamentale de plus de -3.0 dB."""
     from dsp_interaction_guards import KICK_FUNDAMENTAL_MAX_CUT_DB
     sub_cut_db = max(float(sub_cut_db), KICK_FUNDAMENTAL_MAX_CUT_DB)
     return eq_insert(mixer, [
         (1, "hpf", hpf_hz),
         (2, "peak", 50.0, sub_cut_db, 0.40),
         (3, "peak", 95.0, punch_db, 0.45),
-        (4, "peak", 210.0, -4.0, 0.38),
+        (4, "peak", 210.0, -2.0, 0.38),
     ])
 
 
@@ -1742,7 +1743,9 @@ def _default_channels_for_plan(
         bp_tr = bp_tracks.get(rl) or {}
 
         if "kick" in rl:
-            spec = ChannelSpec("Kick", role, idx, "drums", plugin="gl.kick", volume=0.76, sidechain_buses=[(18, 0.8), (19, 0.45)])
+            # P2-7 (audit rap_ombre_134) : kick au sommet de la hiérarchie de gain (0.90-1.0),
+            # sidechain allégé sur BUS Music (0.45 -> 0.25) ; centre mono strict (pan 0).
+            spec = ChannelSpec("Kick", role, idx, "drums", plugin="gl.kick", volume=0.95, sidechain_buses=[(18, 0.8), (19, 0.25)])
         elif "snare" in rl:
             spec = ChannelSpec("Snare", role, idx, "drums", plugin="gl.snare", volume=0.68, fx_send=0.08)
         elif "clap" in rl:
@@ -1761,7 +1764,8 @@ def _default_channels_for_plan(
         elif any(k in rl for k in ("pad", "string")):
             spec = ChannelSpec("Pad", role, idx, "music", plugin="gl.analog", preset="Velvet Pad", role="pad", valence=valence, volume=0.56, fx_send=0.18, hall_send=0.22)
         elif any(k in rl for k in ("chord", "keys")):
-            spec = ChannelSpec("Chords", role, idx, "music", plugin="gl.keys", preset="Classic tine", role="chords", valence=valence, volume=0.68, fx_send=0.14, hall_send=0.14)
+            # P2-7 : gain canal chords 0.72-0.82 (au lieu de 0.68)
+            spec = ChannelSpec("Chords", role, idx, "music", plugin="gl.keys", preset="Classic tine", role="chords", valence=valence, volume=0.78, fx_send=0.14, hall_send=0.14)
         elif any(k in rl for k in ("counter", "arp", "arpeggio", "pluck")):
             spec = ChannelSpec("Arp" if "arp" in rl else "Counter Harmony", role, idx, "music",
                                plugin="gl.additive", preset="Harp pluck", role="lead", valence=valence,
@@ -2159,6 +2163,21 @@ def compile_arrangement_plan(
     except Exception:
         pass
     groove_counts = apply_groove_to_score_ir(score_ir, swing=swing, bpm=bpm, profile=meta["mix_profile"], beats_per_bar=float(bpb), seed=seed)
+    # P0-1/P0-2 (audit rap_ombre_134) : invariants de hauteur AVANT compilation vers le
+    # .gridline — perc : pitch == root_note du sampler (blueprint) ; bass : registre
+    # MIDI [26,41] + classe de hauteur = fondamentale de l'accord actif.
+    pitch_lock_report: dict[str, Any] = {}
+    try:
+        from score_ir import enforce_bass_register, lock_percussive_root_notes
+        _perc_roots: dict[str, int] = {}
+        if isinstance(_bp_raw, dict):
+            for _t in _bp_raw.get("tracks") or []:
+                if isinstance(_t, dict) and _t.get("root_note") is not None and _t.get("name"):
+                    _perc_roots[str(_t["name"]).lower()] = int(_t["root_note"])
+        pitch_lock_report["perc_pitch_lock"] = lock_percussive_root_notes(score_ir, root_notes=_perc_roots)
+        pitch_lock_report["bass_register"] = enforce_bass_register(score_ir)
+    except Exception as exc:
+        pitch_lock_report["error"] = str(exc)[:120]
     tracks, score_ir_report = compile_score_ir_to_notes(score_ir)
     try:
         score_ir.save(os.path.join(abs_proj, "score_ir.json"))
@@ -2323,7 +2342,9 @@ def compile_arrangement_plan(
             insert_eq_params.extend(eq_kick_clean(ch.mixer))
             insert_eq_mixers.append(ch.mixer)
         elif any(k in rl for k in ("chord", "pad")):
-            insert_eq_params.extend(eq_music_pocket(ch.mixer))
+            # P1-6/P2-7 : HPF 200 Hz sur pad/chords et coupes médiums allégées (jamais
+            # -3 dB sur trois bandes consécutives 300/480/1600 Hz)
+            insert_eq_params.extend(eq_music_pocket(ch.mixer, hpf_hz=200.0, mud_db=-1.5, box_db=-1.2, pocket_db=-2.0))
             insert_eq_mixers.append(ch.mixer)
 
     # Role modifiers: cutoff_hz & gain_db automations
@@ -2484,6 +2505,7 @@ def compile_arrangement_plan(
         "boundary_clamps_applied": _n_boundary_clamped,
         "groove_counts": groove_counts,
         "score_ir_report": score_ir_report,
+        "pitch_locks": pitch_lock_report,
         "voicing_adaptation": voicing_report,
         "narrative_harmony": narrative_report,
         "ritardando": ritardando_report,

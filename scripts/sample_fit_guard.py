@@ -276,6 +276,28 @@ def candidate_policy(role: str, cand: dict[str, Any], valence: float = 0.0) -> d
     """Politique combinée F4 (catégorie + nature + nom électronique + préférence organique)."""
     slot = normalize_slot_role(role)
     fp = str(cand.get("filepath") or cand.get("sample_path") or cand.get("filename") or "")
+    # P0-3 (audit rap_ombre_134 §P0-3) : cloisonnement taxonomique DUR des slots percussifs —
+    # jamais de son tonal (stab/chord/pluck/pad/synth/lead) ni de dossier `other/` en kick/
+    # snare/hihat/perc ; garde-fou acoustique snare (pas de hauteur tonale dominante).
+    _slot_to_cat = {"kick": "kick", "snare_clap": "snare", "hihat_perc": "hihat"}
+    if slot in _slot_to_cat:
+        try:
+            import unified_indexer as _ui
+
+            is_pitched = cand.get("is_pitched")
+            if is_pitched is None:
+                is_pitched = 1 if cand.get("midi_root") is not None else 0
+            ok, reason = _ui.role_allows_asset(
+                _slot_to_cat[slot], fp, is_pitched,
+                cand.get("pitch_confidence") or cand.get("confidence"),
+                cand.get("roughness") or cand.get("ac_roughness"),
+                cand.get("air_share") or cand.get("air_band_energy"),
+            )
+            if not ok:
+                return {"allowed": False, "tier": "forbidden", "category": cand.get("category"),
+                        "bonus": 0.0, "reasons": [f"taxonomy_lock({reason})"]}
+        except Exception:
+            pass
     cat_tier, cat_bonus, cat = category_tier(slot, cand.get("category"), fp)
     nat_verdict, nat_bonus, nat_reason = nature_verdict(
         slot, cand.get("sample_nature"), float(cand.get("inharmonicity") or 0.0), valence=valence
