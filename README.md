@@ -18,7 +18,7 @@ Studio complet de production musicale assistée par IA sur **Fedora / Ultramarin
 1. **Gridline `0.7.7`** : MCP natif activé (`mcp.enabled: true`, `mcp.allowEdits: true`, port `47390`), modèles de séparation de stems téléchargés (`htdemucs` et `htdemucs_6s`).
 2. **6 serveurs MCP connectés à Antigravity et Zed** :
    - `gridline` (mode live via `--attach` si Gridline GUI est ouvert, sinon édition directe sur `projects/active/projet.gridline`)
-   - `audio-index` (`1 898` fichiers indexés dans `samples.db`, vecteurs **LAION CLAP** + analyse **Essentia**, sélection psychoacoustique à 4 couches `select_best_samples` / `evaluate_sample_quality` sur `sample_index.json` + `golden_references/`, et récupération à la volée via **Freesound API v2** & **Lots of Sounds API** `fetch_samples_online`)
+   - `audio-index` (`samples.db` racine = **SSOT**, table `sound_assets` schéma v2 : descripteurs psychoacoustiques + 7 scores AudioCommons + **`clap_embedding` 512-d** (LAION CLAP local ou projection déterministe hors-ligne) + `modulation_profile_json` ; outil **`semantic_search_sound_assets`** (recherche en langage naturel, cosinus) + `palette_selector.search_assets_hybrid`, analyse **Essentia**, sélection psychoacoustique à 4 couches `select_best_samples` / `evaluate_sample_quality`, et récupération à la volée via **Freesound API v2** & **Lots of Sounds API** `fetch_samples_online`)
    - `audio-analyzer` (`pyloudnorm` LUFS BS.1770, True Peak 4x, spectre 5 bandes, phase, masquage Kick/808)
    - `vocaloid` (syllabation FR/EN, génération `.ustx`, guides vocaux `.wav`, OpenUTAU `0.1.576` dans `tools/OpenUtau/`)
    - `reverse-engineer` (split 6 stems + **Spotify Basic Pitch ONNX** Audio→MIDI + détection d'accords/BPM/tonalité pour flips Rap)

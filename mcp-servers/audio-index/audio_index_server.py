@@ -386,6 +386,44 @@ def find_compatible_samples(
 
 
 @mcp.tool()
+def semantic_search_sound_assets(
+    query: str,
+    role: str = "",
+    source_type: str = "",
+    top_k: int = 10,
+    db_path: str = "",
+) -> str:
+    """Recherche sémantique en langage naturel sur `samples.db` (SSOT, table `sound_assets`) :
+    filtre dur SQL sur le rôle/la source + classement par similarité cosinus sur les embeddings
+    512-d `clap_embedding` (CLAP si disponible, sinon projection déterministe hors-ligne) —
+    chantier 1, spec v2.0 §1.2. Ex. query="dark analog pad with slow movement", role="pad"."""
+    index_dir = os.path.join(STUDIO_DIR, "mcp-servers", "audio-index")
+    if index_dir not in sys.path:
+        sys.path.insert(0, index_dir)
+    import unified_indexer as ui
+
+    target = os.path.abspath(os.path.expanduser(db_path)) if db_path.strip() else ui.DEFAULT_DB_PATH
+    conn = ui.init_db(target)
+    try:
+        rows = ui.semantic_search(
+            conn, query,
+            role_category=(role.strip() or None),
+            source_type=(source_type.strip() or None),
+            top_k=max(1, min(int(top_k), 50)),
+        )
+    finally:
+        conn.close()
+    slim = [
+        {k: v for k, v in r.items() if k in ("asset_id", "source_type", "file_path", "preset_name",
+                                             "role_category", "spectral_centroid_hz", "ac_warmth",
+                                             "ac_brightness", "ac_boomy", "semantic_score")}
+        for r in rows
+    ]
+    return json.dumps({"db": target, "query": query, "count": len(slim), "results": slim},
+                      ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
 def get_sample_info(path: str) -> str:
     """Retourne les caractéristiques détaillées (métadonnées + DSP) d'un sample indexé."""
     abs_path = os.path.abspath(os.path.expanduser(path))

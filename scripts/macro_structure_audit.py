@@ -1355,6 +1355,112 @@ def _audit_5d_dramatic_arc(
     }
 
 
+# ---------------------------------------------------------------------------
+# Chantier 4 (spec v2.0 §4.1) — arcs structurels de référence : comparaison de
+# l'arc énergétique d'un morceau généré avec la courbe de référence du genre.
+# ---------------------------------------------------------------------------
+
+DEFAULT_CORRIDORS_PATH = os.path.join(ROOT_DIR, "golden_references", "spectral_corridors.json")
+
+
+def load_structure_arcs(profile: str, corridors_path: str = DEFAULT_CORRIDORS_PATH) -> dict[str, Any] | None:
+    """Charge `profiles[profile]["structure_arcs"]` depuis `spectral_corridors.json`."""
+    path = corridors_path if os.path.isabs(corridors_path) else os.path.join(ROOT_DIR, corridors_path)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception:
+        return None
+    entry = (data.get("profiles") or {}).get(profile) or {}
+    arcs = entry.get("structure_arcs")
+    return arcs if isinstance(arcs, dict) else None
+
+
+def compare_energy_arc(bar_lufs_rel: list[float], arcs: dict[str, Any]) -> dict[str, Any]:
+    """Compare une courbe d'énergie mesurée (LUFS relatifs par mesure) à l'arc de
+    référence : score global en [0, 1] (1 = arc identique) + deltas par section."""
+    ref_curve = [float(x) for x in (arcs.get("energy_curve_lufs_rel") or [])]
+    sections = arcs.get("sections") or []
+    if not ref_curve or not bar_lufs_rel:
+        return {"score": 0.0, "n_bars": len(bar_lufs_rel), "sections": []}
+    n = min(len(ref_curve), len(bar_lufs_rel))
+    # alignement par rééchantillonnage linéaire de la courbe de référence sur n mesures
+    ref_rs = np.interp(np.linspace(0, len(ref_curve) - 1, n), np.arange(len(ref_curve)), ref_curve)
+    got = np.asarray(bar_lufs_rel[:n], dtype=np.float64)
+    span = max(1e-6, float(np.max(ref_rs) - np.min(ref_rs)))
+    err = float(np.mean(np.abs(got - ref_rs))) / max(span, 6.0)  # normalisé, tolérant
+    score = float(max(0.0, min(1.0, 1.0 - err)))
+    per_section = []
+    bar = 0
+    for s in sections:
+        nb = int(s.get("bars", 0))
+        if nb <= 0:
+            continue
+        seg = got[bar:bar + nb]
+        ref_seg = ref_rs[bar:bar + nb]
+        if seg.size:
+            per_section.append({
+                "name": s.get("name", "?"),
+                "start_bar": bar,
+                "bars": nb,
+                "ref_lufs_rel_db": round(float(np.mean(ref_seg)), 2) if ref_seg.size else None,
+                "got_lufs_rel_db": round(float(np.mean(seg)), 2),
+                "delta_db": round(float(np.mean(seg) - np.mean(ref_seg)), 2) if ref_seg.size else None,
+            })
+        bar += nb
+    return {"score": round(score, 4), "n_bars": n, "sections": per_section}
+
+
+def audit_energy_arc_vs_reference(
+    wav_path: str,
+    *,
+    bpm: float = 132.0,
+    beats_per_bar: int = 4,
+    profile: str = "trap_rap",
+    corridors_path: str = DEFAULT_CORRIDORS_PATH,
+    preloaded_data: tuple[np.ndarray, int] | None = None,
+) -> dict[str, Any]:
+    """Mesure l'arc énergétique (LUFS relatifs par mesure) d'un rendu et le compare à
+    l'arc structurel de référence du genre (`structure_arcs`)."""
+    arcs = load_structure_arcs(profile, corridors_path)
+    if arcs is None:
+        return {"available": False, "reason": "structure_arcs_absent", "profile": profile}
+    if preloaded_data is not None:
+        mono, sr = preloaded_data
+    else:
+        abs_wav = os.path.abspath(os.path.expanduser(wav_path))
+        if not os.path.isfile(abs_wav):
+            raise FileNotFoundError(abs_wav)
+        mono, sr = sf.read(abs_wav, dtype="float64", always_2d=False)
+        if mono.ndim > 1:
+            mono = mono.mean(axis=1)
+    bar_s = beats_per_bar * 60.0 / float(bpm)
+    n_bars = max(1, int(mono.size / sr / bar_s))
+    meter = pyln.Meter(sr)
+    bar_lufs = []
+    for b in range(n_bars):
+        seg = mono[int(b * bar_s * sr): int((b + 1) * bar_s * sr)]
+        if seg.size < int(0.1 * sr):
+            bar_lufs.append(-60.0)
+        else:
+            bar_lufs.append(float(meter.integrated_loudness(seg)))
+    ref = float(np.median([x for x in bar_lufs if x > -59.0])) if any(x > -59.0 for x in bar_lufs) else -20.0
+    rel = [round(float(x - ref), 2) if x > -59.0 else -30.0 for x in bar_lufs]
+    cmp_res = compare_energy_arc(rel, arcs)
+    return {
+        "available": True,
+        "profile": profile,
+        "bpm": float(bpm),
+        "n_bars": n_bars,
+        "bar_lufs_rel": rel,
+        "reference_provenance": arcs.get("provenance"),
+        "arc_score": cmp_res["score"],
+        "sections": cmp_res["sections"],
+    }
+
+
 def analyze_macro_structure(
     wav_path: str,
     *,

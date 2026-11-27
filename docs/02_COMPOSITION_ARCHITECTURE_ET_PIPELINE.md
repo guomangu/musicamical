@@ -11,7 +11,7 @@
 > - **Règle n°1** : Ne **jamais** calculer notes MIDI, gammes ou accords de tête — importer `SCALES`, `degree_to_midi` (`song_builder.py`) et `optimize_voice_leading` (`musicality_metrics.py`). Carte fichiers → [`docs/00_SOMMAIRE.md`](00_SOMMAIRE.md).
 > - **Émotion `(V, T, E, D)`** : Choisir **Mode** (§2), **Progression éprouvée (§4)**, **BPM & Matrice Rythmique (§6)**, **Palette (§7)**.
 > - **Mélodie (§5)** : Motif de **3 à 5 notes** varié sur 4 mesures (`A - A' - A'' [Apex <= 74] - B [Silence]` si `V >= 0`, ou courbe descendante/hypnotique si `V < 0`) ; `>= 65 %` pas conjoints (`<= 4 st`), `20–50 %` silence (`[0, 0.92]` en `free_ambient`), temps forts sur accord (`>= 80 %` consonant / `>= 65 %` sombre), **zéro** note sur chaque croche, **zéro** arpège 1-3-5-8 plat ou vélocité constante.
-> - **Humanisation automatique** : Appeler **`scripts/groove_lib.py`** (`apply_micro_strum`, `apply_haas_pocket`, `apply_anti_machine_gun`, `enforce_frequency_inertia`) au lieu de coder les décalages à la main.
+> - **Humanisation automatique** : Appeler **`scripts/groove_lib.py`** (`apply_micro_strum`, `apply_haas_pocket`, `apply_anti_machine_gun`, `apply_pocket_humanization`, `enforce_frequency_inertia`) au lieu de coder les décalages à la main.
 > - **Registres stricts** : Basse/808 **`31–48`** (`>= 49 Hz`, en `C..F#` jouer `36–42`), Accords `48–67`, Lead `55–72` (Apex `<= 74` ; `75–81` réservé aux timbres doux si `V > +0.3`).
 
 ---
@@ -138,6 +138,7 @@ Toute demande utilisateur se traduit en 4 axes mesurables :
   * **`apply_micro_strum(chords, step_ms=15.0, bpm=...)`** : décale chaque voix ascendante (`+10–25 ms`) et atténue les voix internes.
   * **`apply_haas_pocket(tracks, bpm=..., profile=...)`** : Kick = `0 ms` (ancrage), Snare/Clap `+0..+10 ms` (urgent `-5 ms`), Hats `+5..+18 ms`, Basse `+10..+20 ms` (préserve l'attaque Kick et le headroom).
   * **`apply_anti_machine_gun(notes)`** : humanise vélo/longueur sur motifs rapides (`>= 1/16`) sans jamais répéter deux frappes identiques.
+  * **`apply_pocket_humanization(notes, bpm, track_name, profile, seed)`** (spec v2.0 §4.2, pocket GrooVAE) : covariance vélocité-timing — notes fantômes (`v < 50`) retardées `+6..+16 ms`, accents (`v > 105`) avancés `-5..-1 ms` ; caisse claire temps 2 & 4 *laid-back* `+4..+10 ms` en Lo-Fi/Boom-Bap/R&B.
 
 ### 5.3 Bibliothèque Universelle de 11 Matrices Rythmiques Exactes (Beats 0-Indexed)
 

@@ -46,6 +46,7 @@ for _p in (SCRIPTS_DIR, INDEX_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+import unified_indexer as ui  # noqa: E402
 from unified_indexer import DEFAULT_DB_PATH, init_db, midi_to_hz  # noqa: E402
 
 DEFAULT_CORRIDORS_PATH = os.path.join(ROOT, "golden_references", "spectral_corridors.json")
@@ -420,6 +421,49 @@ def select_palette(
     }
 
 
+def search_assets_hybrid(
+    conn: sqlite3.Connection,
+    query: str,
+    role_category: str | None = None,
+    chosen: dict[str, dict[str, Any]] | None = None,
+    top_k: int = 10,
+    corridors_path: str = DEFAULT_CORRIDORS_PATH,
+) -> list[dict[str, Any]]:
+    """Recherche hybride psychoacoustique + sémantique (spec v2.0 §1.2).
+
+    Étape 1 (filtre dur SQLite) : candidats du rôle cible respectant les bornes psychoacoustiques
+    (via `unified_indexer.semantic_search` sur `clap_embedding`, contrat CLAP 512-d).
+    Étape 2 (classement vectoriel) : similarité cosinus requête↔asset pondérée par le score de
+    complémentarité spectrale (1 - chevauchement Bark24) avec les pistes déjà choisies.
+    """
+    q_blob = ui.text_embedding_blob(query)
+    rows = ui.query_assets(conn, role_category=role_category, limit=2000)
+    if not rows:
+        return []
+    chosen_barks: dict[str, list[float]] = {}
+    cache: dict[str, list[float]] = {}
+    if chosen:
+        for role, row in chosen.items():
+            if row:
+                chosen_barks[role] = row_to_bark24(row, cache)
+    out = []
+    for r in rows:
+        blob = r.get("clap_embedding") or r.get("embedding_blob")
+        cos = ui.embedding_cosine(blob, q_blob)
+        comp = 1.0
+        if chosen_barks:
+            bark = row_to_bark24(r, cache)
+            overlaps = [spectral_overlap_m(bark, cb) for cb in chosen_barks.values()]
+            comp = 1.0 - float(np.mean(overlaps)) if overlaps else 1.0
+        r = dict(r)
+        r["semantic_score"] = round(cos, 4)
+        r["complementarity"] = round(comp, 4)
+        r["hybrid_score"] = round(float(np.clip(0.7 * cos + 0.3 * comp, 0.0, 1.0)), 4)
+        out.append(r)
+    out.sort(key=lambda r: r["hybrid_score"], reverse=True)
+    return out[: max(1, int(top_k))]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sélection relationnelle de palette (4 étapes) depuis samples.db")
     parser.add_argument("--db", default=DEFAULT_DB_PATH)
@@ -428,7 +472,23 @@ def main() -> int:
     parser.add_argument("--key", default="C:minor")
     parser.add_argument("--corridors", default=DEFAULT_CORRIDORS_PATH)
     parser.add_argument("--out", default=None, help="fichier JSON de sortie")
+    parser.add_argument("--search", default=None, help="recherche hybride sémantique (ex. \"dark analog pad\")")
+    parser.add_argument("--search-role", default=None, help="rôle cible pour --search")
+    parser.add_argument("--top-k", type=int, default=10)
     args = parser.parse_args()
+    if args.search:
+        conn = init_db(args.db)
+        try:
+            rows = search_assets_hybrid(conn, args.search, role_category=args.search_role, top_k=args.top_k)
+        finally:
+            conn.close()
+        slim = [{k: v for k, v in r.items() if k in ("asset_id", "source_type", "file_path", "preset_name",
+                                                      "role_category", "spectral_centroid_hz", "ac_warmth",
+                                                      "ac_brightness", "ac_boomy", "semantic_score",
+                                                      "complementarity", "hybrid_score")} for r in rows]
+        print(json.dumps({"db": args.db, "query": args.search, "count": len(slim), "results": slim},
+                         ensure_ascii=False, default=str))
+        return 0
     result = select_palette(args.db, args.profile, args.bpm, args.key, args.corridors)
     slim = {k: v for k, v in result.items() if k != "assets"}
     slim["assets"] = {k: {kk: vv for kk, vv in (v or {}).items()

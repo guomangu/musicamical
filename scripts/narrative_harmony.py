@@ -186,6 +186,88 @@ def melodic_climax_arch(score_ir: ScoreIR, period_bars: int = 8) -> int:
     return n
 
 
+# ---------------------------------------------------------------------------
+# Chantier 4 (spec v2.0 §4.2) — Garde-fou harmonique : Low Interval Limit sous
+# C3 (MIDI 48) : toute paire de notes simultanées dont la plus basse est sous
+# C3 doit respecter un intervalle >= 7 demi-tons (cohérent music21).
+# ---------------------------------------------------------------------------
+
+C3_MIDI = 48
+MIN_INTERVAL_BELOW_C3_ST = 7
+
+
+def low_interval_limit_violations(
+    score_ir: ScoreIR,
+    below_midi: int = C3_MIDI,
+    min_st: int = MIN_INTERVAL_BELOW_C3_ST,
+) -> list[dict[str, Any]]:
+    """Liste les paires de notes simultanées (pistes différentes, chevauchement temporel)
+    dont la note la plus basse est < `below_midi` avec un intervalle < `min_st` demi-tons."""
+    events: list[tuple[str, Any]] = []
+    for key, tir in score_ir.tracks.items():
+        for n in tir.notes:
+            events.append((key, n))
+    violations: list[dict[str, Any]] = []
+    for i in range(len(events)):
+        ka, a = events[i]
+        for j in range(i + 1, len(events)):
+            kb, b = events[j]
+            if ka == kb:
+                continue
+            if not (a.grid_beat < b.grid_beat + b.duration_beats and b.grid_beat < a.grid_beat + a.duration_beats):
+                continue
+            lo_note, hi_note = (a, b) if a.pitch <= b.pitch else (b, a)
+            st = int(hi_note.pitch) - int(lo_note.pitch)
+            if int(lo_note.pitch) < below_midi and st < min_st:
+                violations.append({
+                    "tracks": sorted([ka, kb]),
+                    "lower_midi": int(lo_note.pitch),
+                    "upper_midi": int(hi_note.pitch),
+                    "interval_st": st,
+                })
+    return violations
+
+
+def enforce_low_interval_limits(
+    score_ir: ScoreIR,
+    below_midi: int = C3_MIDI,
+    min_st: int = MIN_INTERVAL_BELOW_C3_ST,
+) -> dict[str, Any]:
+    """Corrige les violations LIL sous C3 en montant la note aiguë de la paire du nombre
+    de demi-tons manquants (déterministe, jamais au-dessus de MIDI 127)."""
+    events: list[tuple[str, Any]] = []
+    for key, tir in score_ir.tracks.items():
+        for n in tir.notes:
+            events.append((key, n))
+    fixed = 0
+    seen: set[tuple[int, int]] = set()
+    for i in range(len(events)):
+        ka, a = events[i]
+        for j in range(i + 1, len(events)):
+            kb, b = events[j]
+            if ka == kb:
+                continue
+            if not (a.grid_beat < b.grid_beat + b.duration_beats and b.grid_beat < a.grid_beat + a.duration_beats):
+                continue
+            lo_note, hi_note = (a, b) if a.pitch <= b.pitch else (b, a)
+            st = int(hi_note.pitch) - int(lo_note.pitch)
+            if int(lo_note.pitch) < below_midi and st < min_st:
+                key = (id(lo_note), id(hi_note))
+                if key in seen:
+                    continue
+                seen.add(key)
+                need = min_st - st
+                if int(hi_note.pitch) + need <= 127:
+                    hi_note.pitch = int(hi_note.pitch) + need
+                    fixed += 1
+    return {
+        "below_midi": below_midi,
+        "min_interval_st": min_st,
+        "violations_remaining": len(low_interval_limit_violations(score_ir, below_midi, min_st)),
+        "fixed": fixed,
+    }
+
+
 OPERATORS = {
     "motif_answer": motif_answer,
     "rhythmic_lift": rhythmic_lift,
@@ -220,6 +302,7 @@ def apply_narrative_harmony(
         else:
             report["operators"][op] = fn(score_ir)
     report["suspensions_marked"] = mark_suspensions(score_ir)
+    report["low_interval_limits"] = enforce_low_interval_limits(score_ir)
     return report
 
 

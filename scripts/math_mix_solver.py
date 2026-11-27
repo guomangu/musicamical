@@ -229,6 +229,117 @@ def load_corridors(path: str, profile: str, valence: float) -> tuple[np.ndarray,
     return p10, p50, p90, metrics_out
 
 
+# ---------------------------------------------------------------------------
+# v2 — Mixage dynamique & spatial (spec v2.0 §3) : sidechain ducking Kick→Basse
+# calé au tempo, façonnage de transitoires vs crest du corridor, M/S par bandes.
+# ---------------------------------------------------------------------------
+
+LOW_BAND_MONO_HZ = 140.0          # §3.2 : mono strict sous 140 Hz
+MID_BAND_HZ = (140.0, 2500.0)     # bande médium
+HIGH_BAND_HZ = 2500.0             # bande aiguë/air
+W_LOW = 0.0                       # largeur stéréo forcée mono en grave
+W_MID = 0.85                      # largeur modérée en médium (dans [0.7, 1.0])
+W_HIGH = 1.20                     # ouverture élargie en aigu (dans [1.05, 1.30])
+MID_SIDE_BANDS = {"low_hz": LOW_BAND_MONO_HZ, "W_low": W_LOW,
+                  "mid_band_hz": list(MID_BAND_HZ), "W_mid": [0.7, 1.0],
+                  "high_hz": HIGH_BAND_HZ, "W_high": [1.05, 1.30]}
+
+# §3.1 : profondeur de ducking calibrée par genre (d_max ∈ [0.25, 0.55], plus marquée
+# en Trap/EDM, plus subtile en Lo-Fi/Jazz), attaque 2 ms, release = double-croche (60/4BPM s).
+DUCK_DEPTH_BY_GENRE: dict[str, tuple[float, float]] = {
+    "trap_rap": (0.40, 0.55), "edm_club": (0.40, 0.55),
+    "pop_rnb": (0.30, 0.45), "rock_metal": (0.30, 0.45),
+    "lofi_chill": (0.25, 0.35), "jazz_acoustic": (0.25, 0.35), "classical_ambient": (0.25, 0.30),
+}
+DUCK_ATTACK_MS = 2.0
+TRANSIENT_ROLES = ("kick", "snare", "hihat", "perc", "clap", "keys")  # §3.3 : buses drums + keys
+
+
+def duck_depth_for_genre(mix_profile: str, depth_cal: float) -> float:
+    lo, hi = DUCK_DEPTH_BY_GENRE.get(mix_profile, (0.25, 0.55))
+    return float(lo + (hi - lo) * float(np.clip(depth_cal, 0.0, 1.0)))
+
+
+def duck_release_s(bpm: float) -> float:
+    """Relâchement synchronisé sur la double-croche : t_release = 60 / (4 * BPM) s (spec §3.1)."""
+    return 60.0 / (4.0 * float(bpm)) if bpm else 0.125
+
+
+def _duck_env_smooth(env: np.ndarray, sr: int, attack_s: float, release_s: float) -> np.ndarray:
+    """Follower d'enveloppe asymétrique : attaque rapide (`attack_s`), relâchement lent
+    (`release_s`) — g = 1 - d_max * env_sm creuse vite au onset du kick, remonte au tempo."""
+    env = np.asarray(env, dtype=np.float64)
+    if env.size == 0:
+        return env
+    # L'enveloppe est déjà lissée (LP ~60 Hz) : on décime x8 pour la récurrence asymétrique
+    # (coût O(N/8)), puis on réinterpole — même résultat, 8x moins cher.
+    dec = 8
+    a_atk = math.exp(-1.0 / max(attack_s * sr, 1.0))
+    a_rel = math.exp(-1.0 / max(release_s * sr, 1.0))
+    if env.size <= 4 * dec:
+        sub, step = env, 1
+    else:
+        step = dec
+        sub = env[::step]
+    a_atk_d = math.exp(-1.0 / max(attack_s * sr / step, 1.0))
+    a_rel_d = math.exp(-1.0 / max(release_s * sr / step, 1.0))
+    out_d = np.empty_like(sub)
+    prev = float(sub[0])
+    for i in range(sub.size):
+        x = float(sub[i])
+        if x >= prev:
+            prev = a_atk_d * x + (1.0 - a_atk_d) * prev
+        else:
+            prev = a_rel_d * x + (1.0 - a_rel_d) * prev
+        out_d[i] = prev
+    if step == 1:
+        return out_d
+    return np.interp(np.arange(env.size), np.arange(sub.size) * step, out_d)
+
+
+def apply_mid_side_bands(x: np.ndarray, sr: int, w_low: float = W_LOW,
+                        w_mid: float = W_MID, w_high: float = W_HIGH) -> np.ndarray:
+    """Équilibrage stéréo Mid/Side par bande fréquentielle (spec §3.2).
+
+    < 140 Hz : W_low = 0 (mono strict, aucune annulation de phase) ; médium : W_mid ;
+    > 2.5 kHz : W_high (ouverture sur nappes/hats/reverbs). Signal mono inchangé.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    if x.ndim == 1 or x.shape[1] < 2:
+        return x
+    L, R = x[:, 0], x[:, 1]
+    M = 0.5 * (L + R)
+    S = 0.5 * (L - R)
+    # Filtres de split d'ordre 1 suffisants (simple répartition de largeur, pas un crossover brickwall)
+    s_low = _sig.sosfilt(_sig.butter(1, LOW_BAND_MONO_HZ, btype="lowpass", fs=sr, output="sos"), S)
+    s_high = _sig.sosfilt(_sig.butter(1, HIGH_BAND_HZ, btype="highpass", fs=sr, output="sos"), S)
+    s_mid = S - s_low - s_high
+    S2 = w_low * s_low + w_mid * s_mid + w_high * s_high
+    out = np.stack([M + S2, M - S2], axis=1)
+    return out
+
+
+def transient_shape(y: np.ndarray, sr: int, target_crest_db: float, max_shift_db: float = 3.0) -> tuple[np.ndarray, float]:
+    """Façonnage de transitoires (spec §3.3) : rapproche le facteur de crête du bus de la
+    cible extraite du corridor, en ne touchant qu'aux pics (aucune compression globale)."""
+    del sr
+    y = np.asarray(y, dtype=np.float64)
+    if y.size < 256:
+        return y, 0.0
+    peak = float(np.max(np.abs(y))) + EPS
+    rms = float(np.sqrt(np.mean(y * y))) + EPS
+    crest = 20.0 * math.log10(peak / rms)
+    shift = float(np.clip(float(target_crest_db) - crest, -max_shift_db, max_shift_db))
+    if abs(shift) < 0.3:
+        return y, 0.0  # déjà proche de la cible : aucun façonnage (parcimonie + CPU)
+    # Only the very top of the amplitude range is shaped (transient tips), so the crest
+    # actually moves toward the target without compressing the body.
+    g = 10.0 ** (shift / 20.0)
+    mask = (np.abs(y) / peak) ** 16
+    out = y * (1.0 + (g - 1.0) * mask)
+    return out, shift
+
+
 class _Surrogate:
     def __init__(self, stems: dict[str, np.ndarray], sr: int, roles: dict[str, str]):
         self.sr = int(sr)
@@ -560,15 +671,72 @@ def solve_mix_parameters(
     # ---------- Bloc 4 : dynamique temporelle réelle (sosfilt + dichotomie limiteur) ----------
     # Application temporelle : HPF réel + gains par piste ; les crans EQ peak/shelf restent
     # dans le surrogate (bornes serrées ±4.5 dB → parcimonie garantie, pas de LPF brique).
-    mixed = None
     filtered = {}
+    transient_report: dict[str, dict] = {}
+    target_crest = float(((_metrics.get("crest_factor_db") or {}).get("p50")) or 10.5)
     for i, nm in enumerate(names):
         x = np.asarray(stems[nm], dtype=np.float64)
+        # §3.2 : mono strict < 140 Hz — uniquement sur les rôles latéraux réellement
+        # stéréo (corr < 0.9) ; les pistes fondation/lead sont déjà centrées (pan 0).
+        if (x.ndim == 2 and x.shape[1] == 2 and roles[nm] in LATERAL_ROLES
+                and sur.lr_corr[i] < 0.9):
+            x = apply_mid_side_bands(x, sr)
         mono = x.mean(axis=1) if x.ndim == 2 else x
         f0 = float(np.clip(eqs[i]["hpf"], 20.0, sr / 2 - 100))
         sos = _sig.butter(2, f0, btype="highpass", fs=sr, output="sos")
         y = _sig.sosfilt(sos, mono) * (10.0 ** (gains[i] / 20.0))
+        if roles[nm] in TRANSIENT_ROLES:  # §3.3 : façonnage de transitoires (drums + keys)
+            y, shift = transient_shape(y, sr, target_crest)
+            if shift:
+                transient_report[nm] = {"crest_shift_db": round(shift, 2),
+                                         "target_crest_db": round(float(target_crest), 2)}
         filtered[nm] = y
+
+    # sidechain Kick → Bass : overlap transitoire ≤ 0.15 (calibration 1D bornée)
+    sc = {"ratio": 2.8, "threshold_db": -18.5, "release_ms": 72.0}
+    depth = 0.0
+    ki = _find_role(names, roles, "kick")
+    bi = _find_role(names, roles, "bass")
+    if ki is not None and bi is not None:
+        kick = filtered[names[ki]]
+        bass = filtered[names[bi]]
+        m = min(len(kick), len(bass))
+        env = np.abs(_sig.sosfilt(_sig.butter(2, 60.0, btype="lowpass", fs=sr, output="sos"), kick[:m]))
+        env = env / max(float(env.max()), EPS)
+        bass_env = np.abs(_sig.sosfilt(_sig.butter(2, 60.0, btype="lowpass", fs=sr, output="sos"), bass[:m]))
+        bass_env = bass_env / max(float(bass_env.max()), EPS)
+
+        def overlap(depth: float) -> float:
+            duck = 1.0 - depth * env
+            return float(np.mean(np.minimum(bass_env * duck, env)) / max(np.mean(np.minimum(bass_env, env)) + EPS, EPS))
+
+        r = _opt.minimize_scalar(overlap, bounds=(0.0, 0.9), method="bounded", options={"xatol": 1e-3})
+        depth = float(r.x)
+        sc = {"ratio": round(2.0 + depth * 4.0, 2), "threshold_db": round(-24.0 + depth * 10.0, 1),
+              "release_ms": round(50.0 + (1.0 - depth) * 60.0, 1)}
+        # §3.1 v2 : ducking dynamique réel appliqué à la basse avant sommation —
+        # profondeur calibrée par genre, attaque 2 ms, release = double-croche (tempo).
+        d_max = duck_depth_for_genre(mix_profile, depth)
+        rel_tempo_s = duck_release_s(bpm)
+        env_sm = _duck_env_smooth(env, sr, DUCK_ATTACK_MS / 1000.0, rel_tempo_s)
+        duck_gain = 1.0 - d_max * env_sm
+        bb = filtered[names[bi]].copy()
+        m = min(len(bb), len(duck_gain))
+        bb[:m] *= duck_gain[:m]
+        filtered[names[bi]] = bb
+        sc.update({
+            "attack_ms": DUCK_ATTACK_MS,
+            "depth_max": round(d_max, 3),
+            "release_tempo_s": round(rel_tempo_s, 4),
+            "release_tempo_ms": round(rel_tempo_s * 1000.0, 1),
+            "genre": mix_profile,
+            "ducking": "kick_envelope_driven",
+        })
+
+    # Sommation du mix après traitements dynamiques (ducking, M/S bandes, transitoires)
+    mixed = None
+    for nm in names:
+        y = filtered[nm]
         if mixed is None:
             mixed = y.copy()
         else:
@@ -625,28 +793,6 @@ def solve_mix_parameters(
     master_y, tp_pred, _ = limiter_model(mixed, lim_gain, ceiling)
     lufs_pred = integrated_lufs(master_y)
     plr_min = short_term_plr_min(mixed, base_lufs)
-
-    # sidechain Kick → Bass : overlap transitoire ≤ 0.15 (calibration 1D bornée)
-    sc = {"ratio": 2.8, "threshold_db": -18.5, "release_ms": 72.0}
-    ki = _find_role(names, roles, "kick")
-    bi = _find_role(names, roles, "bass")
-    if ki is not None and bi is not None:
-        kick = filtered[names[ki]]
-        bass = filtered[names[bi]]
-        m = min(len(kick), len(bass))
-        env = np.abs(_sig.sosfilt(_sig.butter(2, 60.0, btype="lowpass", fs=sr, output="sos"), kick[:m]))
-        env = env / max(float(env.max()), EPS)
-        bass_env = np.abs(_sig.sosfilt(_sig.butter(2, 60.0, btype="lowpass", fs=sr, output="sos"), bass[:m]))
-        bass_env = bass_env / max(float(bass_env.max()), EPS)
-
-        def overlap(depth: float) -> float:
-            duck = 1.0 - depth * env
-            return float(np.mean(np.minimum(bass_env * duck, env)) / max(np.mean(np.minimum(bass_env, env)) + EPS, EPS))
-
-        r = _opt.minimize_scalar(overlap, bounds=(0.0, 0.9), method="bounded", options={"xatol": 1e-3})
-        depth = float(r.x)
-        sc = {"ratio": round(2.0 + depth * 4.0, 2), "threshold_db": round(-24.0 + depth * 10.0, 1),
-              "release_ms": round(50.0 + (1.0 - depth) * 60.0, 1)}
 
     # ---------- métriques prédites & résidu / swap ----------
     E = sur.band_energies(gains, eqs)
@@ -726,7 +872,15 @@ def solve_mix_parameters(
         "tracks": tracks_out,
         "buses": {
             "sidechain_kick_to_bass": sc,
+            "mid_side_bands": MID_SIDE_BANDS,
             "master_limiter": {"gain_db": round(float(lim_gain), 2), "ceiling_db": ceiling},
+        },
+        "dynamic_processing": {
+            "sidechain_kick_to_bass": sc,
+            "low_band_mono_hz": LOW_BAND_MONO_HZ,
+            "mid_side_bands": MID_SIDE_BANDS,
+            "transient_shaping": transient_report,
+            "target_crest_db": round(float(target_crest), 2),
         },
         "predicted_metrics": {
             "lufs": round(float(lufs_pred), 2),

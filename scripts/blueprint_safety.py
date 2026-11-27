@@ -301,11 +301,59 @@ def allowed_degrees_for_sample(entry: dict[str, Any] | None) -> list[int] | None
 # catalog index
 # ---------------------------------------------------------------------------
 
+def _db_catalog_index(db_path: str) -> dict[str, dict[str, Any]]:
+    """Index d'un `samples.db` (SSOT, table `sound_assets`) au format du catalogue legacy.
+
+    Chantier 1 (spec v2.0 §1.3) : `samples_catalog.json` est supprimé ; les mêmes vérifications
+    (root lock vs `detected_midi_note`, jouabilité chromatique) lisent désormais `samples.db`.
+    """
+    import sqlite3
+
+    idx: dict[str, dict[str, Any]] = {}
+    if not db_path or not db_path.lower().endswith((".db", ".sqlite", ".sqlite3")) or not os.path.isfile(db_path):
+        return idx
+    proj_dir = os.path.dirname(os.path.abspath(db_path))
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM sound_assets").fetchall()
+        conn.close()
+    except Exception:
+        return idx
+    for r in rows:
+        d = dict(r)
+        fp = str(d.get("file_path") or "")
+        if not fp:
+            continue
+        is_pitched = bool(d.get("is_pitched"))
+        s = {
+            "filepath": fp,
+            "filename": os.path.basename(fp),
+            "category": d.get("role_category"),
+            "midi_root": d.get("detected_midi_note"),
+            "playable_chromatically": True if is_pitched else None,
+            "sample_nature": "tonal" if is_pitched else "percussive",
+            "is_loop": False,
+            "inharmonicity": 0.0,
+            "hard_reject": None,
+            "source": "samples.db",
+        }
+        abs_p = os.path.normpath(os.path.abspath(fp))
+        idx[abs_p] = s
+        idx[abs_p.lower()] = s
+        rel = os.path.normpath(os.path.relpath(abs_p, proj_dir))
+        idx[rel.lower()] = s
+        idx.setdefault(os.path.basename(fp).lower(), s)
+    return idx
+
+
 def load_catalog_index(catalog_path: str) -> dict[str, dict[str, Any]]:
-    """Index a `samples_catalog.json` by absolute path, project-relative path and basename."""
+    """Index a `samples_catalog.json` (or `samples.db` SSOT) by absolute path, project-relative path and basename."""
     idx: dict[str, dict[str, Any]] = {}
     if not catalog_path or not os.path.isfile(catalog_path):
         return idx
+    if catalog_path.lower().endswith((".db", ".sqlite", ".sqlite3")):
+        return _db_catalog_index(catalog_path)
     try:
         with open(catalog_path, encoding="utf-8") as fh:
             catalog = json.load(fh)

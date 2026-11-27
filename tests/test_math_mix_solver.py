@@ -324,5 +324,98 @@ class TestMathMixSolver(unittest.TestCase):
         self.assertTrue(sol["converged"])
 
 
+@unittest.skipUnless(HAVE_SCIPY, "numpy+scipy requis")
+class TestDynamicSpatialV2(unittest.TestCase):
+    """Chantier 3 (spec v2.0 §3) : ducking Kick→Basse calé tempo/genre, transitoires vs crest,
+    M/S par bandes (mono strict < 140 Hz)."""
+
+    def test_mid_side_bands_mono_below_140hz(self):
+        import math_mix_solver as M
+        rng = np.random.default_rng(3)
+        n = int(SR * 2.0)
+        # graves 100% corrélés L/R, aigus totalement indépendants
+        low = _band_noise(rng, n, 0)
+        hi_l = _band_noise(rng, n, 20)
+        hi_r = _band_noise(rng, n, 20)
+        x = np.stack([low + 0.3 * hi_l, low + 0.3 * hi_r], axis=1)
+        y = M.apply_mid_side_bands(x, SR)
+        sos = signal.butter(2, 140.0, btype="lowpass", fs=SR, output="sos")
+        yl = signal.sosfilt(sos, y[:, 0])
+        yr = signal.sosfilt(sos, y[:, 1])
+        corr = float(np.sum(yl * yr) / math.sqrt(float(np.sum(yl * yl)) * float(np.sum(yr * yr)) + 1e-20))
+        self.assertGreater(corr, 0.95, f"corrélation de phase mono sous 140 Hz = {corr}")
+        # les aigus restent stéréo (side non nul au-delà de 2.5 kHz)
+        sos_hp = signal.butter(2, 2500.0, btype="highpass", fs=SR, output="sos")
+        sh = signal.sosfilt(sos_hp, 0.5 * (y[:, 0] - y[:, 1]))
+        self.assertGreater(float(np.sqrt(np.mean(sh * sh))), 1e-6)
+
+    def test_duck_depth_genre_and_tempo_release(self):
+        import math_mix_solver as M
+        self.assertEqual(M.duck_release_s(140.0), 60.0 / (4.0 * 140.0))
+        d_trap = M.duck_depth_for_genre("trap_rap", 0.9)
+        d_lofi = M.duck_depth_for_genre("lofi_chill", 0.9)
+        self.assertGreaterEqual(d_trap, 0.40 - 1e-9)
+        self.assertLessEqual(d_trap, 0.55 + 1e-9)
+        self.assertLess(d_lofi, d_trap)  # plus subtil en Lo-Fi
+        self.assertGreaterEqual(d_lofi, 0.25 - 1e-9)
+
+    def test_ducking_reduces_bass_at_kick_onsets(self):
+        import math_mix_solver as M
+        rng = np.random.default_rng(9)
+        n = int(SR * 2.0)
+        kick = np.zeros(n)
+        for onset in range(0, n - int(0.1 * SR), int(0.5 * SR)):  # 1 kick / 2 temps à 60 BPM
+            kick[onset:onset + int(0.02 * SR)] += 0.9
+        env = np.abs(signal.sosfilt(signal.butter(2, 60.0, btype="lowpass", fs=SR, output="sos"), kick))
+        env = env / max(float(env.max()), 1e-12)
+        env_sm = M._duck_env_smooth(env, SR, M.DUCK_ATTACK_MS / 1000.0, M.duck_release_s(120.0))
+        d_max = M.duck_depth_for_genre("trap_rap", 0.5)
+        duck = 1.0 - d_max * env_sm
+        self.assertLess(float(duck.min()), 1.0 - 0.9 * d_max + 0.05, "le ducking doit creuser au pic du kick")
+        self.assertGreater(float(duck.max()), 0.99, "hors kick, le gain revient à ~1")
+        # attaque rapide : le creux atteint son minimum en < 10 ms après l'onset
+        onset_idx = int(0.5 * SR)
+        self.assertLess(float(duck[onset_idx + int(0.005 * SR)]), 1.0 - 0.5 * d_max)
+
+    def test_transient_shape_moves_crest_toward_target(self):
+        import math_mix_solver as M
+        n = int(SR * 1.0)
+        t = np.arange(n) / SR
+        soft = 0.4 * np.sin(2 * np.pi * 220 * t)  # crest ~3 dB
+        crest0 = 20 * np.log10(float(np.max(np.abs(soft))) / (float(np.sqrt(np.mean(soft**2))) + 1e-12))
+        shaped, shift = M.transient_shape(soft, SR, target_crest_db=crest0 + 2.0)
+        crest1 = 20 * np.log10(float(np.max(np.abs(shaped))) / (float(np.sqrt(np.mean(shaped**2))) + 1e-12))
+        self.assertGreater(crest1, crest0 + 1.0)
+        self.assertGreater(shift, 0.0)
+        # cible inférieure : on adoucit les pics
+        rng = np.random.default_rng(5)
+        spiky = rng.standard_normal(n)
+        spiky /= max(float(np.max(np.abs(spiky))), 1e-12)
+        crest_s = 20 * np.log10(float(np.max(np.abs(spiky))) / (float(np.sqrt(np.mean(spiky**2))) + 1e-12))
+        shaped2, shift2 = M.transient_shape(spiky, SR, target_crest_db=crest_s - 2.0)
+        crest2 = 20 * np.log10(float(np.max(np.abs(shaped2))) / (float(np.sqrt(np.mean(shaped2**2))) + 1e-12))
+        self.assertLess(crest2, crest_s - 1.0)
+        self.assertLess(shift2, 0.0)
+
+    def test_solution_exposes_dynamic_processing(self):
+        stems, meta = corridor_matched_stems(seed=31, roles=("kick", "snare", "hihat", "bass", "chords", "lead"))
+        sol = solve(stems, meta)
+        self.assertIn("dynamic_processing", sol)
+        dp = sol["dynamic_processing"]
+        self.assertIn("sidechain_kick_to_bass", dp)
+        sc = dp["sidechain_kick_to_bass"]
+        for k in ("attack_ms", "depth_max", "release_tempo_ms", "genre"):
+            self.assertIn(k, sc)
+        self.assertEqual(sc["genre"], "trap_rap")
+        self.assertEqual(sc["attack_ms"], 2.0)
+        self.assertGreaterEqual(sc["depth_max"], 0.25)
+        self.assertLessEqual(sc["depth_max"], 0.55)
+        self.assertAlmostEqual(sc["release_tempo_ms"], round(60.0 / (4.0 * BPM) * 1000.0, 1), places=1)
+        self.assertIn("mid_side_bands", sol["buses"])
+        self.assertEqual(sol["buses"]["mid_side_bands"]["W_low"], 0.0)
+        self.assertEqual(sol["buses"]["mid_side_bands"]["low_hz"], 140.0)
+        self.assertIn("transient_shaping", dp)
+
+
 if __name__ == "__main__":
     unittest.main()

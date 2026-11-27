@@ -337,6 +337,58 @@ def enforce_frequency_inertia(
     return out
 
 
+# ---------------------------------------------------------------------------
+# Chantier 4 (spec v2.0 §4.2) — Humanisation statistique du groove (pocket),
+# inspirée de la covariance micro-timing/vélocité de GrooVAE (magenta/note-seq) :
+#   - notes fantômes (vélocité < 50) : micro-retard positif Δt ∈ [+6, +16] ms ;
+#   - accents (vélocité > 105)       : avancée Δt ∈ [-5, -1] ms ;
+#   - caisse claire temps 2 & 4      : laid-back +4..+10 ms en Lo-Fi / Boom-Bap / R&B.
+# ---------------------------------------------------------------------------
+
+GHOST_VEL_MAX = 50            # vélocité < 50 -> note fantôme
+ACCENT_VEL_MIN = 105          # vélocité > 105 -> accent
+GHOST_DELAY_MS = (6.0, 16.0)  # retard des fantômes (ms)
+ACCENT_ADVANCE_MS = (-5.0, -1.0)  # avance des accents (ms)
+SNARE_LAIDBACK_MS = (4.0, 10.0)   # temps 2 & 4 retardés (ms)
+# Genres à caisse claire "laid-back" (boom-bap / lo-fi / R&B) vs "push" (EDM/Trap).
+LAIDBACK_PROFILES = {"lofi_chill", "pop_rnb", "jazz_acoustic", "boom_bap"}
+
+
+def apply_pocket_humanization(
+    notes: list[dict[str, Any]],
+    bpm: float,
+    track_name: str = "",
+    profile: str = "trap_rap",
+    seed: int = 42,
+    beats_per_bar: float = 4.0,
+) -> list[dict[str, Any]]:
+    """Modèle de poche rythmique statistique (déterministe, `seed`) : covariance
+    vélocité-timing (fantômes retardées, accents avancés) + rôle de caisse claire
+    (laid-back +4..+10 ms sur les temps 2 & 4 en Lo-Fi/Boom-Bap/R&B)."""
+    if not notes:
+        return []
+    rng = random.Random(seed)
+    copied = [copy.copy(n) for n in notes]
+    low = track_name.lower()
+    is_snare = any(k in low for k in ("snare", "clap", "caisse"))
+    laidback = is_snare and profile in LAIDBACK_PROFILES
+    for n in copied:
+        vel = float(n.get("velocity", 90))
+        dt_ms = 0.0
+        if vel < GHOST_VEL_MAX:
+            dt_ms += rng.uniform(*GHOST_DELAY_MS)
+        elif vel > ACCENT_VEL_MIN:
+            dt_ms += rng.uniform(*ACCENT_ADVANCE_MS)
+        if laidback:
+            beat_in_bar = float(n["start"]) % max(1.0, float(beats_per_bar))
+            if abs(beat_in_bar - 1.0) < 1e-3 or abs(beat_in_bar - 3.0) < 1e-3:
+                dt_ms += rng.uniform(*SNARE_LAIDBACK_MS)
+        if dt_ms:
+            n["start"] = round(max(0.0, float(n["start"]) + ms_to_beats(dt_ms, bpm)), 5)
+    copied.sort(key=lambda n: (float(n["start"]), int(n["pitch"])))
+    return copied
+
+
 MONO_ROLE_SUBSTRINGS = ("bass", "808", "sub", "lead_mono")
 
 

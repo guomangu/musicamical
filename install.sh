@@ -894,6 +894,19 @@ index_samples_and_verify() {
     printf '%s\n' "$pout"; printf '%s' "$pout" | summarize_index_report presets
   fi
 
+  # Chantier 1 (spec v2.0 §1) : samples.db racine = SSOT (table sound_assets schéma v2 :
+  # descripteurs + 7 scores AC + clap_embedding 512-d + modulation_profile_json).
+  # Indexation unifiée des samples du dossier + banques SFZ versionnées (soundbanks/).
+  if [[ $sample_count -gt 0 ]]; then
+    local uout
+    uout="$("$venv_py" "$STUDIO_DIR/mcp-servers/audio-index/unified_indexer.py" --db "$STUDIO_DIR/samples.db" index "$samples_dir" 2>&1 || true)"
+    printf '%s\n' "$uout"
+  fi
+  local uout2
+  uout2="$("$venv_py" "$STUDIO_DIR/scripts/index_vst_presets.py" --db "$STUDIO_DIR/samples.db" 2>&1 || true)"
+  printf '%s\n' "$uout2" | tail -3 || true
+  log "SSOT samples.db (racine) peuplée : sound_assets + clap_embedding + modulation_profile_json."
+
   # v3.3 hotfix : verify_install.py ignore proprement l'absence de projects/active/song_blueprint.json
   # (installation fraîche) au lieu de planter avec FileNotFoundError sous `set -euo pipefail`.
   "$venv_py" "$STUDIO_DIR/scripts/verify_install.py" --studio "$STUDIO_DIR"

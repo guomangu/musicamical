@@ -120,5 +120,65 @@ class TestSfzPresetIndexing(unittest.TestCase):
             conn.close()
 
 
+class TestExpressiveAutomationV2(unittest.TestCase):
+    """Chantier 2 (spec v2.0 §2.1) : 3 couches d'automation expressive déterministes."""
+
+    def test_velocity_cutoff_coupling(self):
+        # u(n) = base + delta_max*(v-64)/64 : monotone en vélocité, clampé [0,1]
+        self.assertAlmostEqual(sr.velocity_cutoff_factor(64), 0.5)
+        self.assertGreater(sr.velocity_cutoff_factor(120), sr.velocity_cutoff_factor(64))
+        self.assertGreater(sr.velocity_cutoff_factor(64), sr.velocity_cutoff_factor(10))
+        self.assertGreater(sr.velocity_cutoff_factor(127), 0.99)
+        self.assertLess(sr.velocity_cutoff_factor(1), 0.01)
+
+    def test_macro_breathing_curve(self):
+        curve = sr.macro_breathing_curve(16, "pad")
+        self.assertEqual(len(curve), 16)
+        self.assertTrue(all(0.85 - 1e-9 <= c <= 1.15 + 1e-9 for c in curve))
+        self.assertAlmostEqual(sum(curve) / len(curve), 1.0, places=1)
+        self.assertEqual(sr.macro_breathing_curve(8, "kick"), [1.0] * 8)  # kick non modulé
+
+    def test_adaptive_release(self):
+        # gap nul -> release minimal ; grand gap -> release de base ; monotone
+        r0 = sr.adaptive_release_s(0.4, 0.0, 0.3)
+        r1 = sr.adaptive_release_s(0.4, 0.05, 0.3)
+        r2 = sr.adaptive_release_s(0.4, 2.0, 0.3)
+        self.assertGreaterEqual(r1, r0)
+        self.assertGreaterEqual(r2, r1)
+        self.assertLessEqual(r2, 0.3 + 1e-9)
+        self.assertGreaterEqual(r0, 0.03)
+
+    def test_build_automation_contract(self):
+        notes = [(60, 0.0, 0.4, 100), (64, 0.5, 0.4, 40), (67, 1.0, 0.8, 120)]
+        auto = sr.build_automation(notes, 140.0, "lead", timbre=sr.SynthEngine.default_timbre("lead"))
+        self.assertEqual(len(auto["per_note"]), 3)
+        self.assertEqual(len(auto["cc74_curve"]), 3)
+        self.assertEqual(auto["role"], "lead")
+        self.assertEqual(auto["bpm"], 140.0)
+        # vélocité 40 -> cutoff plus fermé que vélocité 120 (même rôle)
+        self.assertLess(auto["per_note"][1]["cutoff_u"], auto["per_note"][2]["cutoff_u"])
+
+    def test_velocity_produces_distinct_spectral_centroids(self):
+        # Critère de validation spec §2 (étape 2) : deux notes de vélocités différentes
+        # produisent des centroïdes spectraux distincts (accent plus brillant).
+        sr_hz = 22050
+        timbre = {"harmonics": 24, "rolloff": 0.8, "lowpass_hz": 3000.0,
+                  "attack_s": 0.01, "decay_s": 0.2, "sustain": 0.75, "release_s": 0.15}
+        soft = sr.render_notes([(72, 0.0, 0.5, 40)], sr=sr_hz, timbre=timbre, bpm=140.0, role="lead")
+        hard = sr.render_notes([(72, 0.0, 0.5, 120)], sr=sr_hz, timbre=timbre, bpm=140.0, role="lead")
+        c_soft = ui.spectral_features(soft.astype(np.float64), sr_hz)["spectral_centroid_hz"]
+        c_hard = ui.spectral_features(hard.astype(np.float64), sr_hz)["spectral_centroid_hz"]
+        self.assertGreater(c_hard, c_soft * 1.05,
+                           f"accent vélocité 120 moins brillant que note douce : {c_hard} vs {c_soft}")
+
+    def test_render_role_returns_automation_report(self):
+        engine = sr.SynthEngine()
+        out = engine.render_role("pad", [(60, 0.0, 1.0, 90), (64, 1.0, 1.0, 100)],
+                                 source_type="sfz_instrument", sr=22050, bpm=120.0)
+        self.assertIn("automation", out)
+        self.assertEqual(out["automation"]["n_notes"], 2)
+        self.assertEqual(out["automation"]["role"], "pad")
+
+
 if __name__ == "__main__":
     unittest.main()

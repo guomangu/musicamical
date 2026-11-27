@@ -151,13 +151,99 @@ class TestUnifiedIndexer(unittest.TestCase):
             self.assertEqual(rows[0]["detected_midi_note"], 36)
             conn.close()
 
-    def test_catalog_root_is_marked_deprecated(self):
-        import json
+    def test_catalog_root_removed_db_is_ssot(self):
+        # Chantier 1 (spec v2.0 §1.3) : samples_catalog.json est supprimé de la racine et
+        # gitignoré ; samples.db (table sound_assets) est la source unique de vérité.
         cat_path = os.path.join(ROOT, "samples_catalog.json")
-        with open(cat_path, encoding="utf-8") as fh:
-            cat = json.load(fh)
-        self.assertIn("_deprecated", cat)
-        self.assertIn("sound_assets", cat["_deprecated"])
+        self.assertFalse(os.path.exists(cat_path), "samples_catalog.json doit être supprimé de la racine")
+        with open(os.path.join(ROOT, ".gitignore"), encoding="utf-8") as fh:
+            gitignore = fh.read()
+        self.assertIn("samples_catalog.json", gitignore)
+        db_path = os.path.join(ROOT, "samples.db")
+        self.assertTrue(os.path.isfile(db_path), "samples.db (SSOT) doit exister à la racine")
+        self.assertGreater(os.path.getsize(db_path), 0, "samples.db doit être peuplé (> 0 octet)")
+        self.assertTrue(ui.DEFAULT_DB_PATH.endswith("samples.db"))
+
+    def test_schema_v2_clap_and_modulation_columns(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = ui.init_db(os.path.join(tmp, "samples.db"))
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(sound_assets)").fetchall()}
+            self.assertIn("clap_embedding", cols)
+            self.assertIn("modulation_profile_json", cols)
+            self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 2)
+            conn.close()
+            # migration v1 -> v2 sur une vieille base
+            import sqlite3
+            old = os.path.join(tmp, "old.db")
+            c = sqlite3.connect(old)
+            c.execute("CREATE TABLE sound_assets (asset_id TEXT PRIMARY KEY, embedding_blob BLOB)")
+            c.execute("PRAGMA user_version=1")
+            c.commit()
+            c.close()
+            conn = ui.init_db(old)
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(sound_assets)").fetchall()}
+            self.assertIn("clap_embedding", cols)
+            self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 2)
+            conn.close()
+
+    def test_embedding_blob_contract_and_determinism(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = ui.init_db(os.path.join(tmp, "samples.db"))
+            p = os.path.join(tmp, "pad_dark.wav")
+            _write_tone(p, 180.0, dur=0.6)
+            row = ui.index_file(conn, p)
+            self.assertEqual(row.get("embedding_backend"), "deterministic-projection")
+            r = conn.execute("SELECT clap_embedding, embedding_blob FROM sound_assets").fetchone()
+            self.assertIsNotNone(r["clap_embedding"])
+            self.assertEqual(len(r["clap_embedding"]), 2048)  # 512 float32
+            self.assertEqual(r["clap_embedding"], r["embedding_blob"])
+            v = ui.decode_embedding(r["clap_embedding"])
+            self.assertAlmostEqual(float(np.linalg.norm(v)), 1.0, places=5)
+            # déterminisme bit-à-bit
+            row2 = ui.index_file(conn, p)
+            r2 = conn.execute("SELECT clap_embedding FROM sound_assets WHERE asset_id=?", (row["asset_id"],)).fetchone()
+            self.assertEqual(r2["clap_embedding"], r["clap_embedding"])
+            self.assertEqual(ui.text_embedding_blob("dark pad"), ui.text_embedding_blob("dark pad"))
+            conn.close()
+
+    def test_semantic_search_ranks_sub_over_pad(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = ui.init_db(os.path.join(tmp, "samples.db"))
+            pad = os.path.join(tmp, "pad_dark.wav")
+            _write_tone(pad, 220.0, dur=0.6)
+            sub = os.path.join(tmp, "bass_808_sub.wav")
+            _write_tone(sub, 45.0, dur=0.6)
+            ui.index_file(conn, pad)
+            ui.index_file(conn, sub)
+            res = ui.semantic_search(conn, "dark sub bass 808 heavy looming", top_k=2)
+            self.assertEqual(len(res), 2)
+            self.assertIn("bass_808_sub", res[0]["file_path"])
+            self.assertGreater(res[0]["semantic_score"], res[1]["semantic_score"])
+            res_role = ui.semantic_search(conn, "sub 808", role_category="bass_808", top_k=5)
+            self.assertTrue(all(r["role_category"] == "bass_808" for r in res_role))
+            conn.close()
+
+    def test_modulation_profile_sfz(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sfz = os.path.join(tmp, "mini.sfz")
+            with open(sfz, "w", encoding="utf-8") as fh:
+                fh.write('<region> sample=x.wav lokey=0 hikey=127 cutoff=2400 resonance=3 ampeg_decay=0.4 lfo01_rate=5.5\n')
+            prof = ui.extract_modulation_profile(sfz, "sfz_instrument")
+            self.assertIsNotNone(prof)
+            keys = set(prof.keys())
+            self.assertIn("sfz:cutoff", keys)
+            self.assertIn("sfz:lfo01_rate", keys)
+            self.assertIsNone(ui.extract_modulation_profile(sfz, "wav_sample"))
+            conn = ui.init_db(os.path.join(tmp, "samples.db"))
+            import numpy as np
+            tone = (0.3 * np.sin(2 * np.pi * 261.63 * np.arange(int(0.5 * 22050)) / 22050)).astype(np.float32)
+            ui.index_audio_array(conn, tone, 22050, asset_id="sfz_test", file_path=sfz,
+                                 source_type="sfz_instrument", role_category="keys", preset_name="mini")
+            r = conn.execute("SELECT modulation_profile_json FROM sound_assets WHERE asset_id='sfz_test'").fetchone()
+            self.assertIsNotNone(r["modulation_profile_json"])
+            import json as _json
+            self.assertIn("sfz:cutoff", _json.loads(r["modulation_profile_json"]))
+            conn.close()
 
 
 if __name__ == "__main__":
