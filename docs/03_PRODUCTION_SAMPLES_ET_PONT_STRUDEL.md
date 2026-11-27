@@ -510,3 +510,23 @@ Les synthés natifs `gl.*` restent un **repli de sécurité uniquement** lorsqu'
 * `scripts/bottom_up_analyzer.py` : boucle hiérarchique ascendante 4 niveaux (`1_sounds -> 2_chords -> 3_tracks -> 4_song`).
 * `scripts/mix_config.py` + `config/mix_profiles.json` : source unique des constantes de mixage.
 * `scripts/stem_matrix_evaluator.py`, `scripts/compile_song.py`, `scripts/gain_staging_lib.py`, `scripts/sample_prep_lib.py`, `scripts/groove_lib.py`, `scripts/transitions_lib.py`, `scripts/midi_autofix.py`, `mcp-servers/audio-analyzer/musicality_metrics.py`.
+
+---
+
+## 8. Pipeline psychoacoustique unifié : `samples.db` + sélection relationnelle + rendu natif (v5.0)
+
+Remplace la logique éclatée d'indexation/sélection (`indexer.py`, `preset_indexer.py`, `select_sample.py`,
+`sample_fit_guard.py`, `sample_quality_v2.py`, `sample_prep_lib.py` — tous **dépréciés**, conservés pour
+compatibilité) par un pipeline unique inspiré de `MTG/essentia`, `AudioCommons/timbral_models`,
+`facebookresearch/demucs`, `DBraun/DawDreamer`, `spotify/pedalboard` et `csl-pku/pyloudnorm` :
+
+| Composant | Rôle |
+| :--- | :--- |
+| `mcp-servers/audio-index/unified_indexer.py` | **`samples.db` (racine) = SSOT**, table `sound_assets` : métadonnées techniques (f0, attaque log, LUFS = -18, crest, centroïde, 4 bandes d'énergie) + **7 scores perceptuels [0,100]** (warmth, brightness, roughness, hardness, depth, boomy, sharpness). CLI : `index` / `migrate-catalog` / `query`. `samples_catalog.json` est déprécié (clé `_deprecated`), migré via `migrate-catalog`. |
+| `scripts/audio_prep_pb.py` | Prépa déterministe à l'ingestion : trim sous -60 dBFS + fondu 2 ms, normalisation **-18.0 LUFS** (`pyloudnorm`, gain via `pedalboard` si dispo). |
+| `scripts/palette_selector.py` | **Sélection relationnelle en 4 étapes** (ancrage rythmique → basse complémentaire du kick → couche harmonique → lead contrasté, tessiture `[min_safe_midi, max_safe_midi]` + Low Interval Limits) + score `S_palette = w1·(1-D_corridor) + w2·(1-M_spectral) + w3·P_timbre` (Bark24). |
+| `mcp-servers/ai-studio-prod/synth_render.py` + `scripts/index_vst_presets.py` | **Rendu natif à la hauteur exacte** des pistes tonales (DawDreamer + VST3 Surge XT/Vital/Dexed si installé, sinon synthèse additive builtin) ; politique stricte : WAV réservé aux rôles percussifs, ±2 st max (accord kick/tom), **aucun pitch-shift de one-shot** (`derived_samples/multizone/` supprimé du flux). Les presets SFZ/VST3 sont indexés via une note de référence (C2 basses / C4 médiums, 2 s, vélocité 100) passée dans le même analyseur. |
+| `golden_references/spectral_corridors.json` (schema 3.2) | Corridors spectraux **par stem** (`drums`/`bass`/`other`/`vocals` : bark24 p10/p50/p90 + centroïde + crest + plages `ac_*`) — analytiques hors-ligne, ou mesurés via `bootstrap_golden_refs.build_stem_corridors_from_masters()` (Demucs `htdemucs`) quand des masters externes existent. |
+
+Tests : `tests/test_sqlite_catalog.py`, `tests/test_unified_indexer.py`, `tests/test_relational_palette.py`,
+`tests/test_synth_render.py`, `tests/test_stem_corridors.py`.

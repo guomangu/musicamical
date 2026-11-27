@@ -1,4 +1,5 @@
 {
+  "_deprecated": "samples_catalog.json est déprécié : la source unique de vérité est désormais samples.db (table sound_assets, voir mcp-servers/audio-index/unified_indexer.py). Migration : unified_indexer.py migrate-catalog samples_catalog.json",
   "project_dir": "/home/gamo/Bureau/musicamical",
   "indexed_at": "2026-11-27T05:00:50Z",
   "user_samples_locked": false,

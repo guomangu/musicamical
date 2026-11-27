@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+DEPRECATED (spec psychoacoustique) : remplacé par `mcp-servers/audio-index/unified_indexer.py` (samples.db, table `sound_assets`) + `scripts/palette_selector.py` (sélection relationnelle) + `scripts/audio_prep_pb.py` (prépa déterministe trim/-18 LUFS). Conservé pour compatibilité ; ne plus enrichir.
+
 Centralized deterministic DSP sample preparation & tuning library for AI-Studio.
 Eliminates per-song boilerplate in `prepare_samples.py`: provides stereo I/O,
 biquad peaking EQ, varispeed resampling, pitch-shift, tanh saturation,

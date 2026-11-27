@@ -1,4 +1,6 @@
-"""v4.1 — sample_quality_v2.py — Audio Intelligence v2 (qualité physique + morphologie + agencement).
+"""
+DEPRECATED (spec psychoacoustique) : remplacé par `mcp-servers/audio-index/unified_indexer.py` (samples.db, table `sound_assets`) + `scripts/palette_selector.py` (sélection relationnelle) + `scripts/audio_prep_pb.py` (prépa déterministe trim/-18 LUFS). Conservé pour compatibilité ; ne plus enrichir.
+v4.1 — sample_quality_v2.py — Audio Intelligence v2 (qualité physique + morphologie + agencement).
 
 Remplace le stack v1 (sox/aubio/ffmpeg en CLI spawning, node-wav synchrone, meyda main-thread,
 essentia.js WASM brut) par un pipeline Python in-process, « decode once » :

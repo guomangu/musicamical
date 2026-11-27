@@ -45,7 +45,7 @@ class TestCorridorsFile(unittest.TestCase):
         self.assertTrue(os.path.isfile(DEFAULT_CORRIDORS_PATH), "spectral_corridors.json doit être versionné")
         with open(DEFAULT_CORRIDORS_PATH, encoding="utf-8") as fh:
             data = json.load(fh)
-        self.assertEqual(data.get("schema_version"), "3.1")
+        self.assertEqual(data.get("schema_version"), "3.2")
         profiles = data.get("profiles") or {}
         for prof in PROFILES:
             self.assertIn(prof, profiles)
@@ -60,6 +60,17 @@ class TestCorridorsFile(unittest.TestCase):
                 self.assertLessEqual(c["p10"], c["p50"])
                 self.assertLessEqual(c["p50"], c["p90"])
             self.assertIn("dark_valence_overrides", e)
+            # Chantier 4 : corridors par stem (drums/bass/other/vocals) avec cibles AudioCommons
+            stems = e.get("stems") or {}
+            for stem in ("drums", "bass", "other", "vocals"):
+                self.assertIn(stem, stems)
+                sb = stems[stem]["bark24"]
+                for k in ("p10", "p50", "p90"):
+                    self.assertEqual(len(sb[k]), 24)
+                    self.assertAlmostEqual(sum(sb[k]), 1.0, places=3)
+                self.assertIn("spectral_centroid_hz", stems[stem]["metrics"])
+                self.assertIn("ac_targets", stems[stem])
+                self.assertIn("ac_roughness", stems[stem]["ac_targets"])
 
 
 class TestDeadZoneCorridorLoss(unittest.TestCase):

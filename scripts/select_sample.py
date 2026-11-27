@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+DEPRECATED (spec psychoacoustique) : remplacé par `mcp-servers/audio-index/unified_indexer.py` (samples.db, table `sound_assets`) + `scripts/palette_selector.py` (sélection relationnelle) + `scripts/audio_prep_pb.py` (prépa déterministe trim/-18 LUFS). Conservé pour compatibilité ; ne plus enrichir.
+
 Unified Hybrid Sample Selector (SQLite `samples.db` + `sample_dsp_metrics` + Golden References).
 Zero synchronous CLAP indexing in MCP: if CLAP embeddings are absent (`clap_embedding IS NULL`),
 falls back immediately to pure deterministic DSP/psychoacoustic scoring with

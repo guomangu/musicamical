@@ -1,4 +1,6 @@
-"""Indexeur sémantique et spectral des presets natifs Gridline (gl.*) dans samples.db."""
+"""
+DEPRECATED (spec psychoacoustique) : remplacé par `mcp-servers/audio-index/unified_indexer.py` (samples.db, table `sound_assets`) + `scripts/palette_selector.py` (sélection relationnelle) + `scripts/audio_prep_pb.py` (prépa déterministe trim/-18 LUFS). Conservé pour compatibilité ; ne plus enrichir.
+Indexeur sémantique et spectral des presets natifs Gridline (gl.*) dans samples.db."""
 
 from __future__ import annotations
 
