@@ -10,6 +10,9 @@ node_modules/
 # Banques de samples locales & index SQLite/NPZ générés
 pack/
 samples
+samples_catalog.json
+samples.db-wal
+samples.db-shm
 mcp-servers/audio-index/samples.db*
 mcp-servers/audio-index/sample_index.json
 mcp-servers/audio-index/sample_index.npz

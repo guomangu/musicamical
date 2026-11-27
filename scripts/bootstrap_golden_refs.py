@@ -350,6 +350,163 @@ def build_stem_corridors_from_masters(
     return {"demucs_available": demucs_ok, "updated_profiles": updated, "errors": errors}
 
 
+# ---------------------------------------------------------------------------
+# Chantier 4 (spec v2.0 §4.1) — arcs structurels & énergétiques de référence :
+# sections fonctionnelles (intro/verse/chorus/drop/break/bridge/outro), durées en
+# mesures, courbe de sonie relative (LUFS) et activation par stem (drums/bass/
+# other/vocals), stockés dans `spectral_corridors.json` sous `structure_arcs`.
+# ---------------------------------------------------------------------------
+
+SECTION_NAMES = ("intro", "verse", "chorus", "drop", "break", "bridge", "outro")
+STEM_NAMES = ("drums", "bass", "other", "vocals")
+
+# Contraste d'arc par genre (EDM/Trap très contrasté, classique quasi plat).
+_ARC_CONTRAST = {
+    "trap_rap": 1.0, "pop_rnb": 0.85, "edm_club": 1.15, "rock_metal": 0.95,
+    "lofi_chill": 0.55, "jazz_acoustic": 0.6, "classical_ambient": 0.3,
+}
+
+
+def _analytic_structure_arc(prof: str) -> dict[str, Any]:
+    """Arc structurel analytique hors-ligne par profil (7 sections canoniques).
+
+    LUFS relatifs mis à l'échelle du contraste du genre ; activité par stem
+    (drums/bass/other/vocals) en [0, 1] — la basse entre avec la batterie, le
+    chant avec le couplet, le break dépouille, l'outro fond.
+    """
+    k = float(_ARC_CONTRAST.get(prof, 0.8))
+    base = [
+        ("intro", 4, -3.0, {"drums": 0.35, "bass": 0.5, "other": 0.7, "vocals": 0.0}),
+        ("verse", 8, 0.0, {"drums": 1.0, "bass": 1.0, "other": 0.6, "vocals": 1.0}),
+        ("chorus", 8, 2.5, {"drums": 1.0, "bass": 1.0, "other": 1.0, "vocals": 1.0}),
+        ("verse", 8, -0.5, {"drums": 0.9, "bass": 1.0, "other": 0.7, "vocals": 1.0}),
+        ("chorus", 8, 2.5, {"drums": 1.0, "bass": 1.0, "other": 1.0, "vocals": 1.0}),
+        ("bridge", 4, -1.5, {"drums": 0.4, "bass": 0.6, "other": 0.9, "vocals": 0.5}),
+        ("outro", 4, -6.0, {"drums": 0.2, "bass": 0.4, "other": 0.5, "vocals": 0.0}),
+    ]
+    sections = []
+    for name, bars, lufs, stems in base:
+        if name == "chorus" and prof in ("edm_club", "trap_rap"):
+            name = "drop" if prof == "edm_club" else "chorus"
+        sections.append({
+            "name": name,
+            "bars": int(bars),
+            "lufs_rel_db": round(float(lufs) * k, 2),
+            "stems": {s: round(float(v), 3) for s, v in stems.items()},
+        })
+    n_bars = sum(s["bars"] for s in sections)
+    energy_curve = []
+    for s in sections:
+        energy_curve.extend([s["lufs_rel_db"]] * s["bars"])
+    return {
+        "provenance": "analytic_structure_prior",
+        "total_bars": n_bars,
+        "sections": sections,
+        "energy_curve_lufs_rel": [round(float(x), 2) for x in energy_curve],
+    }
+
+
+def extract_structure_arc_from_audio(mono: np.ndarray, sr: int, bpm: float,
+                                     beats_per_bar: int = 4) -> dict[str, Any]:
+    """Mesure l'arc énergétique d'un master : LUFS relatif par mesure + segmentation
+    en sections fonctionnelles par détection de ruptures (changement de régime d'énergie).
+
+    Hors-ligne, déterministe. Les noms de sections sont attribués par rang d'énergie
+    (intro/outro = plus faible, chorus/drop = plus fort) — l'activation par stem reste
+    analytique sans Demucs.
+    """
+    mono = np.asarray(mono, dtype=np.float64)
+    bar_s = beats_per_bar * 60.0 / float(bpm) if bpm else 2.0
+    n_bars = max(1, int(mono.size / sr / bar_s))
+    meter = None
+    try:
+        import pyloudnorm as pyln
+        meter = pyln.Meter(sr)
+    except Exception:
+        meter = None
+    bar_lufs = []
+    for b in range(n_bars):
+        seg = mono[int(b * bar_s * sr): int((b + 1) * bar_s * sr)]
+        if seg.size < int(0.1 * sr):
+            bar_lufs.append(-60.0)
+            continue
+        if meter is not None:
+            bar_lufs.append(float(meter.integrated_loudness(seg)))
+        else:
+            bar_lufs.append(10.0 * math.log10(max(float(np.mean(seg * seg)), 1e-12)) - 0.691)
+    ref = float(np.median([x for x in bar_lufs if x > -59.0])) if any(x > -59.0 for x in bar_lufs) else -20.0
+    rel = [round(float(x - ref), 2) if x > -59.0 else -30.0 for x in bar_lufs]
+    # segmentation par ruptures : blocs de 4 mesures, label par énergie moyenne
+    sections = []
+    block = 4
+    for b0 in range(0, n_bars, block):
+        chunk = rel[b0:b0 + block]
+        if not chunk:
+            continue
+        e = float(np.mean(chunk))
+        if e <= -4.0:
+            name = "outro" if b0 + block >= n_bars else "intro"
+        elif e <= -1.0:
+            name = "bridge"
+        elif e >= 1.5:
+            name = "chorus"
+        else:
+            name = "verse"
+        sections.append({"name": name, "bars": len(chunk), "lufs_rel_db": round(e, 2),
+                         "start_bar": b0,
+                         "stems": {"drums": 1.0, "bass": 1.0, "other": 0.8, "vocals": 0.0 if name in ("intro", "outro") else 1.0}})
+    return {
+        "provenance": "measured_master_energy",
+        "total_bars": n_bars,
+        "bpm": float(bpm),
+        "sections": sections,
+        "energy_curve_lufs_rel": rel,
+    }
+
+
+def build_structure_arcs(corridors_path: str = DEFAULT_CORRIDORS_PATH,
+                         external_dir: str = DEFAULT_EXTERNAL_DIR) -> dict[str, Any]:
+    """Ajoute `structure_arcs` à chaque profil de `spectral_corridors.json` (spec §4.1).
+
+    Mesuré sur les masters externes quand ils existent (sinon arc analytique par genre).
+    Ne touche à aucune autre clé du fichier. Retourne un rapport {profile: provenance}.
+    """
+    if not os.path.isfile(corridors_path):
+        return {"updated": 0, "reason": "corridors_absents"}
+    with open(corridors_path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    profiles = data.get("profiles", {})
+    report: dict[str, Any] = {}
+    for prof in PROFILES:
+        entry = profiles.setdefault(prof, {})
+        measured = None
+        prof_dir = os.path.join(external_dir, prof)
+        masters = sorted(glob.glob(os.path.join(prof_dir, "**", "*.wav"), recursive=True) +
+                         glob.glob(os.path.join(prof_dir, "**", "*.mp3"), recursive=True) +
+                         glob.glob(os.path.join(prof_dir, "**", "*.flac"), recursive=True)) if os.path.isdir(prof_dir) else []
+        if masters:
+            try:
+                audio, sr = sf.read(masters[0], dtype="float64", always_2d=False)
+                if audio.ndim > 1:
+                    audio = audio.mean(axis=1)
+                bpm = 132.0
+                try:
+                    import librosa
+                    bpm = float(librosa.beat.beat_track(y=audio, sr=sr)[0])
+                except Exception:
+                    pass
+                measured = extract_structure_arc_from_audio(audio, sr, bpm)
+            except Exception:
+                measured = None
+        arc = measured or _analytic_structure_arc(prof)
+        arc["provenance"] = "measured_master_energy" if measured else "analytic_structure_prior"
+        entry["structure_arcs"] = arc
+        report[prof] = arc["provenance"]
+    with open(corridors_path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, separators=(",", ":"))
+    return {"corridors_path": corridors_path, "profiles": report}
+
+
 def _find_project_master(proj_dir: str) -> str | None:
     renders_dir = os.path.join(proj_dir, "renders")
     candidates: list[str] = []

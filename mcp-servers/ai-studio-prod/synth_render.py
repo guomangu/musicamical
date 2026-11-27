@@ -63,6 +63,82 @@ def check_render_policy(role: str, source_type: str, semitone_shift: float = 0.0
         )
 
 
+# ---------------------------------------------------------------------------
+# v2 — Automation expressive déterministe (spec v2.0 §2.1, 3 couches synchronisées au tempo)
+# ---------------------------------------------------------------------------
+
+def velocity_cutoff_factor(vel: float, base: float = 0.5, delta_max: float = 0.5) -> float:
+    """Couche 1 — couplage vélocité → brillance (micro-dynamique par note) :
+    u(n) = base + delta_max * (v_n - 64) / 64, clampé [0, 1]. Les notes douces sont plus
+    feutrées (filtre fermé), les accents s'ouvrent harmoniquement."""
+    return float(min(1.0, max(0.0, base + delta_max * ((float(vel) - 64.0) / 64.0))))
+
+
+def macro_breathing_curve(n_bars: int, role: str, bars_span: tuple[int, int] = (8, 16),
+                          depth: float = 0.15) -> list[float]:
+    """Couche 2 — respiration macro-structurelle (pad/lead/keys) : facteur de coupure du filtre
+    modulé en sinusoïde de ±`depth` sur une période de 8 à 16 mesures (évite la fatigue auditive
+    des boucles répétées). Retourne un facteur par mesure (1.0 ailleurs)."""
+    n = max(1, int(n_bars))
+    if role not in ("pad", "lead", "keys"):
+        return [1.0] * n
+    span = float(min(max(n, bars_span[0]), bars_span[1]))
+    return [1.0 + depth * math.sin(2.0 * math.pi * (b / span)) for b in range(n)]
+
+
+def adaptive_release_s(duration_s: float, next_gap_s: float, base_release_s: float,
+                       min_release_s: float = 0.03, max_release_s: float = 0.8) -> float:
+    """Couche 3 — release adapté à la durée de note et à l'intervalle inter-notes Δt_next :
+    assez long pour respirer en fin de phrase, jamais assez long pour chevaucher la note
+    suivante de façon boueuse (basses/accords rapides)."""
+    gap = max(0.0, float(next_gap_s))
+    return float(min(max_release_s, max(min_release_s, min(float(base_release_s), 0.9 * gap + 0.25 * float(duration_s)))))
+
+
+def build_automation(
+    notes: list[tuple[float, float, float, float]],
+    bpm: float,
+    role: str,
+    timbre: dict[str, Any] | None = None,
+    base_cutoff_norm: float = 0.5,
+) -> dict[str, Any]:
+    """Construit les 3 courbes d'automation pour une piste (0 rendu, déterministe).
+
+    Retourne {"per_note": [{cutoff_u, release_s, bar}], "cc74_curve": [(t_s, u)],
+              "macro_curve": [...], "bpm": bpm, "role": role} — prêt à être traduit en
+    automation CC74 / paramètres VST3 par le worker (`prod_worker.py`)."""
+    t = timbre or {}
+    base_lp = float(t.get("lowpass_hz", 12000.0))
+    base_rel = float(t.get("release_s", 0.08))
+    beat_s = 60.0 / float(bpm) if bpm else 0.5
+    bar_s = 4.0 * beat_s
+    total_s = max((s + d for _m, s, d, _v in notes), default=0.0) if notes else 0.0
+    n_bars = max(1, int(math.ceil(total_s / bar_s))) if bar_s > 0 else 1
+    macro = macro_breathing_curve(n_bars, role)
+    per_note = []
+    cc74 = []
+    for i, (midi, start, dur, vel) in enumerate(notes):
+        next_gap = (notes[i + 1][1] - (start + dur)) if i + 1 < len(notes) else 4.0 * beat_s
+        u_vel = velocity_cutoff_factor(vel, base=base_cutoff_norm)
+        bar_idx = min(n_bars - 1, int(start / bar_s)) if bar_s > 0 else 0
+        u = float(min(1.0, max(0.0, u_vel * macro[bar_idx])))
+        rel = adaptive_release_s(dur, next_gap, base_rel)
+        per_note.append({"note_index": i, "midi": midi, "start_s": round(float(start), 4),
+                         "cutoff_u": round(u, 4), "release_s": round(rel, 4), "bar": bar_idx})
+        cc74.append((round(float(start), 4), round(u, 4)))
+    return {
+        "bpm": float(bpm), "role": role, "base_lowpass_hz": base_lp, "base_release_s": base_rel,
+        "n_notes": len(per_note),
+        "per_note": per_note, "cc74_curve": cc74, "macro_curve": [round(x, 4) for x in macro],
+        "n_bars": n_bars,
+    }
+
+
+def _cutoff_scale_to_lowpass(base_lowpass_hz: float, cutoff_u: float) -> float:
+    """u=0 -> filtre très fermé (0.3x), u=1 -> ouvert (2.0x) : plage de brillance expressive."""
+    return base_lowpass_hz * (0.3 + 1.7 * float(min(1.0, max(0.0, cutoff_u))))
+
+
 def adsr(n_samples: int, sr: int, attack_s: float, decay_s: float, sustain_level: float,
          release_s: float, duration_s: float) -> np.ndarray:
     """Enveloppe ADSR déterministe (sustain maintenu jusqu'à la fin de la note)."""
@@ -92,11 +168,14 @@ def render_note(
     duration_s: float,
     sr: int = 44100,
     timbre: dict[str, Any] | None = None,
+    cutoff_u: float | None = None,
+    release_s: float | None = None,
 ) -> np.ndarray:
     """Une note rendue NATIVEMENT à sa hauteur exacte (aucun pitch-shift).
 
     Synthèse additive : partiels 1..N avec décroissance 1/k^rolloff, légère inharmonicité
     pour les timbres 'bell', vibrato optionnel, enveloppe ADSR, filtre passe-bas one-pole.
+    `cutoff_u` (automation v2) module l'ouverture du filtre, `release_s` surcharge le release.
     """
     from scipy.signal import lfilter
 
@@ -127,11 +206,12 @@ def render_note(
         attack_s=float(t.get("attack_s", 0.005)),
         decay_s=float(t.get("decay_s", 0.1)),
         sustain_level=float(t.get("sustain", 0.7)),
-        release_s=float(t.get("release_s", 0.08)),
+        release_s=float(t.get("release_s", 0.08)) if release_s is None else float(release_s),
         duration_s=duration_s,
     )
     wave = wave * env
-    cutoff = float(t.get("lowpass_hz", 18000.0))
+    base_lp = float(t.get("lowpass_hz", 18000.0))
+    cutoff = _cutoff_scale_to_lowpass(base_lp, cutoff_u) if cutoff_u is not None else base_lp
     if cutoff < sr / 2.0 - 100.0:
         alpha = 1.0 - math.exp(-2.0 * math.pi * cutoff / sr)
         wave = lfilter([alpha], [1.0, -(1.0 - alpha)], wave)
@@ -142,15 +222,26 @@ def render_notes(
     notes: Iterable[tuple[float, float, float, float]],
     sr: int = 44100,
     timbre: dict[str, Any] | None = None,
+    bpm: float | None = None,
+    role: str | None = None,
 ) -> np.ndarray:
-    """Rend une piste tonal note par note à hauteur native. `notes` = (midi, start_s, dur_s, vel 0-127)."""
+    """Rend une piste tonale note par note à hauteur native. `notes` = (midi, start_s, dur_s, vel 0-127).
+
+    v2 : si `bpm` + `role` sont fournis, applique les 3 couches d'automation expressive
+    (`build_automation`) : couplage vélocité→cutoff, respiration macro par mesure, release adaptatif.
+    """
     notes = list(notes)
     if not notes:
         return np.zeros(int(0.1 * sr), dtype=np.float32)
+    auto = None
+    if bpm and role:
+        auto = build_automation(notes, float(bpm), role, timbre=timbre)
     total = int((max(start + dur for _m, start, dur, _v in notes) + 0.25) * sr)
     out = np.zeros(total, dtype=np.float64)
-    for midi, start, dur, vel in notes:
-        seg = render_note(midi, dur, sr=sr, timbre=timbre)
+    for i, (midi, start, dur, vel) in enumerate(notes):
+        cutoff_u = auto["per_note"][i]["cutoff_u"] if auto else None
+        rel = auto["per_note"][i]["release_s"] if auto else None
+        seg = render_note(midi, dur, sr=sr, timbre=timbre, cutoff_u=cutoff_u, release_s=rel)
         i0 = int(start * sr)
         i1 = min(total, i0 + seg.size)
         out[i0:i1] += seg[: i1 - i0] * (float(vel) / 127.0)
@@ -178,6 +269,8 @@ class SynthEngine:
         preset_index: int = 0,
         sr: int = 44100,
         timbre: dict[str, Any] | None = None,
+        bpm: float | None = None,
+        role: str | None = None,
     ) -> tuple[np.ndarray, str]:
         """Rend via VST3 (DawDreamer) si possible, sinon builtin. Retourne (audio, backend_utilisé)."""
         notes = list(notes)
@@ -194,7 +287,7 @@ class SynthEngine:
                 return mono, "dawdreamer"
             except Exception:
                 pass  # repli builtin déterministe
-        return render_notes(notes, sr=sr, timbre=timbre), "builtin"
+        return render_notes(notes, sr=sr, timbre=timbre, bpm=bpm, role=role), "builtin"
 
     def render_role(
         self,
@@ -207,12 +300,19 @@ class SynthEngine:
         preset_name: str | None = None,
         sr: int = 44100,
         timbre: dict[str, Any] | None = None,
+        bpm: float | None = None,
     ) -> dict[str, Any]:
-        """Rendu d'une piste avec application stricte de la politique anti-pitch-shift."""
+        """Rendu d'une piste avec application stricte de la politique anti-pitch-shift.
+
+        v2 : `bpm` active les 3 couches d'automation expressive (vélocité→filtre, respiration
+        macro, release adaptatif) ; le rapport d'automation est joint au résultat."""
         check_render_policy(role, source_type, semitone_shift)
         if role in TONAL_ROLES:
+            notes = list(notes)
+            auto = build_automation(notes, bpm, role, timbre=timbre or self.default_timbre(role)) if bpm else None
             audio, backend = self.render_preset_notes(
-                notes, vst3_path=vst3_path, sr=sr, timbre=timbre or self.default_timbre(role)
+                notes, vst3_path=vst3_path, sr=sr, timbre=timbre or self.default_timbre(role),
+                bpm=bpm, role=role,
             )
         else:
             raise PitchShiftForbidden(
@@ -224,8 +324,9 @@ class SynthEngine:
             "backend": backend,
             "preset_name": preset_name,
             "role": role,
-            "n_notes": len(list(notes)),
+            "n_notes": len(notes),
             "semitone_shift": 0.0,
+            "automation": auto,
         }
 
     @staticmethod

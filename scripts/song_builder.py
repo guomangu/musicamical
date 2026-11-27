@@ -114,6 +114,52 @@ SCALES: dict[str, list[int]] = {
 BUS_MAP = {"drums": 17, "bass": 18, "music": 19, "fx": 20}
 
 
+def _resolve_sound_source(proj_dir: str, bp: dict[str, Any] | None = None) -> str | None:
+    """Source de vérité des métadonnées samples (chantier 1, spec v2.0 §1) : catalogue projet
+    local `<proj>/samples_catalog.json` si présent, sinon `samples.db` (SSOT racine, table
+    `sound_assets` — `blueprint_safety.load_catalog_index` lit les deux formats)."""
+    try:
+        from sample_fit_guard import resolve_catalog_path
+        cat = resolve_catalog_path(proj_dir, bp=bp) if bp is not None else resolve_catalog_path(proj_dir)
+        if cat and os.path.isfile(cat):
+            return cat
+    except Exception:
+        pass
+    proj_cat = os.path.join(os.path.abspath(proj_dir), "samples_catalog.json")
+    if os.path.isfile(proj_cat):
+        return proj_cat
+    try:
+        sys.path.insert(0, os.path.join(ROOT, "mcp-servers", "audio-index"))
+        from unified_indexer import DEFAULT_DB_PATH
+        if os.path.isfile(DEFAULT_DB_PATH) and os.path.getsize(DEFAULT_DB_PATH) > 0:
+            return DEFAULT_DB_PATH
+    except Exception:
+        pass
+    return None
+
+
+def _catalog_entries(cat_path: str | None) -> list[dict[str, Any]]:
+    """Entrées du catalogue : `samples_catalog.json` (legacy, clés path/filepath/...) ou
+    `samples.db` (SSOT, via `blueprint_safety.load_catalog_index`)."""
+    if not cat_path or not os.path.isfile(cat_path):
+        return []
+    if cat_path.lower().endswith((".db", ".sqlite", ".sqlite3")):
+        try:
+            from blueprint_safety import load_catalog_index
+            return [e for e in load_catalog_index(cat_path).values() if isinstance(e, dict)]
+        except Exception:
+            return []
+    try:
+        with open(cat_path, encoding="utf-8") as fh:
+            cat = json.load(fh)
+        entries = cat.get("samples") if isinstance(cat, dict) else cat
+        if isinstance(entries, dict):
+            entries = list(entries.values())
+        return [e for e in (entries or []) if isinstance(e, dict)]
+    except Exception:
+        return []
+
+
 def degree_to_midi(tonic_midi: int, mode: str, degree_0idx: int, oct_shift: int = 0) -> int:
     """Deterministically convert 0-indexed scale degree to MIDI note number."""
     sc = SCALES[mode]
@@ -150,13 +196,11 @@ def load_blueprint(blueprint_path: str, validate: bool = True) -> tuple[dict[str
         "total_bars": sum(int(s["bars"]) for s in bp["structure"]),
     }
     proj_dir = os.path.dirname(os.path.abspath(blueprint_path))
+    _cat = _resolve_sound_source(proj_dir, bp=bp)
     try:
-        from sample_fit_guard import notes_by_track_from_score_ir, resolve_catalog_path
-        _cat = resolve_catalog_path(proj_dir, bp=bp)
+        from sample_fit_guard import notes_by_track_from_score_ir
         _notes = notes_by_track_from_score_ir(proj_dir) or None
     except Exception:
-        _c0 = os.path.join(proj_dir, "samples_catalog.json")
-        _cat = _c0 if os.path.isfile(_c0) else None
         _notes = None
     meta["musical_safety"] = summarize_musical_safety(
         bp, catalog_path=_cat, notes_by_track=_notes, project_dir=proj_dir
@@ -1809,26 +1853,13 @@ def apply_wetness_sends(
     """v3.2 TimbralCohesion — pondère `fx_send`/`hall_send` par `(1 - dry_gain * wetness)` :
     un sample déjà réverbéré (wetness haut, lu dans `samples_catalog.json`) reçoit quasi 0
     send FX Hall, un synthé sec reçoit l'ambiance nécessaire pour s'unifier dans le même espace."""
-    try:
-        from sample_fit_guard import resolve_catalog_path
-        cat_path = resolve_catalog_path(proj_dir)
-    except Exception:
-        cat_path = os.path.join(proj_dir, "samples_catalog.json")
+    cat_path = _resolve_sound_source(proj_dir)
     wet_by_base: dict[str, float] = {}
-    if cat_path and os.path.isfile(cat_path):
-        try:
-            with open(cat_path, encoding="utf-8") as fh:
-                cat = json.load(fh)
-            entries = cat.get("samples") if isinstance(cat, dict) else cat
-            if isinstance(entries, dict):
-                entries = list(entries.values())
-            for e in entries or []:
-                if isinstance(e, dict):
-                    p = str(e.get("filepath") or e.get("path") or e.get("file") or e.get("sample_path") or "")
-                    if p:
-                        wet_by_base[os.path.basename(p)] = float(e.get("wetness_score", 0.5) or 0.5)
-        except Exception:
-            pass
+    for e in _catalog_entries(cat_path):
+        if e.get("wetness_score") is not None:
+            p = str(e.get("filepath") or e.get("path") or e.get("file") or e.get("sample_path") or "")
+            if p:
+                wet_by_base[os.path.basename(p)] = float(e["wetness_score"])
     report: dict[str, dict[str, float]] = {}
     for ch in channels:
         sf = str(getattr(ch, "sample_file", "") or "")
@@ -1864,32 +1895,16 @@ def _timbre_features_for_channel(ch: Any, proj_dir: str) -> dict[str, Any]:
         feats.update(inharmonicity=0.2, spectral_centroid_hz=2800.0, family="bell")
     sf = str(getattr(ch, "sample_file", "") or "")
     if sf:
-        try:
-            from sample_fit_guard import resolve_catalog_path
-            cat_path = resolve_catalog_path(proj_dir)
-        except Exception:
-            cat_path = os.path.join(proj_dir, "samples_catalog.json")
-        if cat_path and os.path.isfile(cat_path):
-            try:
-                with open(cat_path, encoding="utf-8") as fh:
-                    cat = json.load(fh)
-                base = os.path.basename(sf)
-                entries = cat.get("samples") if isinstance(cat, dict) else cat
-                if isinstance(entries, dict):
-                    entries = list(entries.values())
-                for e in entries or []:
-                    if not isinstance(e, dict):
-                        continue
-                    p = str(e.get("filepath") or e.get("path") or e.get("file") or e.get("sample_path") or "")
-                    if p and (p.endswith(sf) or os.path.basename(p) == base):
-                        feats.update({
-                            "inharmonicity": float(e.get("inharmonicity", 0.0) or 0.0),
-                            "spectral_centroid_hz": float(e.get("centroid_hz") or e.get("spectral_centroid_hz") or 0.0),
-                            "family": str(e.get("timbre_card") or feats.get("family", "")),
-                        })
-                        break
-            except Exception:
-                pass
+        base = os.path.basename(sf)
+        for e in _catalog_entries(_resolve_sound_source(proj_dir)):
+            p = str(e.get("filepath") or e.get("path") or e.get("file") or e.get("sample_path") or "")
+            if p and (p.endswith(sf) or os.path.basename(p) == base):
+                feats.update({
+                    "inharmonicity": float(e.get("inharmonicity", 0.0) or 0.0),
+                    "spectral_centroid_hz": float(e.get("centroid_hz") or e.get("spectral_centroid_hz") or 0.0),
+                    "family": str(e.get("timbre_card") or e.get("category") or feats.get("family", "")),
+                })
+                break
     return feats
 
 

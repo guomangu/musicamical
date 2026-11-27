@@ -190,5 +190,46 @@ class TestSuspensions(unittest.TestCase):
         self.assertEqual(n, 0)
 
 
+class TestLowIntervalLimitsC3(unittest.TestCase):
+    """Chantier 4 (spec v2.0 §4.2) : sous C3 (MIDI 48), tout intervalle entre notes
+    simultanées doit être >= 7 demi-tons (garde-fou music21)."""
+
+    def _score_two_tracks(self, bass_pitch: int, chord_pitch: int) -> "ScoreIR":
+        hc = {"key": "C", "mode": "aeolian", "degree_progression": ["i", "VI", "III", "VII"]}
+        tracks = {
+            "bass": [{"start": 0.0, "length": 4.0, "pitch": bass_pitch, "velocity": 90}],
+            "chords": [{"start": 0.0, "length": 4.0, "pitch": chord_pitch, "velocity": 70}],
+        }
+        return build_score_ir(hc, _meta(8), tracks)
+
+    def test_violation_below_c3_detected_and_fixed(self):
+        from narrative_harmony import enforce_low_interval_limits, low_interval_limit_violations
+        sir = self._score_two_tracks(40, 42)  # intervalle 2 st sous C3 -> interdit
+        viols = low_interval_limit_violations(sir)
+        self.assertEqual(len(viols), 1)
+        self.assertEqual(viols[0]["interval_st"], 2)
+        rep = enforce_low_interval_limits(sir)
+        self.assertEqual(rep["fixed"], 1)
+        self.assertEqual(rep["violations_remaining"], 0)
+        pitches = sorted(n.pitch for t in sir.tracks.values() for n in t.notes)
+        self.assertEqual(pitches[1] - pitches[0], 7)
+
+    def test_quinte_below_c3_allowed(self):
+        from narrative_harmony import low_interval_limit_violations
+        sir = self._score_two_tracks(40, 47)  # 7 st sous C3 : OK
+        self.assertEqual(low_interval_limit_violations(sir), [])
+
+    def test_above_c3_not_restricted_by_this_guard(self):
+        from narrative_harmony import low_interval_limit_violations
+        sir = self._score_two_tracks(50, 53)  # tierce au-dessus de C3 : hors périmètre du garde-fou C3
+        self.assertEqual(low_interval_limit_violations(sir), [])
+
+    def test_apply_narrative_harmony_reports_lil(self):
+        sir = self._score_two_tracks(38, 41)
+        rep = apply_narrative_harmony(sir, {"phrasing_8bar": {"operators": ["motif_answer"]}})
+        self.assertIn("low_interval_limits", rep)
+        self.assertEqual(rep["low_interval_limits"]["violations_remaining"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -163,5 +163,47 @@ class TestRelationalPalette(unittest.TestCase):
         self.assertGreater(ps.pleasantness_index(rows[:1]), ps.pleasantness_index(rows[1:]))
 
 
+class TestHybridSemanticSearch(unittest.TestCase):
+    """Chantier 1 (spec v2.0 §1.2) : recherche hybride psychoacoustique + cosinus clap_embedding."""
+
+    def _seed_semantic_db(self, tmp: str) -> str:
+        db = os.path.join(tmp, "samples.db")
+        conn = ui.init_db(db)
+        sub_p = os.path.join(tmp, "bass_808_sub.wav")
+        _write_wav(sub_p, 45.0)
+        ui.index_file(conn, sub_p, role_category="bass_808")
+        lead_p = os.path.join(tmp, "lead_bright.wav")
+        _write_wav(lead_p, 2800.0)
+        ui.index_file(conn, lead_p, role_category="lead")
+        conn.close()
+        return db
+
+    def test_hybrid_search_sub_query_ranks_sub_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = self._seed_semantic_db(tmp)
+            conn = ui.init_db(db)
+            res = ps.search_assets_hybrid(conn, "dark sub bass 808 heavy looming", top_k=2)
+            self.assertEqual(len(res), 2)
+            self.assertIn("bass_808_sub", res[0]["file_path"])
+            self.assertGreater(res[0]["hybrid_score"], res[1]["hybrid_score"])
+            for k in ("semantic_score", "complementarity", "hybrid_score"):
+                self.assertIn(k, res[0])
+            res_role = ps.search_assets_hybrid(conn, "sub 808", role_category="bass_808", top_k=5)
+            self.assertTrue(all(r["role_category"] == "bass_808" for r in res_role))
+            conn.close()
+
+    def test_hybrid_search_complementarity_penalizes_overlap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = self._seed_semantic_db(tmp)
+            conn = ui.init_db(db)
+            rows = ui.query_assets(conn, role_category="bass_808")
+            sub = rows[0]
+            # requête "sub 808" avec la basse déjà choisie -> complémentarité ~0 pour elle-même
+            res = ps.search_assets_hybrid(conn, "sub 808 heavy", role_category="bass_808",
+                                          chosen={"bass_808": sub}, top_k=1)
+            self.assertLessEqual(res[0]["complementarity"], 0.05)
+            conn.close()
+
+
 if __name__ == "__main__":
     unittest.main()
